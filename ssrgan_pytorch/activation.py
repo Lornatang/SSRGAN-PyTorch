@@ -11,17 +11,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torch import Tensor
 
-class HSwish(nn.Module):
-    @staticmethod
-    def forward(x):
-        return x * F.relu6(x + 3, inplace=True) / 6
+__all__ = [
+    "FReLU", "HSigmoid", "HSwish"
+]
+
+
+class FReLU(nn.Module):
+    r""" FReLU formulation. The funnel condition has a window size of kxk. (k=3 by default)"""
+
+    def __init__(self, channels):
+        super().__init__()
+        self.conv = nn.Conv2d(channels, channels, 3, stride=1, padding=1, groups=channels, bias=False)
+        self.bn = nn.BatchNorm2d(channels)
+
+    def forward(self, input: Tensor):
+        out = self.conv(input)
+        out = self.bn(out)
+        return torch.max(input, out)
 
 
 class HSigmoid(nn.Module):
     @staticmethod
-    def forward(x):
-        return F.relu6(x + 3, inplace=True) / 6
+    def forward(input: Tensor) -> Tensor:
+        return F.relu6(input + 3, inplace=True) / 6.
+
+
+class HSwish(nn.Module):
+    @staticmethod
+    def forward(input: Tensor) -> Tensor:
+        return input * F.relu6(input + 3, inplace=True) / 6.

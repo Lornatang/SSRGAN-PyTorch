@@ -11,6 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+from .activation import FReLU
+from .activation import HSigmoid
+from .activation import HSwish
 from .calculate_niqe import cal_niqe
 from .dataset import DatasetFromFolder
 from .dataset import check_image_file
@@ -30,6 +33,9 @@ from .utils import select_device
 from .utils import tensor2img
 
 __all__ = [
+    "FReLU",
+    "HSigmoid",
+    "HSwish",
     "cal_niqe",
     "DatasetFromFolder",
     "check_image_file",
