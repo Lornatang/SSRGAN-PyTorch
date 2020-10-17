@@ -26,13 +26,13 @@ from sewar.full_ref import ssim
 from sewar.full_ref import vifp
 from tqdm import tqdm
 
-from srgan_pytorch import DatasetFromFolder
-from srgan_pytorch import Generator
-from srgan_pytorch import cal_niqe
-from srgan_pytorch import select_device
+from ssrgan_pytorch import DatasetFromFolder
+from ssrgan_pytorch import Generator
+from ssrgan_pytorch import cal_niqe
+from ssrgan_pytorch import select_device
 
-parser = argparse.ArgumentParser(description="Photo-Realistic Single Image Super-Resolution Using "
-                                             "a Generative Adversarial Network.")
+parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
+                                             "technology for pathological microscopic images.")
 parser.add_argument("--dataroot", type=str, default="./data",
                     help="Path to datasets. (default:`./data`)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",

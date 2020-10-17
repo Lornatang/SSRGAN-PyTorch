@@ -21,10 +21,10 @@ import torchvision.transforms as transforms
 from PIL import Image
 from tqdm import tqdm
 
-from srgan_pytorch import Generator
-from srgan_pytorch import select_device
+from ssrgan_pytorch import Generator
+from ssrgan_pytorch import select_device
 
-parser = argparse.ArgumentParser(description="SRGAN algorithm is applied to video files.")
+parser = argparse.ArgumentParser(description="SSRGAN algorithm is applied to video files.")
 parser.add_argument("--file", type=str, required=True,
                     help="Test low resolution video name.")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[2, 4],

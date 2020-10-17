@@ -33,8 +33,8 @@ from ssrgan_pytorch import Generator
 from ssrgan_pytorch import cal_niqe
 from ssrgan_pytorch import select_device
 
-parser = argparse.ArgumentParser(description="Photo-Realistic Single Image Super-Resolution Using "
-                                             "a Generative Adversarial Network.")
+parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
+                                             "technology for pathological microscopic images.")
 parser.add_argument("--lr", type=str,
                     help="Test low resolution image name.")
 parser.add_argument("--hr", type=str,
