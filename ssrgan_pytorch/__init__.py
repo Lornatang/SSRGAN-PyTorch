@@ -19,6 +19,7 @@ from .activation import Sine
 from .calculate_niqe import cal_niqe
 from .dataset import DatasetFromFolder
 from .dataset import check_image_file
+from .loss import LPIPSLoss
 from .loss import TVLoss
 from .loss import VGGLoss
 from .model import Discriminator
