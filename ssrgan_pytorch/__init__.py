@@ -14,13 +14,13 @@
 from .activation import FReLU
 from .activation import HSigmoid
 from .activation import HSwish
+from .activation import Mish
+from .activation import Sine
 from .calculate_niqe import cal_niqe
 from .dataset import DatasetFromFolder
 from .dataset import check_image_file
 from .loss import TVLoss
-from .loss import VGG22Loss
-from .loss import VGG34Loss
-from .loss import VGG54Loss
+from .loss import VGGLoss
 from .model import Discriminator
 from .model import Generator
 from .utils import calculate_weights_indices
@@ -36,10 +36,12 @@ __all__ = [
     "FReLU",
     "HSigmoid",
     "HSwish",
+    "Mish",
+    "Sine",
     "cal_niqe",
     "DatasetFromFolder",
     "check_image_file",
-    "VGG34Loss",
+    "VGGLoss",
     "TVLoss",
     "Discriminator",
     "Generator",
