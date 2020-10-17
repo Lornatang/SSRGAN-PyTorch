@@ -23,18 +23,18 @@ import torch.utils.data.distributed
 import torchvision.utils as vutils
 from tqdm import tqdm
 
-from srgan_pytorch import DatasetFromFolder
-from srgan_pytorch import Discriminator
-from srgan_pytorch import FeatureExtractorVGG54
-from srgan_pytorch import Generator
-from srgan_pytorch import init_torch_seeds
-from srgan_pytorch import load_checkpoint
-from srgan_pytorch import select_device
+from ssrgan_pytorch import DatasetFromFolder
+from ssrgan_pytorch import Discriminator
+from ssrgan_pytorch import VGGLoss
+from ssrgan_pytorch import Generator
+from ssrgan_pytorch import init_torch_seeds
+from ssrgan_pytorch import load_checkpoint
+from ssrgan_pytorch import select_device
 
 logger = logging.getLogger(__name__)
 
-parser = argparse.ArgumentParser(description="Photo-Realistic Single Image Super-Resolution Using a "
-                                             "Generative Adversarial Network.")
+parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
+                                             "technology for pathological microscopic images.")
 parser.add_argument("--dataroot", type=str, default="./data",
                     help="Path to datasets. (default:`./data`)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
@@ -107,8 +107,8 @@ optimizer = torch.optim.Adam(netG.parameters(), lr=args.lr)
 if args.resume_PSNR:
     args.start_epoch = load_checkpoint(netG, optimizer, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
 
-# We use vgg54 as our feature extraction method by default.
-feature_extractor = FeatureExtractorVGG54().to(device)
+# We use vgg19 34th as our feature extraction method by default.
+vgg_criterion = VGGLoss(feature_layer=34).to(device)
 # Perceptual loss = mse_loss + 2e-6 * content_loss + 1e-3 * adversarial_loss
 content_criterion = nn.MSELoss().to(device)
 adversarial_criterion = nn.BCELoss().to(device)
@@ -247,7 +247,7 @@ for epoch in range(args.start_epoch, epochs):
         mse_loss = content_criterion(sr, hr)
         # We then define the VGG loss as the euclidean distance between the feature representations of
         # a reconstructed image G(LR) and the reference image LR:
-        vgg_loss = content_criterion(feature_extractor(sr), feature_extractor(hr))
+        vgg_loss = vgg_criterion(sr, hr)
         # Second train with fake high resolution image.
         sr_output = netD(sr)
         #  The generative loss is defined based on the probabilities of the discriminator
