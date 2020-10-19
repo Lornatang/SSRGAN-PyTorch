@@ -19,7 +19,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 __all__ = [
-    "Discriminator", "DepthWiseConv", "Generator",
+    "Discriminator", "DepthWiseConv", "Generator"
 ]
 
 
