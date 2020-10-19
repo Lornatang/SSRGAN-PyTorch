@@ -128,11 +128,17 @@ dmypy.json
 
 .DS_Store
 
+2x
+4x
 data/DIV2K
+data/5x
+data/10x
+data/20x
 data/2x
 data/4x
 data/train
 data/val
+KernelGAN
 
 output
 result
