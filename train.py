@@ -193,10 +193,10 @@ if args.resume:
     args.start_epoch = load_checkpoint(netD, optimizerD, f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
     args.start_epoch = load_checkpoint(netG, optimizerG, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
 
-# Train SRGAN model.
+# Train SSRGAN model.
 print(f"[*] Staring training SSRGAN model!")
 print(f"[*] Training for {epochs} epochs.")
-# Writer train SRGAN model log.
+# Writer train SSRGAN model log.
 if args.start_epoch == 0:
     with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
         writer = csv.writer(f)
