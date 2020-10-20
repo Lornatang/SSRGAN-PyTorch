@@ -35,15 +35,15 @@ from ssrgan_pytorch import select_device
 
 parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                              "technology for pathological microscopic images.")
-parser.add_argument("--lr", type=str,
+parser.add_argument("--lr", type=str, required=True,
                     help="Test low resolution image name.")
-parser.add_argument("--hr", type=str,
+parser.add_argument("--hr", type=str, required=True,
                     help="Raw high resolution image name.")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[2, 4],
+parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--model-path", default="./weight/SRGAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weight/SRGAN_4x.pth``).")
-parser.add_argument("--device", default="cpu",
+parser.add_argument("--model-path", default="./weight/SSRGAN_4x.pth", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (default: ``./weight/SSRGAN_4x.pth``).")
+parser.add_argument("--device", default="0",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``CUDA:0``).")
 
 args = parser.parse_args()

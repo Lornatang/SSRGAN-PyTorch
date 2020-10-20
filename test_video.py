@@ -29,8 +29,8 @@ parser.add_argument("--file", type=str, required=True,
                     help="Test low resolution video name.")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[2, 4],
                     help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--model-path", default="./weight/SRGAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weight/SRGAN_4x.pth``).")
+parser.add_argument("--model-path", default="./weight/SSRGAN_4x.pth", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (default: ``./weight/SSRGAN_4x.pth``).")
 parser.add_argument("--device", default="0",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``CUDA:0``).")
 parser.add_argument("--view", action="store_true",
@@ -40,7 +40,7 @@ args = parser.parse_args()
 print(args)
 
 # Selection of appropriate treatment equipment
-device = select_device(args.device, batch_size=args.batch_size)
+device = select_device(args.device, batch_size=1)
 
 # Construct SRGAN model.
 model = Generator(upscale_factor=args.upscale_factor).to(device)
@@ -69,7 +69,7 @@ sr_size = (size[0] * args.upscale_factor, size[1] * args.upscale_factor)
 pare_size = (sr_size[0] * 2 + 10, sr_size[1] + 10 + sr_size[0] // 5 - 9)
 
 # Video write loader.
-srgan_writer = cv2.VideoWriter(f"srgan_{args.scale_factor}x_{os.path.basename(video_name)}",
+srgan_writer = cv2.VideoWriter(f"ssrgan_{args.scale_factor}x_{os.path.basename(video_name)}",
                                cv2.VideoWriter_fourcc(*"MPEG"), fps, sr_size)
 compare_writer = cv2.VideoWriter(f"compare_{args.scale_factor}x_{os.path.basename(video_name)}",
                                  cv2.VideoWriter_fourcc(*"MPEG"), fps, pare_size)

@@ -51,7 +51,7 @@ parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                          "using Data Parallel or Distributed Data Parallel.")
 parser.add_argument("--lr", type=float, default=1e-4,
                     help="Learning rate. (default:1e-4)")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[2, 4, 8],
+parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
 parser.add_argument("--resume_PSNR", action="store_true",
                     help="Path to latest checkpoint for PSNR model.")
@@ -194,11 +194,11 @@ if args.resume:
     args.start_epoch = load_checkpoint(netG, optimizerG, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
 
 # Train SRGAN model.
-print(f"[*] Staring training SRGAN model!")
+print(f"[*] Staring training SSRGAN model!")
 print(f"[*] Training for {epochs} epochs.")
 # Writer train SRGAN model log.
 if args.start_epoch == 0:
-    with open(f"SRGAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
+    with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
         writer = csv.writer(f)
         writer.writerow(["Epoch", "D Loss", "G Loss", "MSE Loss"])
 
@@ -277,9 +277,9 @@ for epoch in range(args.start_epoch, epochs):
 
         # The image is saved every 5000 iterations.
         if (total_iter + 1) % 5000 == 0:
-            vutils.save_image(lr, os.path.join(output_lr_dir, f"SRGAN_{total_iter + 1}.bmp"), normalize=True)
-            vutils.save_image(hr, os.path.join(output_hr_dir, f"SRGAN_{total_iter + 1}.bmp"), normalize=True)
-            vutils.save_image(sr, os.path.join(output_sr_dir, f"SRGAN_{total_iter + 1}.bmp"), normalize=True)
+            vutils.save_image(lr, os.path.join(output_lr_dir, f"SSRGAN_{total_iter + 1}.bmp"), normalize=True)
+            vutils.save_image(hr, os.path.join(output_hr_dir, f"SSRGAN_{total_iter + 1}.bmp"), normalize=True)
+            vutils.save_image(sr, os.path.join(output_sr_dir, f"SSRGAN_{total_iter + 1}.bmp"), normalize=True)
 
     # The model is saved every 1 epoch.
     torch.save({"epoch": epoch + 1,
@@ -292,13 +292,13 @@ for epoch in range(args.start_epoch, epochs):
                 }, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
 
     # Writer training log
-    with open(f"SRGAN_{args.upscale_factor}x_Loss.csv", "a+") as f:
+    with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "a+") as f:
         writer = csv.writer(f)
         writer.writerow([epoch + 1,
                          d_avg_loss / len(dataloader),
                          g_avg_loss / len(dataloader),
                          avg_mse_loss / len(dataloader)])
 
-torch.save(netG.state_dict(), f"./weight/SRGAN_{args.upscale_factor}x.pth")
-logger.info(f"[*] Training SRGAN model done! Saving SRGAN model weight "
-            f"to `./weight/SRGAN_{args.upscale_factor}x.pth`.")
+torch.save(netG.state_dict(), f"./weight/SSRGAN_{args.upscale_factor}x.pth")
+logger.info(f"[*] Training SRGAN model done! Saving SSRGAN model weight "
+            f"to `./weight/SSRGAN_{args.upscale_factor}x.pth`.")
