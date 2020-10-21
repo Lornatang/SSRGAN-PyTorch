@@ -35,7 +35,7 @@ class LPIPSLoss(nn.Module):
     """
 
     def __init__(self, net="alex") -> None:
-        """ Constructing characteristic loss function of VGG network. For VGG19 34th layer.
+        """
 
         Args:
             net (str): Which kind of network to build neural network based on, AlexNet or VGG (Default: ``alex``).
