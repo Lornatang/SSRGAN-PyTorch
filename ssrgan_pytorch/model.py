@@ -13,36 +13,50 @@
 # ==============================================================================
 import math
 
-import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from .activation import HSigmoid
 from .activation import HSwish
 
 __all__ = [
-    "DepthWiseConv", "DiscriminatorForVGG", "GeneratorForMobileNet",
-    "InvertedResidual", "InvertedResidualSEModule", "SEModule", "channel_shuffle"
+    "DepthWiseSeperabelConvolution", "DiscriminatorForVGG", "GeneratorForMobileNet",
+    "InvertedResidual", "MobileNetV3Bottleneck", "SEModule", "ShuffleNetV1", "ShuffleNetV2",
+    "channel_shuffle"
 ]
 
 
-class DepthWiseConv(nn.Module):
-    r"""Deep separable convolution implemented in mobilenet version 1.
+class DepthWiseSeperabelConvolution(nn.Module):
+    r"""Deep separable convolution implemented in mobilenet version 1. 
 
     `"MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_
 
     """
 
-    def __init__(self, channels):
+    def __init__(self, in_channels, out_channels):
         r""" This is a structure for simple versions.
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
         """
-        super(DepthWiseConv, self).__init__()
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn2 = nn.BatchNorm2d(channels)
+        super(DepthWiseSeperabelConvolution, self).__init__()
+
+        # dw
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=0, groups=in_channels, bias=False),
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True)
+        )
+
+        # pw
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -59,13 +73,12 @@ class DepthWiseConv(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, input: Tensor) -> Tensor:
-        out = self.conv1(input)
-        out = self.bn1(out)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
+        # DepthWise convolution
+        out = self.depthwise(input)
+        # Projection convolution
+        out = self.pointwise(out)
 
-        return out + input
+        return out
 
 
 class DiscriminatorForVGG(nn.Module):
@@ -154,11 +167,11 @@ class GeneratorForMobileNet(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 2))
 
         if block == "v1":  # For MobileNet v1
-            block = DepthWiseConv
+            block = DepthWiseSeperabelConvolution
         elif block == "v2":  # For MobileNet v2
             block = InvertedResidual
         elif block == "v3":  # For MobileNet v3
-            block = InvertedResidualSEModule
+            block = MobileNetV3Bottleneck
         else:
             raise NameError("Please check the block name, the block name must be `v1`, `v2` or `v3`.")
 
@@ -205,31 +218,47 @@ class GeneratorForMobileNet(nn.Module):
         return out
 
 
-class InvertedResidualSEModule(nn.Module):
+class MobileNetV3Bottleneck(nn.Module):
     r""" Base on MobileNetV2 + Squeeze-and-Excite.
 
     `"Searching for MobileNetV3" <https://arxiv.org/pdf/1905.02244.pdf>`_
 
     """
 
-    def __init__(self, channels):
+    def __init__(self, in_channels, out_channels):
         r""" This is a structure for simple versions.
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
         """
-        super(InvertedResidualSEModule, self).__init__()
+        super(MobileNetV3Bottleneck, self).__init__()
+        channels = in_channels * 6
+
         # pw
-        self.conv1 = nn.Conv2d(channels, channels * 6, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels * 6)
-        self.hswish1 = HSwish()
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(channels),
+            HSwish()
+        )
+
         # dw
-        self.conv2 = nn.Conv2d(channels * 6, channels * 6, kernel_size=5, stride=1, padding=2, groups=channels * 6,
-                               bias=False)
-        self.bn2 = nn.BatchNorm2d(channels * 6)
-        # SE-Module
-        self.SEModule = SEModule(channels * 6)
-        self.hswish2 = HSwish()
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=5, stride=1, padding=2, groups=channels, bias=False),
+            nn.BatchNorm2d(channels),
+        )
+
+        # squeeze and excitation module.
+        self.SEModule = nn.Sequential(
+            SEModule(channels),
+            HSwish()
+        )
+
         # pw-linear
-        self.conv3 = nn.Conv2d(channels * 6, channels, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn3 = nn.BatchNorm2d(channels)
+        self.pointwise_linear = nn.Sequential(
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -247,18 +276,13 @@ class InvertedResidualSEModule(nn.Module):
 
     def forward(self, input: Tensor) -> Tensor:
         # Expansion convolution
-        out = self.conv1(input)
-        out = self.bn1(out)
-        out = self.hswish1(out)
+        out = self.pointwise(input)
         # DepthWise convolution
-        out = self.conv2(out)
-        out = self.bn2(out)
+        out = self.depthwise(out)
         # Squeeze-and-Excite
         out = self.SEModule(out)
-        out = self.hswish2(out)
         # Projection convolution
-        out = self.conv3(out)
-        out = self.bn3(out)
+        out = self.pointwise_linear(out)
 
         return out + input
 
@@ -270,25 +294,36 @@ class InvertedResidual(nn.Module):
 
     """
 
-    def __init__(self, channels):
+    def __init__(self, in_channels, out_channels, expand_factor=6):
         r""" This is a structure for simple versions.
 
         Args:
-            init_weights (optional, bool): Whether to initialize the initial neural network. (Default: ``True``).
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
         """
         super(InvertedResidual, self).__init__()
+        channels = in_channels * expand_factor
+
         # pw
-        self.conv1 = nn.Conv2d(channels, channels * 6, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels * 6)
-        self.relu1 = nn.ReLU6(inplace=True)
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU6(inplace=True)
+        )
+
         # dw
-        self.conv2 = nn.Conv2d(channels * 6, channels * 6, kernel_size=3, stride=1, padding=1, groups=channels * 6,
-                               bias=False)
-        self.bn2 = nn.BatchNorm2d(channels * 6)
-        self.relu2 = nn.ReLU6(inplace=True)
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=0, groups=channels, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU6(inplace=True)
+        )
+
         # pw-linear
-        self.conv3 = nn.Conv2d(channels * 6, channels, kernel_size=1, stride=1, padding=0, bias=False)
-        self.bn3 = nn.BatchNorm2d(channels)
+        self.pointwise_linear = nn.Sequential(
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels)
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -306,28 +341,19 @@ class InvertedResidual(nn.Module):
 
     def forward(self, input: Tensor) -> Tensor:
         # Expansion convolution
-        out = self.conv1(input)
-        out = self.bn1(out)
-        out = self.relu1(out)
+        out = self.pointwise(input)
         # DepthWise convolution
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu2(out)
+        out = self.depthwise(out)
         # Projection convolution
-        out = self.conv3(out)
-        out = self.bn3(out)
+        out = self.pointwise_linear(out)
 
         return out + input
 
 
-class ShuffleNetV1(nn.Module):
-    pass
-
-
 class SEModule(nn.Module):
-    r""" Base on MobileNetV2 + Squeeze-and-Excite.
+    r""" Squeeze-and-Excite module.
 
-    `"Searching for MobileNetV3" <https://arxiv.org/pdf/1905.02244.pdf>`_
+    `"MnasNet: Platform-Aware Neural Architecture Search for Mobile" <https://arxiv.org/pdf/1807.11626.pdf>`_
 
     """
 
@@ -348,25 +374,146 @@ class SEModule(nn.Module):
         return input * out.expand_as(input)
 
 
+class ShuffleNetV1(nn.Module):
+    r""" It mainly realizes the channel shuffling operation
+
+    `"ShuffleNet: An Extremely Efficient Convolutional Neural Network for Mobile Devices" <https://arxiv.org/pdf/1707.01083.pdf>`_
+
+    """
+
+    def __init__(self, in_channels, out_channels):
+        r""" This is a structure for simple versions.
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+        """
+        super(ShuffleNetV1, self).__init__()
+
+        channels = out_channels // 4
+
+        # pw
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, groups=3, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(inplace=True)
+        )
+
+        # dw
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(inplace=True)
+        )
+
+        # pw-linear
+        self.pointwise_linear = nn.Sequential(
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, groups=3, bias=False),
+            nn.BatchNorm2d(out_channels)
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.fill_(0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                m.weight.data *= 0.1
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, input: Tensor) -> Tensor:
+        # Expansion convolution
+        out = self.pointwise(input)
+        # Channel shuffle
+        out = channel_shuffle(out, 3)
+        # DepthWise convolution
+        out = self.depthwise(out)
+        # Projection convolution
+        out = self.pointwise_linear(out)
+        # Fusion input and out
+        out = torch.add(input, out)
+        out = F.relu(out, inplace=True)
+
+        return out
+
+
+class ShuffleNetV2(nn.Module):
+    r""" It mainly realizes the channel shuffling operation
+
+    `"ShuffleNet V2: Practical Guidelines for Efficient CNN Architecture Design" <https://arxiv.org/pdf/1807.11164.pdf>`_
+
+    """
+
+    def __init__(self, in_channels, out_channels):
+        r""" This is a structure for simple versions.
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+        """
+        super(ShuffleNetV2, self).__init__()
+        channels = out_channels // 2
+
+        self.branch1 = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
+            nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(inplace=True)
+        )
+
+        self.branch2 = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(inplace=True),
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.fill_(0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                m.weight.data *= 0.1
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, input: Tensor) -> Tensor:
+        out1 = self.branch1(input)
+        out2 = self.branch2(input)
+        out = torch.cat((out1, out2), dim=1)
+        out = channel_shuffle(out, 2)
+
+        return out
+
+
 # Source from `https://github.com/pytorch/vision/blob/master/torchvision/models/shufflenetv2.py`
-def channel_shuffle(input: Tensor, groups: int) -> Tensor:
-    """
-    Example:
-        >>> d = np.array([0,1,2,3,4,5,6,7,8])
-        >>> x = np.reshape(d, (3,3))
-        >>> x = np.transpose(x, [1,0])
-        >>> x = np.reshape(x, (9,))
-        '[0 1 2 3 4 5 6 7 8] --> [0 3 6 1 4 7 2 5 8]'
-    """
-    batch_size, num_channels, height, width = input.data.size()
+def channel_shuffle(x, groups):
+    # type: (torch.Tensor, int) -> torch.Tensor
+    batchsize, num_channels, height, width = x.data.size()
     channels_per_group = num_channels // groups
 
     # reshape
-    input = input.view(batch_size, groups, channels_per_group, height, width)
+    x = x.view(batchsize, groups,
+               channels_per_group, height, width)
 
-    input = torch.transpose(input, 1, 2).contiguous()
+    x = torch.transpose(x, 1, 2).contiguous()
 
     # flatten
-    input = input.view(batch_size, -1, height, width)
+    x = x.view(batchsize, -1, height, width)
 
-    return input
+    return x

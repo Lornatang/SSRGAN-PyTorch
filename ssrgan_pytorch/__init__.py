@@ -22,12 +22,14 @@ from .dataset import check_image_file
 from .loss import LPIPSLoss
 from .loss import TVLoss
 from .loss import VGGLoss
-from .model import DepthWiseConv
+from .model import DepthWiseSeperabelConvolution
 from .model import DiscriminatorForVGG
 from .model import GeneratorForMobileNet
 from .model import InvertedResidual
-from .model import InvertedResidualSEModule
+from .model import MobileNetV3Bottleneck
 from .model import SEModule
+from .model import ShuffleNetV1
+from .model import ShuffleNetV2
 from .model import channel_shuffle
 from .utils import calculate_weights_indices
 from .utils import cubic
@@ -45,14 +47,17 @@ __all__ = [
     "cal_niqe",
     "DatasetFromFolder",
     "check_image_file",
-    "VGGLoss",
     "TVLoss",
-    "DepthWiseConv",
+    "VGGLoss",
+    "DepthWiseSeperabelConvolution",
     "DiscriminatorForVGG",
     "GeneratorForMobileNet",
     "InvertedResidual",
-    "InvertedResidualSEModule",
+    "MobileNetV3Bottleneck",
     "SEModule",
+    "ShuffleNetV1",
+    "ShuffleNetV2",
+    "channel_shuffle",
     "calculate_weights_indices",
     "cubic",
     "imresize",
