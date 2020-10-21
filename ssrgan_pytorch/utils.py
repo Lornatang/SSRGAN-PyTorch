@@ -20,8 +20,8 @@ import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 
 __all__ = [
-    "calculate_weights_indices", "cubic", "img2tensor", "imresize", "init_torch_seeds", "load_checkpoint",
-    "select_device", "tensor2img",
+    "calculate_weights_indices", "cubic", "pil2tensor", "imresize", "init_torch_seeds", "load_checkpoint",
+    "select_device", "tensor2pil",
 ]
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ def cubic(x):
             -0.5 * absx3 + 2.5 * absx2 - 4 * absx + 2) * (((absx > 1) * (absx <= 2)).type_as(absx))
 
 
-def img2tensor():
+def pil2tensor():
     r"""Read array image into tensor format."""
     return transforms.ToTensor()
 
@@ -252,6 +252,6 @@ def select_device(device: str = None, batch_size: int = 1) -> torch.device:
     return torch.device("cuda:0" if cuda else "cpu")
 
 
-def tensor2img():
+def tensor2pil():
     r"""Read tensor format  into image array."""
     return transforms.ToPILImage()

@@ -12,12 +12,11 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
-import os
 import time
 
 import cv2
 import lpips
-import torch.utils.data.distributed
+import torch
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from PIL import Image
@@ -29,7 +28,7 @@ from sewar.full_ref import sam
 from sewar.full_ref import ssim
 from sewar.full_ref import vifp
 
-from ssrgan_pytorch import Generator
+from ssrgan_pytorch import GeneratorForMobileNet
 from ssrgan_pytorch import cal_niqe
 from ssrgan_pytorch import select_device
 
@@ -48,26 +47,18 @@ parser.add_argument("--device", default="0",
 
 args = parser.parse_args()
 
-try:
-    os.makedirs("benchmark")
-except OSError:
-    pass
-
 # Selection of appropriate treatment equipment
 device = select_device(args.device, batch_size=1)
 
 # Construct SRGAN model.
-model = Generator(upscale_factor=args.upscale_factor).to(device)
+model = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
 model.eval()
 
 # Just convert the data to Tensor format
-pre_process = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
+pre_process = transforms.ToTensor()
 
 # Load image
 lr = Image.open(args.lr)

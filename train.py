@@ -24,9 +24,9 @@ import torchvision.utils as vutils
 from tqdm import tqdm
 
 from ssrgan_pytorch import DatasetFromFolder
-from ssrgan_pytorch import Discriminator
+from ssrgan_pytorch import DiscriminatorForVGG
+from ssrgan_pytorch import GeneratorForMobileNet
 from ssrgan_pytorch import VGGLoss
-from ssrgan_pytorch import Generator
 from ssrgan_pytorch import init_torch_seeds
 from ssrgan_pytorch import load_checkpoint
 from ssrgan_pytorch import select_device
@@ -96,8 +96,8 @@ dataloader = torch.utils.data.DataLoader(dataset,
                                          num_workers=int(args.workers))
 
 # Construct network architecture model of generator and discriminator.
-netG = Generator(upscale_factor=args.upscale_factor).to(device)
-netD = Discriminator().to(device)
+netD = DiscriminatorForVGG().to(device)
+netG = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
 
 # Define PSNR model optimizers
 psnr_epochs = int(args.psnr_iters // len(dataloader))

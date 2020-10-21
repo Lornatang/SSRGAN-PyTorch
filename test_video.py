@@ -16,12 +16,12 @@ import os
 
 import cv2
 import numpy as np
-import torch.utils.data.distributed
+import torch
 import torchvision.transforms as transforms
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan_pytorch import Generator
+from ssrgan_pytorch import GeneratorForMobileNet
 from ssrgan_pytorch import select_device
 
 parser = argparse.ArgumentParser(description="SSRGAN algorithm is applied to video files.")
@@ -43,17 +43,14 @@ print(args)
 device = select_device(args.device, batch_size=1)
 
 # Construct SRGAN model.
-model = Generator(upscale_factor=args.upscale_factor).to(device)
+model = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
 model.load_state_dict(torch.load(args.weights, map_location=device))
 
 # Set model eval mode
 model.eval()
 
 # Image preprocessing operation
-pil2tensor = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
+pil2tensor = transforms.ToTensor()
 tensor2pil = transforms.ToPILImage()
 
 # Open video file

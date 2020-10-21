@@ -22,16 +22,19 @@ from .dataset import check_image_file
 from .loss import LPIPSLoss
 from .loss import TVLoss
 from .loss import VGGLoss
-from .model import Discriminator
-from .model import Generator
+from .model import DepthWiseConv
+from .model import DiscriminatorForVGG
+from .model import GeneratorForMobileNet
+from .model import InvertedResidual
+from .model import InvertedResidualSEModule
+from .model import SEModule
+from .model import channel_shuffle
 from .utils import calculate_weights_indices
 from .utils import cubic
-from .utils import img2tensor
 from .utils import imresize
 from .utils import init_torch_seeds
 from .utils import load_checkpoint
 from .utils import select_device
-from .utils import tensor2img
 
 __all__ = [
     "FReLU",
@@ -44,14 +47,16 @@ __all__ = [
     "check_image_file",
     "VGGLoss",
     "TVLoss",
-    "Discriminator",
-    "Generator",
+    "DepthWiseConv",
+    "DiscriminatorForVGG",
+    "GeneratorForMobileNet",
+    "InvertedResidual",
+    "InvertedResidualSEModule",
+    "SEModule",
     "calculate_weights_indices",
     "cubic",
-    "img2tensor",
     "imresize",
     "init_torch_seeds",
     "load_checkpoint",
     "select_device",
-    "tensor2img"
 ]

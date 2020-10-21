@@ -28,7 +28,7 @@ from sewar.full_ref import vifp
 from tqdm import tqdm
 
 from ssrgan_pytorch import DatasetFromFolder
-from ssrgan_pytorch import Generator
+from ssrgan_pytorch import GeneratorForMobileNet
 from ssrgan_pytorch import cal_niqe
 from ssrgan_pytorch import select_device
 
@@ -64,7 +64,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
                                          num_workers=int(args.workers))
 
 # Construct SRGAN model.
-model = Generator(upscale_factor=args.upscale_factor).to(device)
+model = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
 model.load_state_dict(torch.load(args.weights, map_location=device))
 
 # Set model eval mode
