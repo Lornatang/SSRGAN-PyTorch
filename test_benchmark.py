@@ -55,8 +55,8 @@ except OSError:
 # Selection of appropriate treatment equipment
 device = select_device(args.device, batch_size=1)
 
-dataset = DatasetFromFolder(input_dir=f"{args.dataroot}/{args.upscale_factor}x/train/input",
-                            target_dir=f"{args.dataroot}/{args.upscale_factor}x/train/target")
+dataset = DatasetFromFolder(input_dir=f"{args.dataroot}/{args.upscale_factor}x/test/input",
+                            target_dir=f"{args.dataroot}/{args.upscale_factor}x/test/target")
 
 dataloader = torch.utils.data.DataLoader(dataset,
                                          batch_size=1,
@@ -65,7 +65,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
 
 # Construct SRGAN model.
 model = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
-model.load_state_dict(torch.load(args.weights, map_location=device))
+model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
 model.eval()
@@ -86,7 +86,7 @@ total_lpips_value = 0.0
 
 # Start evaluate model performance
 progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-for iteration, (input, target) in progress_bar:
+for i, (input, target) in progress_bar:
     # Set model gradients to zero
     lr = input.to(device)
     hr = target.to(device)
@@ -94,20 +94,20 @@ for iteration, (input, target) in progress_bar:
     with torch.no_grad():
         sr = model(lr)
 
-    vutils.save_image(lr, f"./benchmark/lr_{iteration}.bmp", normalize=True)
-    vutils.save_image(sr, f"./benchmark/sr_{iteration}.bmp", normalize=True)
-    vutils.save_image(hr, f"./benchmark/hr_{iteration}.bmp", normalize=True)
+    vutils.save_image(lr, f"./benchmark/lr_{i}.bmp", normalize=False)
+    vutils.save_image(sr, f"./benchmark/sr_{i}.bmp", normalize=False)
+    vutils.save_image(hr, f"./benchmark/hr_{i}.bmp", normalize=False)
 
     # Evaluate performance
-    src_img = cv2.imread(f"./benchmark/sr_{iteration}.bmp")
-    dst_img = cv2.imread(f"./benchmark/hr_{iteration}.bmp")
+    src_img = cv2.imread(f"./benchmark/sr_{i}.bmp")
+    dst_img = cv2.imread(f"./benchmark/hr_{i}.bmp")
 
     mse_value = mse(src_img, dst_img)
     rmse_value = rmse(src_img, dst_img)
     psnr_value = psnr(src_img, dst_img)
     ssim_value = ssim(src_img, dst_img)
     ms_ssim_value = msssim(src_img, dst_img)
-    niqe_value = cal_niqe(f"./benchmark/sr_{iteration}.bmp")
+    niqe_value = cal_niqe(f"./benchmark/sr_{i}.bmp")
     sam_value = sam(src_img, dst_img)
     vif_value = vifp(src_img, dst_img)
     lpips_value = lpips_loss(sr, hr)
@@ -122,7 +122,7 @@ for iteration, (input, target) in progress_bar:
     total_vif_value += vif_value
     total_lpips_value += lpips_value.item()
 
-    progress_bar.set_description(f"[{iteration + 1}/{len(dataloader)}] "
+    progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
                                  f"PSNR: {psnr_value:.2f}dB "
                                  f"SSIM: {ssim_value[0]:.4f} "
                                  f"LPIPS: {lpips_value.item():.4f}")

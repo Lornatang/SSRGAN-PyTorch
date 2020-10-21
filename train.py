@@ -107,10 +107,10 @@ optimizer = torch.optim.Adam(netG.parameters(), lr=args.lr)
 if args.resume_PSNR:
     args.start_epoch = load_checkpoint(netG, optimizer, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
 
-# We use vgg19 34th as our feature extraction method by default.
-vgg_criterion = VGGLoss(feature_layer=34).to(device)
-# Perceptual loss = mse_loss + 2e-6 * vgg_loss + 1e-3 * adversarial_loss
-content_criterion = nn.MSELoss().to(device)
+# We use VGG5.4 as our feature extraction method by default.
+content_criterion = ContentLoss().to(device)
+# Perceptual loss = content_loss + 1e-3 * adversarial_loss
+mse_criterion = nn.MSELoss().to(device)
 adversarial_criterion = nn.BCELoss().to(device)
 
 # Set the all model to training mode
@@ -143,7 +143,7 @@ else:
             # Generating fake high resolution images from real low resolution images.
             sr = netG(lr)
             # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
-            mse_loss = content_criterion(sr, hr)
+            mse_loss = mse_criterion(sr, hr)
             # Calculate gradients for generator
             mse_loss.backward()
             # Update generator weights
@@ -155,13 +155,13 @@ else:
                                          f"MSE loss: {mse_loss.item():.6f}")
 
             # record iter.
-            total_iter = len(dataloader) * epoch + i
+            iters = len(dataloader) * epoch + i
 
             # The image is saved every 5000 iterations.
-            if (total_iter + 1) % 5000 == 0:
-                vutils.save_image(lr, os.path.join(output_lr_dir, f"SRResNet_{total_iter + 1}.bmp"), normalize=True)
-                vutils.save_image(hr, os.path.join(output_hr_dir, f"SRResNet_{total_iter + 1}.bmp"), normalize=True)
-                vutils.save_image(sr, os.path.join(output_sr_dir, f"SRResNet_{total_iter + 1}.bmp"), normalize=True)
+            if (iters + 1) % 5000 == 0:
+                vutils.save_image(lr, os.path.join(output_lr_dir, f"SRResNet_{iters + 1}.bmp"), normalize=True)
+                vutils.save_image(hr, os.path.join(output_hr_dir, f"SRResNet_{iters + 1}.bmp"), normalize=True)
+                vutils.save_image(sr, os.path.join(output_sr_dir, f"SRResNet_{iters + 1}.bmp"), normalize=True)
 
         # The model is saved every 1 epoch.
         torch.save({"epoch": epoch + 1,
@@ -206,7 +206,6 @@ for epoch in range(args.start_epoch, epochs):
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
     g_avg_loss = 0.
     d_avg_loss = 0.
-    avg_mse_loss = 0.
     for i, (input, target) in progress_bar:
         lr = input.to(device)
         hr = target.to(device)
@@ -243,11 +242,9 @@ for epoch in range(args.start_epoch, epochs):
         # Set generator gradients to zero
         netG.zero_grad()
 
-        # The pixel-wise MSE loss is calculated as:
-        mse_loss = content_criterion(sr, hr)
         # We then define the VGG loss as the euclidean distance between the feature representations of
         # a reconstructed image G(LR) and the reference image LR:
-        vgg_loss = vgg_criterion(sr, hr)
+        content_loss = content_criterion(sr, hr)
         # Second train with fake high resolution image.
         sr_output = netD(sr)
         #  The generative loss is defined based on the probabilities of the discriminator
@@ -255,7 +252,7 @@ for epoch in range(args.start_epoch, epochs):
         adversarial_loss = adversarial_criterion(sr_output, real_label)
 
         # We formulate the perceptual loss as the weighted sum of a content loss and an adversarial loss component as:
-        errG = mse_loss + 2e-6 * vgg_loss + 1e-3 * adversarial_loss
+        errG = content_loss + 1e-3 * adversarial_loss
         errG.backward()
         D_G_z2 = sr_output.mean().item()
         optimizerG.step()
@@ -266,20 +263,19 @@ for epoch in range(args.start_epoch, epochs):
 
         d_avg_loss += errD.item()
         g_avg_loss += errG.item()
-        avg_mse_loss += mse_loss.item()
 
         progress_bar.set_description(f"[{epoch + 1}/{epochs}][{i + 1}/{len(dataloader)}] "
                                      f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
                                      f"D(HR): {D_x:.6f} D(G(LR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
 
         # record iter.
-        total_iter = len(dataloader) * epoch + i
+        iters = len(dataloader) * epoch + i
 
         # The image is saved every 5000 iterations.
-        if (total_iter + 1) % 5000 == 0:
-            vutils.save_image(lr, os.path.join(output_lr_dir, f"SSRGAN_{total_iter + 1}.bmp"), normalize=True)
-            vutils.save_image(hr, os.path.join(output_hr_dir, f"SSRGAN_{total_iter + 1}.bmp"), normalize=True)
-            vutils.save_image(sr, os.path.join(output_sr_dir, f"SSRGAN_{total_iter + 1}.bmp"), normalize=True)
+        if (iters + 1) % 5000 == 0:
+            vutils.save_image(lr, os.path.join(output_lr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=False)
+            vutils.save_image(hr, os.path.join(output_hr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=False)
+            vutils.save_image(sr, os.path.join(output_sr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=False)
 
     # The model is saved every 1 epoch.
     torch.save({"epoch": epoch + 1,

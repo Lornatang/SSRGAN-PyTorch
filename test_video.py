@@ -27,7 +27,7 @@ from ssrgan_pytorch import select_device
 parser = argparse.ArgumentParser(description="SSRGAN algorithm is applied to video files.")
 parser.add_argument("--file", type=str, required=True,
                     help="Test low resolution video name.")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[2, 4],
+parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
 parser.add_argument("--model-path", default="./weight/SSRGAN_4x.pth", type=str, metavar="PATH",
                     help="Path to latest checkpoint for model. (default: ``./weight/SSRGAN_4x.pth``).")
@@ -44,7 +44,7 @@ device = select_device(args.device, batch_size=1)
 
 # Construct SRGAN model.
 model = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
-model.load_state_dict(torch.load(args.weights, map_location=device))
+model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
 model.eval()
