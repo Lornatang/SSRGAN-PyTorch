@@ -37,8 +37,9 @@ def split_dataset(train_dir: str = None, val_dir: str = None) -> None:
         # Move the validation set to the specified location.
         for filename in samples:
             # Making low resolution image data set.
-            shutil.move(os.path.join(train_dir, filename), os.path.join(val_dir, filename))
+            shutil.move(os.path.join("train", "input", filename), os.path.join("test", "input", filename))
+            shutil.move(os.path.join("train", "target", filename), os.path.join("test", "target", filename))
 
 
 if __name__ == "__main__":
-    split_dataset(train_dir="./train", val_dir="./val")
+    split_dataset(train_dir="./train/input", val_dir="./test/input")
