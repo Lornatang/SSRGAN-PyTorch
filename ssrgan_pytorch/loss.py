@@ -137,7 +137,7 @@ class TVLoss(nn.Module):
 
 
 class VGGLoss(nn.Module):
-    r""" Where VGG19 represents the feature map of 7/33/34th layer in pretrained VGG19 model.
+    r""" Where VGG19 represents the feature map of 7/8/35/36th layer in pretrained VGG19 model.
 
     `"Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network" <https://arxiv.org/pdf/1609.04802.pdf>`_
     `"ESRGAN: Enhanced Super-Resolution Generative Adversarial Networks" <https://arxiv.org/pdf/1809.00219.pdf>`_
@@ -148,11 +148,11 @@ class VGGLoss(nn.Module):
     as SRGAN in the following.
     """
 
-    def __init__(self, feature_layer: int = 34) -> None:
-        """ Constructing characteristic loss function of VGG network. For VGG19 34th layer.
+    def __init__(self, feature_layer: int = 35) -> None:
+        """ Constructing characteristic loss function of VGG network. For VGG19 5.4th layer.
 
         Args:
-            feature_layer (int): How many layers in VGG19. (Default:34).
+            feature_layer (int): How many layers in VGG19. (Default:35).
 
         Notes:
             features(
@@ -198,6 +198,9 @@ class VGGLoss(nn.Module):
         super(VGGLoss, self).__init__()
         model = vgg19(pretrained=True)
         self.features = nn.Sequential(*list(model.features.children())[:feature_layer]).eval()
+        # Freeze parameters. Don't train.
+        for name, param in self.features.named_parameters():
+            param.requires_grad = False
 
     def forward(self, input: Tensor, target: Tensor) -> Tensor:
         vgg_loss = F.mse_loss(self.features(input), self.features(target))

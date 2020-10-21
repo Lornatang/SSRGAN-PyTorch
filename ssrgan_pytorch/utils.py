@@ -92,11 +92,6 @@ def cubic(x):
             -0.5 * absx3 + 2.5 * absx2 - 4 * absx + 2) * (((absx > 1) * (absx <= 2)).type_as(absx))
 
 
-def pil2tensor():
-    r"""Read array image into tensor format."""
-    return transforms.ToTensor()
-
-
 def imresize(img, scale, antialiasing=True):
     # Now the scale should be the same for H and W
     # input: img: CHW RGB [0,1]
@@ -250,8 +245,3 @@ def select_device(device: str = None, batch_size: int = 1) -> torch.device:
 
     logger.info("")  # skip a line
     return torch.device("cuda:0" if cuda else "cpu")
-
-
-def tensor2pil():
-    r"""Read tensor format  into image array."""
-    return transforms.ToPILImage()
