@@ -108,8 +108,8 @@ if args.resume_PSNR:
     args.start_epoch = load_checkpoint(netG, optimizer, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
 
 # We use VGG5.4 as our feature extraction method by default.
-content_criterion = ContentLoss().to(device)
-# Perceptual loss = content_loss + 1e-3 * adversarial_loss
+vgg_criterion = VGGLoss().to(device)
+# Loss = content loss + 1e-3 * adversarial loss
 mse_criterion = nn.MSELoss().to(device)
 adversarial_criterion = nn.BCELoss().to(device)
 
@@ -200,7 +200,7 @@ print(f"[*] Training for {epochs} epochs.")
 if args.start_epoch == 0:
     with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
         writer = csv.writer(f)
-        writer.writerow(["Epoch", "D Loss", "G Loss", "MSE Loss"])
+        writer.writerow(["Epoch", "D Loss", "G Loss"])
 
 for epoch in range(args.start_epoch, epochs):
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -244,7 +244,7 @@ for epoch in range(args.start_epoch, epochs):
 
         # We then define the VGG loss as the euclidean distance between the feature representations of
         # a reconstructed image G(LR) and the reference image LR:
-        content_loss = content_criterion(sr, hr)
+        content_loss = vgg_criterion(sr, hr)
         # Second train with fake high resolution image.
         sr_output = netD(sr)
         #  The generative loss is defined based on the probabilities of the discriminator
@@ -273,9 +273,9 @@ for epoch in range(args.start_epoch, epochs):
 
         # The image is saved every 5000 iterations.
         if (iters + 1) % 5000 == 0:
-            vutils.save_image(lr, os.path.join(output_lr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=False)
-            vutils.save_image(hr, os.path.join(output_hr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=False)
-            vutils.save_image(sr, os.path.join(output_sr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=False)
+            vutils.save_image(lr, os.path.join(output_lr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=True)
+            vutils.save_image(hr, os.path.join(output_hr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=True)
+            vutils.save_image(sr, os.path.join(output_sr_dir, f"SSRGAN_{iters + 1}.bmp"), normalize=True)
 
     # The model is saved every 1 epoch.
     torch.save({"epoch": epoch + 1,
@@ -292,8 +292,7 @@ for epoch in range(args.start_epoch, epochs):
         writer = csv.writer(f)
         writer.writerow([epoch + 1,
                          d_avg_loss / len(dataloader),
-                         g_avg_loss / len(dataloader),
-                         avg_mse_loss / len(dataloader)])
+                         g_avg_loss / len(dataloader)])
 
 torch.save(netG.state_dict(), f"./weight/SSRGAN_{args.upscale_factor}x.pth")
 logger.info(f"[*] Training SRGAN model done! Saving SSRGAN model weight "

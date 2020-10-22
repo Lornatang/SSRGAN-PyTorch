@@ -60,17 +60,18 @@ class DepthWiseSeperabelConvolution(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
                 if m.bias is not None:
-                    m.bias.data.fill_(0)
+                    m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
         # DepthWise convolution
@@ -119,35 +120,22 @@ class DiscriminatorForVGG(nn.Module):
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
-        self.avgpool = nn.AdaptiveAvgPool2d(14)
+        self.avgpool = nn.AdaptiveAvgPool2d((14, 14))
 
-        self.classifier = nn.Sequential(
+        self.fc = nn.Sequential(
             nn.Linear(512 * 14 * 14, 1024),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Linear(1024, 1)
+            nn.Linear(1024, 1),
+            nn.Sigmoid()
         )
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="leaky_relu")
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
 
     def forward(self, input: Tensor) -> Tensor:
         out = self.features(input)
         out = self.avgpool(out)
         out = torch.flatten(out, 1)
-        out = self.classifier(out)
+        out = self.fc(out)
 
-        return torch.sigmoid(out)
+        return out
 
 
 class GeneratorForMobileNet(nn.Module):
@@ -184,7 +172,7 @@ class GeneratorForMobileNet(nn.Module):
         # 16 layer similar stack block structure.
         blocks = []
         for _ in range(num_depth_wise_conv_block):
-            blocks.append(block(64))
+            blocks.append(block(64, 32))
         self.Trunk = nn.Sequential(*blocks)
 
         # Second conv layer post residual blocks
@@ -205,7 +193,10 @@ class GeneratorForMobileNet(nn.Module):
         self.upsampling = nn.Sequential(*upsampling)
 
         # Final output layer
-        self.conv3 = nn.Conv2d(64, 3, kernel_size=9, stride=1, padding=4, bias=False)
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(64, 3, kernel_size=9, stride=1, padding=4, bias=False),
+            nn.Tanh()
+        )
 
     def forward(self, input: Tensor) -> Tensor:
         out1 = self.conv1(input)
@@ -262,17 +253,18 @@ class MobileNetV3Bottleneck(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
                 if m.bias is not None:
-                    m.bias.data.fill_(0)
+                    m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
         # Expansion convolution
@@ -327,17 +319,18 @@ class InvertedResidual(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
                 if m.bias is not None:
-                    m.bias.data.fill_(0)
+                    m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
         # Expansion convolution
@@ -414,17 +407,18 @@ class ShuffleNetV1(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
                 if m.bias is not None:
-                    m.bias.data.fill_(0)
+                    m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
         # Expansion convolution
@@ -480,17 +474,18 @@ class ShuffleNetV2(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
                 if m.bias is not None:
-                    m.bias.data.fill_(0)
+                    m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight)
                 m.weight.data *= 0.1
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias, 0)
+                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
         out1 = self.branch1(input)

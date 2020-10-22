@@ -17,11 +17,10 @@ import os
 
 import torch
 import torch.backends.cudnn as cudnn
-import torchvision.transforms as transforms
 
 __all__ = [
-    "calculate_weights_indices", "cubic", "pil2tensor", "imresize", "init_torch_seeds", "load_checkpoint",
-    "select_device", "tensor2pil",
+    "calculate_weights_indices", "cubic", "imresize", "init_torch_seeds", "load_checkpoint",
+    "select_device",
 ]
 
 logger = logging.getLogger(__name__)
