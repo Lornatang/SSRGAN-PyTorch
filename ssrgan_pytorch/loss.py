@@ -34,11 +34,11 @@ class LPIPSLoss(nn.Module):
     at least in human visual system. So we adopt a perceptual loss based approach.
     """
 
-    def __init__(self, net="alex") -> None:
+    def __init__(self, net="vgg") -> None:
         """
 
         Args:
-            net (str): Which kind of network to build neural network based on, AlexNet or VGG (Default: ``alex``).
+            net (str): Which kind of network to build neural network based on, AlexNet or VGG (Default: ``vgg``).
 
         Notes:
             AlexNet(

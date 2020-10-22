@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 from ssrgan_pytorch import DatasetFromFolder
 from ssrgan_pytorch import DiscriminatorForVGG
-from ssrgan_pytorch import GeneratorForMobileNet
+from ssrgan_pytorch import Generator
 from ssrgan_pytorch import VGGLoss
 from ssrgan_pytorch import init_torch_seeds
 from ssrgan_pytorch import load_checkpoint
@@ -51,6 +51,11 @@ parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                          "using Data Parallel or Distributed Data Parallel.")
 parser.add_argument("--lr", type=float, default=1e-4,
                     help="Learning rate. (default:1e-4)")
+parser.add_argument("--block", type=str, default="srgan",
+                    choices=["srgan", "esrgan", "rfb-esrgan",
+                             "mobilenet-v1", "mobilenet-v2", "mobilenet-v3",
+                             "shufflenet-v1", "shufflenet-v2"],
+                    help="Which structure block is selected as the backbone network. (default: `srgan`).")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
 parser.add_argument("--resume_PSNR", action="store_true",
@@ -97,7 +102,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
 
 # Construct network architecture model of generator and discriminator.
 netD = DiscriminatorForVGG().to(device)
-netG = GeneratorForMobileNet(upscale_factor=args.upscale_factor).to(device)
+netG = Generator(upscale_factor=args.upscale_factor, block=args.block).to(device)
 
 # Define PSNR model optimizers
 psnr_epochs = int(args.psnr_iters // len(dataloader))
@@ -105,7 +110,9 @@ optimizer = torch.optim.Adam(netG.parameters(), lr=args.lr)
 
 # Loading PSNR pre training model
 if args.resume_PSNR:
-    args.start_epoch = load_checkpoint(netG, optimizer, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
+    args.start_epoch = load_checkpoint(netG,
+                                       optimizer,
+                                       f"./weight/SRResNet_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
 
 # We use VGG5.4 as our feature extraction method by default.
 vgg_criterion = VGGLoss().to(device)
@@ -120,13 +127,14 @@ netG.train()
 # Pre-train generator using raw MSE loss
 print("[*] Start training PSNR model based on MSE loss.")
 # Save the generator model based on MSE pre training to speed up the training time
-if os.path.exists(f"./weight/SRResNet_{args.upscale_factor}x.pth"):
+if os.path.exists(f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth"):
     print("[*] Found PSNR pretrained model weights. Skip pre-train.")
-    netG.load_state_dict(torch.load(f"./weight/SRResNet_{args.upscale_factor}x.pth", map_location=device))
+    netG.load_state_dict(
+        torch.load(f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth", map_location=device))
 else:
     # Writer train PSNR model log.
     if args.start_epoch == 0:
-        with open(f"SRResNet_{args.upscale_factor}x_Loss.csv", "w+") as f:
+        with open(f"SRResNet_{args.upscale_factor}x_Loss_for_{args.block}.csv", "w+") as f:
             writer = csv.writer(f)
             writer.writerow(["Epoch", "MSE Loss"])
     print("[!] Not found pretrained weights. Start training PSNR model.")
@@ -167,16 +175,16 @@ else:
         torch.save({"epoch": epoch + 1,
                     "optimizer": optimizer.state_dict(),
                     "state_dict": netG.state_dict()
-                    }, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
+                    }, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
 
         # Writer training log
-        with open(f"SRResNet_{args.upscale_factor}x_Loss.csv", "a+") as f:
+        with open(f"SRResNet_{args.upscale_factor}x_Loss_for_{args.block}.csv", "a+") as f:
             writer = csv.writer(f)
             writer.writerow([epoch + 1, avg_loss / len(dataloader)])
 
-    torch.save(netG.state_dict(), f"./weight/SRResNet_{args.upscale_factor}x.pth")
+    torch.save(netG.state_dict(), f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth")
     print(f"[*] Training PSNR model done! Saving PSNR model weight to "
-          f"`./weight/SRResNet_{args.upscale_factor}x.pth`.")
+          f"`./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth`.")
 
 # After training the PSNR model, set the initial iteration to 0.
 args.start_epoch = 0
@@ -190,15 +198,19 @@ schedulerG = torch.optim.lr_scheduler.StepLR(optimizerG, step_size=epochs // 2, 
 
 # Loading SRGAN checkpoint
 if args.resume:
-    args.start_epoch = load_checkpoint(netD, optimizerD, f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
-    args.start_epoch = load_checkpoint(netG, optimizerG, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
+    args.start_epoch = load_checkpoint(netD,
+                                       optimizerD,
+                                       f"./weight/netD_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+    args.start_epoch = load_checkpoint(netG,
+                                       optimizerG,
+                                       f"./weight/netG_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
 
 # Train SSRGAN model.
 print(f"[*] Staring training SSRGAN model!")
 print(f"[*] Training for {epochs} epochs.")
 # Writer train SSRGAN model log.
 if args.start_epoch == 0:
-    with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
+    with open(f"SSRGAN_{args.upscale_factor}x_Loss_for_{args.block}.csv", "w+") as f:
         writer = csv.writer(f)
         writer.writerow(["Epoch", "D Loss", "G Loss"])
 
@@ -281,19 +293,19 @@ for epoch in range(args.start_epoch, epochs):
     torch.save({"epoch": epoch + 1,
                 "optimizer": optimizerD.state_dict(),
                 "state_dict": netD.state_dict()
-                }, f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
+                }, f"./weight/netD_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
     torch.save({"epoch": epoch + 1,
                 "optimizer": optimizerG.state_dict(),
                 "state_dict": netG.state_dict()
-                }, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
+                }, f"./weight/netG_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
 
     # Writer training log
-    with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "a+") as f:
+    with open(f"SSRGAN_{args.upscale_factor}x_Loss_for_{args.block}.csv", "a+") as f:
         writer = csv.writer(f)
         writer.writerow([epoch + 1,
                          d_avg_loss / len(dataloader),
                          g_avg_loss / len(dataloader)])
 
-torch.save(netG.state_dict(), f"./weight/SSRGAN_{args.upscale_factor}x.pth")
+torch.save(netG.state_dict(), f"./weight/SSRGAN_{args.upscale_factor}x_for_{args.block}.pth")
 logger.info(f"[*] Training SRGAN model done! Saving SSRGAN model weight "
-            f"to `./weight/SSRGAN_{args.upscale_factor}x.pth`.")
+            f"to `./weight/SSRGAN_{args.upscale_factor}x_for_{args.block}.pth`.")
