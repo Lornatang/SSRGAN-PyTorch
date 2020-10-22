@@ -24,9 +24,15 @@ from .loss import TVLoss
 from .loss import VGGLoss
 from .model import DepthWiseSeperabelConvolution
 from .model import DiscriminatorForVGG
-from .model import GeneratorForMobileNet
+from .model import Generator
 from .model import InvertedResidual
 from .model import MobileNetV3Bottleneck
+from .model import ReceptiveFieldBlock
+from .model import ReceptiveFieldDenseBlock
+from .model import ResidualBlock
+from .model import ResidualDenseBlock
+from .model import ResidualInResidualDenseBlock
+from .model import ResidualOfReceptiveFieldDenseBlock
 from .model import SEModule
 from .model import ShuffleNetV1
 from .model import ShuffleNetV2
@@ -51,12 +57,18 @@ __all__ = [
     "VGGLoss",
     "DepthWiseSeperabelConvolution",
     "DiscriminatorForVGG",
-    "GeneratorForMobileNet",
+    "Generator",
     "InvertedResidual",
     "MobileNetV3Bottleneck",
     "SEModule",
     "ShuffleNetV1",
     "ShuffleNetV2",
+    "ReceptiveFieldBlock",
+    "ReceptiveFieldDenseBlock",
+    "ResidualBlock",
+    "ResidualDenseBlock",
+    "ResidualInResidualDenseBlock",
+    "ResidualOfReceptiveFieldDenseBlock",
     "channel_shuffle",
     "calculate_weights_indices",
     "cubic",
