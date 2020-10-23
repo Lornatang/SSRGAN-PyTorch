@@ -154,21 +154,21 @@ class Generator(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 2))
 
         if block == "srgan":  # For SRGAN
-            block = ResidualBlock
+            block = ResidualBlock(64)
         elif block == "esrgan":  # For ESRGAN
-            block = ResidualInResidualDenseBlock
+            block = ResidualInResidualDenseBlock(64, 32, 0.2)
         elif block == "rfb-esrgan":  # For RFB-ESRGAN
-            block = ResidualOfReceptiveFieldDenseBlock
+            block = ResidualOfReceptiveFieldDenseBlock(64, 32, 0.2)
         elif block == "mobilenet-v1":  # For MobileNet v1
-            block = DepthWiseSeperabelConvolution
+            block = DepthWiseSeperabelConvolution(64)
         elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual
+            block = InvertedResidual(64)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck
+            block = MobileNetV3Bottleneck(64)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
-            block = ShuffleNetV1
+            block = ShuffleNetV1(64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
-            block = ShuffleNetV2
+            block = ShuffleNetV2(64)
         else:
             raise NameError("Please check the block name, the block name must be `m1, m2, m3` or `s1, s2`.")
 
@@ -178,7 +178,7 @@ class Generator(nn.Module):
         # 16 layer similar stack block structure.
         blocks = []
         for _ in range(num_block):
-            blocks.append(block(64))
+            blocks.append(block)
         self.Trunk = nn.Sequential(*blocks)
 
         # Second conv layer post residual blocks
@@ -355,11 +355,11 @@ class ReceptiveFieldBlock(nn.Module):
     `"Going Deeper with Convolutions" <http://arxiv.org/abs/1409.4842>`_.
     """
 
-    def __init__(self, in_channels, non_linearity=True):
+    def __init__(self, in_channels, out_channels, scale_ratio=0.2, non_linearity=True):
         super(ReceptiveFieldBlock, self).__init__()
         channels = in_channels // 4
         # shortcut layer
-        self.shortcut = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
 
         self.branch1 = nn.Sequential(
             nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
@@ -393,8 +393,10 @@ class ReceptiveFieldBlock(nn.Module):
             nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=5, dilation=5, bias=False)
         )
 
-        self.conv1x1 = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True) if non_linearity else None
+
+        self.scale_ratio = scale_ratio
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -422,7 +424,7 @@ class ReceptiveFieldBlock(nn.Module):
         out = torch.cat((branch1, branch2, branch3, branch4), 1)
         out = self.conv1x1(out)
 
-        out = out.mul(0.2) + shortcut
+        out = out.mul(self.scale_ratio) + shortcut
         if self.lrelu is not None:
             out = self.lrelu(out)
 
@@ -434,20 +436,23 @@ class ReceptiveFieldDenseBlock(nn.Module):
         RFB-SSD proposed Receptive Fields Block (RFB) for object detection
     """
 
-    def __init__(self, channels):
+    def __init__(self, in_channels, growth_channels, scale_ratio):
         """
 
         Args:
-            channels (int): Number of channels in the input image. (Default: 64).
+            in_channels (int): Number of channels in the input image. (Default: 64).
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
         """
         super(ReceptiveFieldDenseBlock, self).__init__()
-        growth_channels = channels // 2
+        self.RFB1 = ReceptiveFieldBlock(in_channels, growth_channels, scale_ratio)
+        self.RFB2 = ReceptiveFieldBlock(in_channels + 1 * growth_channels, growth_channels, scale_ratio)
+        self.RFB3 = ReceptiveFieldBlock(in_channels + 2 * growth_channels, growth_channels, scale_ratio)
+        self.RFB4 = ReceptiveFieldBlock(in_channels + 3 * growth_channels, growth_channels, scale_ratio)
+        self.RFB5 = ReceptiveFieldBlock(in_channels + 4 * growth_channels, in_channels, scale_ratio,
+                                        non_linearity=False)
 
-        self.RFB1 = ReceptiveFieldBlock(channels)
-        self.RFB2 = ReceptiveFieldBlock(channels + 1 * growth_channels)
-        self.RFB3 = ReceptiveFieldBlock(channels + 2 * growth_channels)
-        self.RFB4 = ReceptiveFieldBlock(channels + 3 * growth_channels)
-        self.RFB5 = ReceptiveFieldBlock(channels + 4 * growth_channels, non_linearity=False)
+        self.scale_ratio = scale_ratio
 
     def forward(self, input: Tensor) -> Tensor:
         rfb1 = self.RFB1(input)
@@ -456,7 +461,7 @@ class ReceptiveFieldDenseBlock(nn.Module):
         rfb4 = self.RFB4(torch.cat((input, rfb1, rfb2, rfb3), 1))
         rfb5 = self.RFB5(torch.cat((input, rfb1, rfb2, rfb3, rfb4), 1))
 
-        return rfb5.mul(0.2) + input
+        return rfb5.mul(self.scale_ratio) + input
 
 
 class ResidualBlock(nn.Module):
@@ -495,35 +500,38 @@ class ResidualBlock(nn.Module):
         out = self.bn1(out)
         out = self.prelu(out)
         out = self.conv2(out)
+        out = self.bn2(out)
 
-        return out
+        return out + input
 
 
 class ResidualDenseBlock(nn.Module):
     r"""The residual block structure of traditional SRGAN and Dense model is defined"""
 
-    def __init__(self, channels):
+    def __init__(self, in_channels, growth_channels, scale_ratio):
         """
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image. (Default: 64).
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
         """
         super(ResidualDenseBlock, self).__init__()
-        growth_channels = int(channels // 2)
-
         self.conv1 = nn.Sequential(
-            nn.Conv2d(channels + 0 * growth_channels, growth_channels, 3, 1, 1, bias=False),
+            nn.Conv2d(in_channels + 0 * growth_channels, growth_channels, 3, 1, 1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True))
         self.conv2 = nn.Sequential(
-            nn.Conv2d(channels + 1 * growth_channels, growth_channels, 3, 1, 1, bias=False),
+            nn.Conv2d(in_channels + 1 * growth_channels, growth_channels, 3, 1, 1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True))
         self.conv3 = nn.Sequential(
-            nn.Conv2d(channels + 2 * growth_channels, growth_channels, 3, 1, 1, bias=False),
+            nn.Conv2d(in_channels + 2 * growth_channels, growth_channels, 3, 1, 1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True))
         self.conv4 = nn.Sequential(
-            nn.Conv2d(channels + 3 * growth_channels, growth_channels, 3, 1, 1, bias=False),
+            nn.Conv2d(in_channels + 3 * growth_channels, growth_channels, 3, 1, 1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True))
-        self.conv5 = nn.Conv2d(channels + 4 * growth_channels, channels, 3, 1, 1, bias=False)
+        self.conv5 = nn.Conv2d(in_channels + 4 * growth_channels, in_channels, 3, 1, 1, bias=False)
+
+        self.scale_ratio = scale_ratio
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -547,51 +555,59 @@ class ResidualDenseBlock(nn.Module):
         conv4 = self.conv4(torch.cat((input, conv1, conv2, conv3), 1))
         conv5 = self.conv5(torch.cat((input, conv1, conv2, conv3, conv4), 1))
 
-        return conv5.mul(0.2) + input
+        return conv5.mul(self.scale_ratio) + input
 
 
 class ResidualInResidualDenseBlock(nn.Module):
     r"""The residual block structure of traditional ESRGAN and Dense model is defined"""
 
-    def __init__(self, channels):
+    def __init__(self, in_channels, growth_channels, scale_ratio):
         """
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image.
+            growth_channels (int): how many filters to add each layer (`k` in paper).
+            scale_ratio (float): Residual channel scaling column.
         """
         super(ResidualInResidualDenseBlock, self).__init__()
-        self.RDB1 = ResidualDenseBlock(channels)
-        self.RDB2 = ResidualDenseBlock(channels)
-        self.RDB3 = ResidualDenseBlock(channels)
+        self.RDB1 = ResidualDenseBlock(in_channels, growth_channels, scale_ratio)
+        self.RDB2 = ResidualDenseBlock(in_channels, growth_channels, scale_ratio)
+        self.RDB3 = ResidualDenseBlock(in_channels, growth_channels, scale_ratio)
+
+        self.scale_ratio = scale_ratio
 
     def forward(self, input: Tensor) -> Tensor:
         out = self.RDB1(input)
         out = self.RDB2(out)
         out = self.RDB3(out)
 
-        return out.mul(0.2) + input
+        return out.mul(self.scale_ratio) + input
 
 
 class ResidualOfReceptiveFieldDenseBlock(nn.Module):
     r"""The residual block structure of traditional RFB-ESRGAN is defined"""
 
-    def __init__(self, channels):
+    def __init__(self, in_channels=64, growth_channels=32, scale_ratio=0.2):
         """
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image. (Default: 64).
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
         """
         super(ResidualOfReceptiveFieldDenseBlock, self).__init__()
-        self.RFDB1 = ReceptiveFieldDenseBlock(channels)
-        self.RFDB2 = ReceptiveFieldDenseBlock(channels)
-        self.RFDB3 = ReceptiveFieldDenseBlock(channels)
+        self.RFDB1 = ReceptiveFieldDenseBlock(in_channels, growth_channels, scale_ratio)
+        self.RFDB2 = ReceptiveFieldDenseBlock(in_channels, growth_channels, scale_ratio)
+        self.RFDB3 = ReceptiveFieldDenseBlock(in_channels, growth_channels, scale_ratio)
+
+        self.scale_ratio = scale_ratio
 
     def forward(self, input: Tensor) -> Tensor:
         out = self.RFDB1(input)
         out = self.RFDB2(out)
         out = self.RFDB3(out)
 
-        return out.mul(0.2) + input
+        return out.mul(self.scale_ratio) + input
 
 
 class SEModule(nn.Module):
@@ -693,25 +709,32 @@ class ShuffleNetV2(nn.Module):
 
     """
 
-    def __init__(self, out_channels):
+    def __init__(self, channels):
         r""" This is a structure for simple versions.
 
         Args:
-            out_channels (int): Number of channels produced by the convolution.
+            channels (int): Number of channels in the input image.
         """
         super(ShuffleNetV2, self).__init__()
-        channels = out_channels // 2
+        branch_features = channels // 2
 
-        self.branch1 = nn.Sequential()
+        self.branch1 = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(branch_features),
+            nn.ReLU(inplace=True),
+        )
 
         self.branch2 = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(branch_features),
             nn.ReLU(inplace=True),
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, groups=branch_features,
+                      bias=False),
+            nn.BatchNorm2d(branch_features),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(branch_features),
             nn.ReLU(inplace=True),
         )
 
@@ -731,8 +754,7 @@ class ShuffleNetV2(nn.Module):
                 nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
-        x1, x2 = input.chunk(2, dim=1)
-        out = torch.cat((x1, self.branch2(x2)), dim=1)
+        out = torch.cat((self.branch1(input), self.branch2(input)), dim=1)
         out = channel_shuffle(out, 2)
 
         return out
@@ -745,8 +767,7 @@ def channel_shuffle(x, groups):
     channels_per_group = num_channels // groups
 
     # reshape
-    x = x.view(batchsize, groups,
-               channels_per_group, height, width)
+    x = x.view(batchsize, groups, channels_per_group, height, width)
 
     x = torch.transpose(x, 1, 2).contiguous()
 
