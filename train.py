@@ -49,8 +49,6 @@ parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                     help="mini-batch size (default: 16), this is the total "
                          "batch size of all GPUs on the current node when "
                          "using Data Parallel or Distributed Data Parallel.")
-parser.add_argument("--lr", type=float, default=1e-4,
-                    help="Learning rate. (default:1e-4)")
 parser.add_argument("--block", type=str, default="srgan",
                     choices=["srgan", "esrgan", "rfb-esrgan",
                              "mobilenet-v1", "mobilenet-v2", "mobilenet-v3",
@@ -106,7 +104,9 @@ netG = Generator(upscale_factor=args.upscale_factor, block=args.block).to(device
 
 # Define PSNR model optimizers
 psnr_epochs = int(args.psnr_iters // len(dataloader))
-optimizer = torch.optim.Adam(netG.parameters(), lr=args.lr)
+epoch_indices = int(psnr_epochs // 4)
+optimizer = torch.optim.Adam(netG.parameters(), lr=2e-4, betas=(0.9, 0.99))
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=epoch_indices, gamma=0.5)
 
 # Loading PSNR pre training model
 if args.resume_PSNR:
@@ -116,16 +116,16 @@ if args.resume_PSNR:
 
 # We use VGG5.4 as our feature extraction method by default.
 vgg_criterion = VGGLoss().to(device)
-# Loss = content loss + 1e-3 * adversarial loss
-mse_criterion = nn.MSELoss().to(device)
-adversarial_criterion = nn.BCELoss().to(device)
+# Loss = 10 * l1 loss + vgg loss + 5e-3 * adversarial loss
+pix_criterion = nn.L1Loss().to(device)
+adversarial_criterion = nn.BCEWithLogitsLoss().to(device)
 
 # Set the all model to training mode
 netD.train()
 netG.train()
 
-# Pre-train generator using raw MSE loss
-print("[*] Start training PSNR model based on MSE loss.")
+# Pre-train generator using raw l1 loss
+print("[*] Start training PSNR model based on L1 loss.")
 # Save the generator model based on MSE pre training to speed up the training time
 if os.path.exists(f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth"):
     print("[*] Found PSNR pretrained model weights. Skip pre-train.")
@@ -136,7 +136,7 @@ else:
     if args.start_epoch == 0:
         with open(f"SRResNet_{args.upscale_factor}x_Loss_for_{args.block}.csv", "w+") as f:
             writer = csv.writer(f)
-            writer.writerow(["Epoch", "MSE Loss"])
+            writer.writerow(["Epoch", "L1 Loss"])
     print("[!] Not found pretrained weights. Start training PSNR model.")
     for epoch in range(args.start_epoch, psnr_epochs):
         progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -151,16 +151,16 @@ else:
             # Generating fake high resolution images from real low resolution images.
             sr = netG(lr)
             # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
-            mse_loss = mse_criterion(sr, hr)
+            loss = pix_criterion(sr, hr)
             # Calculate gradients for generator
-            mse_loss.backward()
+            loss.backward()
             # Update generator weights
             optimizer.step()
 
-            avg_loss += mse_loss.item()
+            avg_loss += loss.item()
 
             progress_bar.set_description(f"[{epoch + 1}/{psnr_epochs}][{i + 1}/{len(dataloader)}] "
-                                         f"MSE loss: {mse_loss.item():.6f}")
+                                         f"Loss: {loss.item():.6f}")
 
             # record iter.
             total_iter = len(dataloader) * epoch + i
@@ -191,10 +191,12 @@ args.start_epoch = 0
 
 # Alternating training SRGAN network.
 epochs = int(args.iters // len(dataloader))
-optimizerD = torch.optim.Adam(netD.parameters(), lr=args.lr)
-optimizerG = torch.optim.Adam(netG.parameters(), lr=args.lr)
-schedulerD = torch.optim.lr_scheduler.StepLR(optimizerD, step_size=epochs // 2, gamma=0.1)
-schedulerG = torch.optim.lr_scheduler.StepLR(optimizerG, step_size=epochs // 2, gamma=0.1)
+base_epoch = int(epochs // 8)
+epoch_indices = [base_epoch, base_epoch * 2, base_epoch * 4, base_epoch * 6]
+optimizerD = torch.optim.Adam(netD.parameters(), lr=1e-4, betas=(0.9, 0.99))
+optimizerG = torch.optim.Adam(netG.parameters(), lr=1e-4, betas=(0.9, 0.99))
+schedulerD = torch.optim.lr_scheduler.MultiStepLR(optimizerD, milestones=epoch_indices, gamma=0.5)
+schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizerG, milestones=epoch_indices, gamma=0.5)
 
 # Loading SRGAN checkpoint
 if args.resume:
@@ -226,7 +228,7 @@ for epoch in range(args.start_epoch, epochs):
         fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype, device=device)
 
         ##############################################
-        # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+        # (1) Update D network: maximize - E(lr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
         ##############################################
         # Set discriminator gradients to zero.
         netD.zero_grad()
@@ -235,36 +237,33 @@ for epoch in range(args.start_epoch, epochs):
         sr = netG(lr)
 
         # Train with real high resolution image.
-        hr_output = netD(hr)
-        errD_hr = adversarial_criterion(hr_output, real_label)
-        errD_hr.backward()
+        hr_output = netD(hr)  # Train real image.
+        sr_output = netD(sr.detach())  # No train fake image.
+        # Adversarial loss for real and fake images (relativistic average GAN)
+        errD_hr = adversarial_criterion(hr_output - torch.mean(sr_output), real_label)
+        errD_sr = adversarial_criterion(sr_output - torch.mean(hr_output), fake_label)
+        errD = (errD_sr + errD_hr) / 2
+        errD.backward()
         D_x = hr_output.mean().item()
-
-        # Train with fake high resolution image.
-        sr_output = netD(sr.detach())
-        errD_sr = adversarial_criterion(sr_output, fake_label)
-        errD_sr.backward()
         D_G_z1 = sr_output.mean().item()
-        errD = errD_hr + errD_sr
         optimizerD.step()
 
         ##############################################
-        # (2) Update G network: maximize log(D(G(z)))
+        # (2) Update G network: maximize - E(lr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
         ##############################################
         # Set generator gradients to zero
         netG.zero_grad()
 
-        # We then define the VGG loss as the euclidean distance between the feature representations of
-        # a reconstructed image G(LR) and the reference image LR:
-        content_loss = vgg_criterion(sr, hr)
-        # Second train with fake high resolution image.
-        sr_output = netD(sr)
-        #  The generative loss is defined based on the probabilities of the discriminator
-        #  D(G(LR)) over all training samples as:
-        adversarial_loss = adversarial_criterion(sr_output, real_label)
-
-        # We formulate the perceptual loss as the weighted sum of a content loss and an adversarial loss component as:
-        errG = content_loss + 1e-3 * adversarial_loss
+        # According to the feature map, the root mean square error is regarded as the content loss.
+        vgg_loss = vgg_criterion(sr, hr)
+        # Train with fake high resolution image.
+        hr_output = netD(hr.detach())  # No train real fake image.
+        sr_output = netD(sr)  # Train fake image.
+        # Adversarial loss (relativistic average GAN)
+        adversarial_loss = adversarial_criterion(sr_output - torch.mean(hr_output), real_label)
+        # Pixel level loss between two images.
+        l1_loss = pix_criterion(sr, hr)
+        errG = 10 * l1_loss + vgg_loss + 5e-3 * adversarial_loss
         errG.backward()
         D_G_z2 = sr_output.mean().item()
         optimizerG.step()
