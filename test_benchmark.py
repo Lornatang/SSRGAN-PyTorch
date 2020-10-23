@@ -38,10 +38,15 @@ parser.add_argument("--dataroot", type=str, default="./data",
                     help="Path to datasets. (default:`./data`)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (default:4)")
+parser.add_argument("--block", type=str, default="srgan",
+                    choices=["srgan", "esrgan", "rfb-esrgan",
+                             "mobilenet-v1", "mobilenet-v2", "mobilenet-v3",
+                             "shufflenet-v1", "shufflenet-v2"],
+                    help="Which structure block is selected as the backbone network. (default: `srgan`).")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--model-path", default="./weight/SSRGAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weight/SSRGAN_4x.pth``).")
+parser.add_argument("--model-path", default="./weight/SSRGAN_4x_for_srgan.pth", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (default: ``./weight/SSRGAN_4x_for_srgan.pth``).")
 parser.add_argument("--device", default="0",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``CUDA:0``).")
 
@@ -64,7 +69,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
                                          num_workers=int(args.workers))
 
 # Construct SRGAN model.
-model = Generator(upscale_factor=args.upscale_factor).to(device)
+model = Generator(upscale_factor=args.upscale_factor, block=args.block).to(device)
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
