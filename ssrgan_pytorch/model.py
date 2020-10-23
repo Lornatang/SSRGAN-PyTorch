@@ -91,7 +91,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),  # input is 3 x 216 x 216
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (64) x 108 x 108
+            nn.Conv2d(64, 64, kernel_size=4, stride=2, padding=1, bias=False),  # state size. 64 x 108 x 108
             nn.BatchNorm2d(64),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -99,7 +99,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(128),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1, bias=False),  # state size. 128 x 54 x 54
+            nn.Conv2d(128, 128, kernel_size=4, stride=2, padding=1, bias=False),  # state size. 128 x 54 x 54
             nn.BatchNorm2d(128),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -107,7 +107,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(256),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=False),  # state size. 256 x 27 x 27
+            nn.Conv2d(256, 256, kernel_size=4, stride=2, padding=2, bias=False),  # state size. 256 x 28 x 28
             nn.BatchNorm2d(256),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -115,25 +115,32 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1, bias=False),  # state size. 512 x 14 x 14
+            nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1, bias=False),  # state size. 512 x 14 x 14
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+
+            nn.Conv2d(512, 512, kernel_size=4, stride=2, padding=1, bias=False),  # state size. 512 x 7 x 7
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
-        self.avgpool = nn.AdaptiveAvgPool2d((14, 14))
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
 
-        self.fc = nn.Sequential(
-            nn.Linear(512 * 14 * 14, 1024),
+        self.classifier = nn.Sequential(
+            nn.Linear(512 * 7 * 7, 1024),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.Linear(1024, 1),
-            nn.Sigmoid()
         )
 
     def forward(self, input: Tensor) -> Tensor:
         out = self.features(input)
         out = self.avgpool(out)
         out = torch.flatten(out, 1)
-        out = self.fc(out)
+        out = self.classifier(out)
 
         return out
 
@@ -170,10 +177,11 @@ class Generator(nn.Module):
         elif block == "shufflenet-v2":  # For ShuffleNet v2
             block = ShuffleNetV2(64)
         else:
-            raise NameError("Please check the block name, the block name must be `m1, m2, m3` or `s1, s2`.")
+            raise NameError("Please check the block name, the block name must be `srgan`, `esrgan`, `rfb-esrgan` or "
+                            "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or `shufflenet-v1`, `shufflenet-v2`.")
 
         # First layer
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=9, stride=1, padding=4, bias=False)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
         # 16 layer similar stack block structure.
         blocks = []
@@ -194,7 +202,7 @@ class Generator(nn.Module):
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        # Next layer after upper sampling.
+        # Next layer after upper sampling
         self.conv3 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
@@ -475,10 +483,8 @@ class ResidualBlock(nn.Module):
         """
         super(ResidualBlock, self).__init__()
         self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels)
         self.prelu = nn.PReLU()
         self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(channels)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -497,10 +503,8 @@ class ResidualBlock(nn.Module):
 
     def forward(self, input: Tensor) -> Tensor:
         out = self.conv1(input)
-        out = self.bn1(out)
         out = self.prelu(out)
         out = self.conv2(out)
-        out = self.bn2(out)
 
         return out + input
 
