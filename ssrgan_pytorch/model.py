@@ -227,7 +227,7 @@ class Generator(nn.Module):
 
 
 class InvertedResidual(nn.Module):
-    r""" Improved convolution method based on MobileNet-v1 version.
+    r""" Improved convolution method based on MobileNet-v2 version.
 
     `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/abs/1801.04381>`_
 
