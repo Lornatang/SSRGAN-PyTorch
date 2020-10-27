@@ -722,13 +722,7 @@ class ShuffleNetV2(nn.Module):
         super(ShuffleNetV2, self).__init__()
         branch_features = channels // 2
 
-        self.branch1 = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(branch_features),
-            nn.ReLU(inplace=True),
-        )
+        self.branch1 = nn.Sequential()
 
         self.branch2 = nn.Sequential(
             nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
@@ -739,7 +733,7 @@ class ShuffleNetV2(nn.Module):
             nn.BatchNorm2d(branch_features),
             nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(branch_features),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=True)
         )
 
         for m in self.modules():
@@ -758,7 +752,8 @@ class ShuffleNetV2(nn.Module):
                 nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
-        out = torch.cat((self.branch1(input), self.branch2(input)), dim=1)
+        x1, x2 = input.chunk(2, dim=1)
+        out = torch.cat((x1, self.branch2(x2)), dim=1)
         out = channel_shuffle(out, 2)
 
         return out
