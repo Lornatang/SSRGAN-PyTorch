@@ -320,7 +320,7 @@ class MobileNetV3Bottleneck(nn.Module):
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(out_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(channels),
             HSwish()
         )
