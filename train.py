@@ -51,6 +51,7 @@ parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                          "using Data Parallel or Distributed Data Parallel.")
 parser.add_argument("--block", type=str, default="srgan",
                     choices=["srgan", "esrgan", "rfb-esrgan",
+                             "squeezenet",
                              "mobilenet-v1", "mobilenet-v2", "mobilenet-v3",
                              "shufflenet-v1", "shufflenet-v2"],
                     help="Which structure block is selected as the backbone network. (default: `srgan`).")

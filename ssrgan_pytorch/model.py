@@ -22,7 +22,7 @@ from .activation import HSigmoid
 from .activation import HSwish
 
 __all__ = [
-    "DepthWiseSeperabelConvolution", "DiscriminatorForVGG", "Generator",
+    "DepthWiseSeperabelConvolution", "DiscriminatorForVGG", "Fire", "Generator",
     "InvertedResidual", "MobileNetV3Bottleneck", "ReceptiveFieldBlock", "ReceptiveFieldDenseBlock",
     "ResidualBlock", "ResidualDenseBlock", "ResidualInResidualDenseBlock", "ResidualOfReceptiveFieldDenseBlock",
     "SEModule", "ShuffleNetV1", "ShuffleNetV2", "channel_shuffle"
@@ -145,6 +145,64 @@ class DiscriminatorForVGG(nn.Module):
         return out
 
 
+class Fire(nn.Module):
+    r""" SqueezeNet model architecture from the `"SqueezeNet: AlexNet-level
+    accuracy with 50x fewer parameters and <0.5MB model size"
+    <https://arxiv.org/abs/1602.07360>`_ paper.
+    """
+
+    def __init__(self, in_channels, out_channels, expand_channels):
+        r""" Modules introduced in SqueezeNet paper.
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+            expand_channels (int): Number of channels produced by the expand layer.
+        """
+        super(Fire, self).__init__()
+
+        # squeeze
+        self.squeeze = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.ReLU(inplace=True)
+        )
+
+        # expand 1x1
+        self.expand1x1 = nn.Sequential(
+            nn.Conv2d(out_channels, expand_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.ReLU(inplace=True)
+        )
+
+        # expand 3x3
+        self.expand3x3 = nn.Sequential(
+            nn.Conv2d(out_channels, expand_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.ReLU(inplace=True)
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias.data, 0.0)
+
+    def forward(self, input: Tensor) -> Tensor:
+        # Squeeze convolution
+        out = self.squeeze(input)
+        # Expand convolution
+        out = torch.cat([self.expand1x1(out), self.expand3x3(out)], 1)
+
+        return out
+
+
 class Generator(nn.Module):
     r""" It is mainly based on the mobile net network as the backbone network generator"""
     __constants__ = ["upscale_factor", "block"]
@@ -166,6 +224,8 @@ class Generator(nn.Module):
             block = ResidualInResidualDenseBlock(64, 32, 0.2)
         elif block == "rfb-esrgan":  # For RFB-ESRGAN
             block = ResidualOfReceptiveFieldDenseBlock(64, 32, 0.2)
+        elif block == "squeezenet":  # For SqueezeNet
+            block = Fire(64, 16, 32)
         elif block == "mobilenet-v1":  # For MobileNet v1
             block = DepthWiseSeperabelConvolution(64)
         elif block == "mobilenet-v2":  # For MobileNet v2
@@ -177,8 +237,11 @@ class Generator(nn.Module):
         elif block == "shufflenet-v2":  # For ShuffleNet v2
             block = ShuffleNetV2(64)
         else:
-            raise NameError("Please check the block name, the block name must be `srgan`, `esrgan`, `rfb-esrgan` or "
-                            "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or `shufflenet-v1`, `shufflenet-v2`.")
+            raise NameError("Please check the block name, the block name must be "
+                            "`srgan`, `esrgan`, `rfb-esrgan` or "
+                            "`squeezenet` or "
+                            "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or "
+                            "`shufflenet-v1`, `shufflenet-v2`.")
 
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
@@ -238,7 +301,7 @@ class InvertedResidual(nn.Module):
 
         Args:
             in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution
+            out_channels (int): Number of channels produced by the convolution.
             expand_factor (optional, int): Channel expansion multiple. (Default: 6).
         """
         super(InvertedResidual, self).__init__()

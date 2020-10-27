@@ -25,6 +25,7 @@ from .loss import TVLoss
 from .loss import VGGLoss
 from .model import DepthWiseSeperabelConvolution
 from .model import DiscriminatorForVGG
+from .model import Fire
 from .model import Generator
 from .model import InvertedResidual
 from .model import MobileNetV3Bottleneck
@@ -59,6 +60,7 @@ __all__ = [
     "VGGLoss",
     "DepthWiseSeperabelConvolution",
     "DiscriminatorForVGG",
+    "Fire",
     "Generator",
     "InvertedResidual",
     "MobileNetV3Bottleneck",
