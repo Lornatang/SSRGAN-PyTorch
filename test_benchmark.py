@@ -40,6 +40,7 @@ parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (default:4)")
 parser.add_argument("--block", type=str, default="srgan",
                     choices=["srgan", "esrgan", "rfb-esrgan",
+                             "squeezenet",
                              "mobilenet-v1", "mobilenet-v2", "mobilenet-v3",
                              "shufflenet-v1", "shufflenet-v2"],
                     help="Which structure block is selected as the backbone network. (default: `srgan`).")

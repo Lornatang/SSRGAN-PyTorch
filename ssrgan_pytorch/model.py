@@ -230,9 +230,9 @@ class Generator(nn.Module):
         elif block == "mobilenet-v1":  # For MobileNet v1
             block = DepthWiseSeperabelConvolution(in_channels=64)
         elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual(channels=16)
+            block = InvertedResidual(in_channels=16)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(channels=16)
+            block = MobileNetV3Bottleneck(in_channels=16)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
             block = ShuffleNetV1(in_channels=64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
@@ -297,15 +297,15 @@ class InvertedResidual(nn.Module):
 
     """
 
-    def __init__(self, channels, expand_factor=4):
+    def __init__(self, in_channels, expand_factor=4):
         r""" This is a structure for simple versions.
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image.
             expand_factor (optional, int): Channel expansion multiple. (Default: 4).
         """
         super(InvertedResidual, self).__init__()
-        hidden_channels = int(round(channels * expand_factor))
+        hidden_channels = int(round(in_channels * expand_factor))
 
         # pw
         self.pointwise = nn.Sequential(
@@ -316,7 +316,8 @@ class InvertedResidual(nn.Module):
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=in_channels,
+                      bias=False),
             nn.BatchNorm2d(hidden_channels),
             nn.ReLU6(inplace=True)
         )
@@ -360,15 +361,15 @@ class MobileNetV3Bottleneck(nn.Module):
 
     """
 
-    def __init__(self, channels, expand_factor=4):
+    def __init__(self, in_channels, expand_factor=4):
         r""" This is a structure for simple versions.
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image.
             expand_factor (optional, int): Channel expansion multiple. (Default: 4).
         """
         super(MobileNetV3Bottleneck, self).__init__()
-        hidden_channels = int(round(channels * expand_factor))
+        hidden_channels = int(round(in_channels * expand_factor))
 
         self.shortcut = nn.Sequential(
             nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
@@ -384,7 +385,8 @@ class MobileNetV3Bottleneck(nn.Module):
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2, groups=hidden_channels, bias=False),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2, groups=hidden_channels,
+                      bias=False),
             nn.BatchNorm2d(hidden_channels),
         )
 
