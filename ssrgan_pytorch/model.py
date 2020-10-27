@@ -36,25 +36,25 @@ class DepthWiseSeperabelConvolution(nn.Module):
 
     """
 
-    def __init__(self, channels):
+    def __init__(self, in_channels):
         r""" This is a structure for simple versions.
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image.
         """
         super(DepthWiseSeperabelConvolution, self).__init__()
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
+            nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True)
         )
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(in_channels),
             nn.ReLU(inplace=True)
         )
 
@@ -151,31 +151,32 @@ class Fire(nn.Module):
     <https://arxiv.org/abs/1602.07360>`_ paper.
     """
 
-    def __init__(self, in_channels, out_channels, expand_channels):
+    def __init__(self, in_channels, squeeze_channels, expand1x1_channels, expand3x3_channels):
         r""" Modules introduced in SqueezeNet paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            expand_channels (int): Number of channels produced by the expand layer.
+            squeeze_channels (int): Number of channels produced by the squeeze layer.
+            expand1x1_channels (int): Number of channels produced by the expand 1x1 layer.
+            expand3x3_channels (int): Number of channels produced by the expand 3x3 layer.
         """
         super(Fire, self).__init__()
 
         # squeeze
         self.squeeze = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(in_channels, squeeze_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.ReLU(inplace=True)
         )
 
         # expand 1x1
         self.expand1x1 = nn.Sequential(
-            nn.Conv2d(out_channels, expand_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(squeeze_channels, expand1x1_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.ReLU(inplace=True)
         )
 
         # expand 3x3
         self.expand3x3 = nn.Sequential(
-            nn.Conv2d(out_channels, expand_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(squeeze_channels, expand3x3_channels, kernel_size=3, stride=1, padding=1, bias=False),
             nn.ReLU(inplace=True)
         )
 
@@ -219,23 +220,23 @@ class Generator(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 2))
 
         if block == "srgan":  # For SRGAN
-            block = ResidualBlock(64)
+            block = ResidualBlock(in_channels=64)
         elif block == "esrgan":  # For ESRGAN
-            block = ResidualInResidualDenseBlock(64, 32, 0.2)
+            block = ResidualInResidualDenseBlock(in_channels=64, growth_channels=32, scale_ratio=0.2)
         elif block == "rfb-esrgan":  # For RFB-ESRGAN
-            block = ResidualOfReceptiveFieldDenseBlock(64, 32, 0.2)
+            block = ResidualOfReceptiveFieldDenseBlock(in_channels=64, growth_channels=32, scale_ratio=0.2)
         elif block == "squeezenet":  # For SqueezeNet
-            block = Fire(64, 16, 32)
+            block = Fire(in_channels=64, squeeze_channels=8, expand1x1_channels=32, expand3x3_channels=32)
         elif block == "mobilenet-v1":  # For MobileNet v1
-            block = DepthWiseSeperabelConvolution(64)
+            block = DepthWiseSeperabelConvolution(in_channels=64)
         elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual(24, 64)
+            block = InvertedResidual(channels=16)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(24, 64)
+            block = MobileNetV3Bottleneck(channels=16)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
-            block = ShuffleNetV1(64)
+            block = ShuffleNetV1(in_channels=64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
-            block = ShuffleNetV2(64)
+            block = ShuffleNetV2(in_channels=64)
         else:
             raise NameError("Please check the block name, the block name must be "
                             "`srgan`, `esrgan`, `rfb-esrgan` or "
@@ -296,40 +297,34 @@ class InvertedResidual(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels, expand_factor=6):
+    def __init__(self, channels, expand_factor=4):
         r""" This is a structure for simple versions.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
+            channels (int): Number of channels in the input image.
+            expand_factor (optional, int): Channel expansion multiple. (Default: 4).
         """
         super(InvertedResidual, self).__init__()
-        channels = in_channels * expand_factor
-
-        self.shortcut = nn.Sequential(
-            nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(out_channels),
-        )
+        hidden_channels = int(round(channels * expand_factor))
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(out_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(hidden_channels),
+            nn.ReLU6(inplace=True)
         )
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
+            nn.BatchNorm2d(hidden_channels),
+            nn.ReLU6(inplace=True)
         )
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(out_channels)
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(hidden_channels)
         )
 
         for m in self.modules():
@@ -355,7 +350,7 @@ class InvertedResidual(nn.Module):
         # Projection convolution
         out = self.pointwise_linear(out)
 
-        return out + self.shortcut(input)
+        return out + input
 
 
 class MobileNetV3Bottleneck(nn.Module):
@@ -365,45 +360,44 @@ class MobileNetV3Bottleneck(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels, expand_factor=6):
+    def __init__(self, channels, expand_factor=4):
         r""" This is a structure for simple versions.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution
-            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
+            channels (int): Number of channels in the input image.
+            expand_factor (optional, int): Channel expansion multiple. (Default: 4).
         """
         super(MobileNetV3Bottleneck, self).__init__()
-        channels = in_channels * expand_factor
+        hidden_channels = int(round(channels * expand_factor))
 
         self.shortcut = nn.Sequential(
-            nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(hidden_channels)
         )
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(out_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(hidden_channels),
             HSwish()
         )
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=5, stride=1, padding=2, groups=channels, bias=False),
-            nn.BatchNorm2d(channels),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2, groups=hidden_channels, bias=False),
+            nn.BatchNorm2d(hidden_channels),
         )
 
         # squeeze and excitation module.
         self.SEModule = nn.Sequential(
-            SEModule(channels),
+            SEModule(hidden_channels),
             HSwish()
         )
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(hidden_channels),
         )
 
         for m in self.modules():
@@ -551,16 +545,16 @@ class ReceptiveFieldDenseBlock(nn.Module):
 class ResidualBlock(nn.Module):
     r"""Main residual block structure"""
 
-    def __init__(self, channels):
+    def __init__(self, in_channels):
         r"""Initializes internal Module state, shared by both nn.Module and ScriptModule.
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image.
         """
         super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=False)
         self.prelu = nn.PReLU()
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -697,13 +691,13 @@ class SEModule(nn.Module):
 
     """
 
-    def __init__(self, channels, reduction=4):
+    def __init__(self, in_channels, reduction=4):
         super(SEModule, self).__init__()
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-            nn.Linear(channels, channels // reduction, bias=False),
+            nn.Linear(in_channels, in_channels // reduction, bias=False),
             nn.ReLU(inplace=True),
-            nn.Linear(channels // reduction, channels, bias=False),
+            nn.Linear(in_channels // reduction, in_channels, bias=False),
             HSigmoid()
         )
 
@@ -789,14 +783,14 @@ class ShuffleNetV2(nn.Module):
 
     """
 
-    def __init__(self, channels):
+    def __init__(self, in_channels):
         r""" This is a structure for simple versions.
 
         Args:
-            channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image.
         """
         super(ShuffleNetV2, self).__init__()
-        branch_features = channels // 2
+        branch_features = in_channels // 2
 
         self.branch1 = nn.Sequential()
 

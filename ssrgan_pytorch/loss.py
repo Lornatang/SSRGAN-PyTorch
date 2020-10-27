@@ -12,17 +12,20 @@
 # limitations under the License.
 # ==============================================================================
 """It mainly implements all the losses used in the model."""
-import torch
 import lpips
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torchvision.models import vgg19
 
 __all__ = [
-    "LPIPSLoss", "TVLoss", "VGGLoss"
+    "FeatureLoss", "LPIPSLoss", "TVLoss", "VGGLoss"
 ]
+
+
+class FeatureLoss(nn.Module):
+    pass
 
 
 class LPIPSLoss(nn.Module):
