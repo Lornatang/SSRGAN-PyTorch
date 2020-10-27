@@ -169,7 +169,7 @@ class Generator(nn.Module):
         elif block == "mobilenet-v1":  # For MobileNet v1
             block = DepthWiseSeperabelConvolution(64)
         elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual(64)
+            block = InvertedResidual(24, 64)
         elif block == "mobilenet-v3":  # For MobileNet v3
             block = MobileNetV3Bottleneck(64)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
@@ -233,34 +233,40 @@ class InvertedResidual(nn.Module):
 
     """
 
-    def __init__(self, in_channels, expand_factor=6):
+    def __init__(self, in_channels, out_channels, expand_factor=6):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution
             expand_factor (optional, int): Channel expansion multiple. (Default: 6).
         """
         super(InvertedResidual, self).__init__()
         channels = in_channels * expand_factor
 
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
+        )
+
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(out_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(channels),
-            nn.ReLU6(inplace=True)
+            nn.ReLU(inplace=True)
         )
 
         # dw
         self.depthwise = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
             nn.BatchNorm2d(channels),
-            nn.ReLU6(inplace=True)
+            nn.ReLU(inplace=True)
         )
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(in_channels)
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels)
         )
 
         for m in self.modules():
@@ -286,7 +292,7 @@ class InvertedResidual(nn.Module):
         # Projection convolution
         out = self.pointwise_linear(out)
 
-        return out + input
+        return out + self.shortcut(input)
 
 
 class MobileNetV3Bottleneck(nn.Module):
@@ -296,14 +302,16 @@ class MobileNetV3Bottleneck(nn.Module):
 
     """
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, out_channels, expand_factor=6):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution
+            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
         """
         super(MobileNetV3Bottleneck, self).__init__()
-        channels = in_channels * 6
+        channels = in_channels * expand_factor
 
         # pw
         self.pointwise = nn.Sequential(
@@ -326,8 +334,8 @@ class MobileNetV3Bottleneck(nn.Module):
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(in_channels),
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
         )
 
         for m in self.modules():
