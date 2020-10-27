@@ -171,7 +171,7 @@ class Generator(nn.Module):
         elif block == "mobilenet-v2":  # For MobileNet v2
             block = InvertedResidual(24, 64)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(64)
+            block = MobileNetV3Bottleneck(24, 64)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
             block = ShuffleNetV1(64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
@@ -313,6 +313,11 @@ class MobileNetV3Bottleneck(nn.Module):
         super(MobileNetV3Bottleneck, self).__init__()
         channels = in_channels * expand_factor
 
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
+        )
+
         # pw
         self.pointwise = nn.Sequential(
             nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
@@ -363,7 +368,7 @@ class MobileNetV3Bottleneck(nn.Module):
         # Projection convolution
         out = self.pointwise_linear(out)
 
-        return out + input
+        return out + self.shortcut(input)
 
 
 class ReceptiveFieldBlock(nn.Module):
