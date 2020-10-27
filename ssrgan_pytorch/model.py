@@ -22,17 +22,18 @@ from .activation import HSigmoid
 from .activation import HSwish
 
 __all__ = [
-    "DepthWiseSeperabelConvolution", "DiscriminatorForVGG", "Fire", "Generator",
+    "DepthwiseSeparableConvolution", "DiscriminatorForVGG", "Fire", "Generator",
     "InvertedResidual", "MobileNetV3Bottleneck", "ReceptiveFieldBlock", "ReceptiveFieldDenseBlock",
     "ResidualBlock", "ResidualDenseBlock", "ResidualInResidualDenseBlock", "ResidualOfReceptiveFieldDenseBlock",
     "SEModule", "ShuffleNetV1", "ShuffleNetV2", "channel_shuffle"
 ]
 
 
-class DepthWiseSeperabelConvolution(nn.Module):
-    r"""Deep separable convolution implemented in mobilenet version 1. 
+class DepthwiseSeparableConvolution(nn.Module):
+    r""" Depthwise separable convolution implemented in mobilenet version 1.
 
-    `"MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_
+    `"MobileNets: Efficient Convolutional Neural Networks for
+    Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_ paper
 
     """
 
@@ -42,7 +43,7 @@ class DepthWiseSeperabelConvolution(nn.Module):
         Args:
             in_channels (int): Number of channels in the input image.
         """
-        super(DepthWiseSeperabelConvolution, self).__init__()
+        super(DepthwiseSeparableConvolution, self).__init__()
 
         # dw
         self.depthwise = nn.Sequential(
@@ -228,7 +229,7 @@ class Generator(nn.Module):
         elif block == "squeezenet":  # For SqueezeNet
             block = Fire(in_channels=64, squeeze_channels=8, expand1x1_channels=32, expand3x3_channels=32)
         elif block == "mobilenet-v1":  # For MobileNet v1
-            block = DepthWiseSeperabelConvolution(in_channels=64)
+            block = DepthwiseSeparableConvolution(in_channels=64)
         elif block == "mobilenet-v2":  # For MobileNet v2
             block = InvertedResidual(in_channels=16)
         elif block == "mobilenet-v3":  # For MobileNet v3

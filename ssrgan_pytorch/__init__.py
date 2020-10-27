@@ -23,7 +23,7 @@ from .dataset import check_image_file
 from .loss import LPIPSLoss
 from .loss import TVLoss
 from .loss import VGGLoss
-from .model import DepthWiseSeperabelConvolution
+from .model import DepthwiseSeparableConvolution
 from .model import DiscriminatorForVGG
 from .model import Fire
 from .model import Generator
@@ -58,7 +58,7 @@ __all__ = [
     "check_image_file",
     "TVLoss",
     "VGGLoss",
-    "DepthWiseSeperabelConvolution",
+    "DepthwiseSeparableConvolution",
     "DiscriminatorForVGG",
     "Fire",
     "Generator",
