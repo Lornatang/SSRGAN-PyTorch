@@ -36,14 +36,14 @@ VERSION = "0.0.1"
 # What packages are required for this module to be executed?
 REQUIRED = [
     "Cython",
-    "torch"
-    "torchvision"
+    "torch",
+    "torchvision",
     "numpy",
-    "opencv-python"
-    "sewar"
-    "scipy"
-    "tqdm"
-    "pillow"
+    "opencv-python",
+    "sewar",
+    "scipy",
+    "tqdm",
+    "pillow",
     "lpips"
 ]
 

@@ -17,6 +17,7 @@ from .activation import HSwish
 from .activation import Mish
 from .activation import Sine
 from .calculate_niqe import cal_niqe
+from .contrib import lpips
 from .dataset import DatasetFromFolder
 from .dataset import check_image_file
 from .loss import LPIPSLoss
@@ -51,6 +52,7 @@ __all__ = [
     "Mish",
     "Sine",
     "cal_niqe",
+    "lpips",
     "DatasetFromFolder",
     "check_image_file",
     "TVLoss",
@@ -77,3 +79,5 @@ __all__ = [
     "load_checkpoint",
     "select_device",
 ]
+
+__version__ = "0.0.1"
