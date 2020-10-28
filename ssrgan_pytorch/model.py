@@ -319,7 +319,7 @@ class InvertedResidual(nn.Module):
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=in_channels,
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
                       bias=False),
             nn.BatchNorm2d(hidden_channels),
             nn.ReLU6(inplace=True)
