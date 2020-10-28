@@ -391,7 +391,7 @@ class MobileNetV3Bottleneck(nn.Module):
         self.depthwise = nn.Sequential(
             nn.Conv2d(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2, groups=hidden_channels,
                       bias=False),
-            nn.BatchNorm2d(hidden_channels),
+            nn.BatchNorm2d(hidden_channels)
         )
 
         # squeeze and excitation module.
@@ -403,7 +403,7 @@ class MobileNetV3Bottleneck(nn.Module):
         # pw-linear
         self.pointwise_linear = nn.Sequential(
             nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.BatchNorm2d(out_channels)
         )
 
         for m in self.modules():
