@@ -37,11 +37,12 @@ class DepthwiseSeparableConvolution(nn.Module):
 
     """
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, out_channels):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
         """
         super(DepthwiseSeparableConvolution, self).__init__()
 
@@ -54,8 +55,8 @@ class DepthwiseSeparableConvolution(nn.Module):
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(in_channels),
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
@@ -229,15 +230,15 @@ class Generator(nn.Module):
         elif block == "squeezenet":  # For SqueezeNet
             block = Fire(in_channels=64, squeeze_channels=8, expand1x1_channels=32, expand3x3_channels=32)
         elif block == "mobilenet-v1":  # For MobileNet v1
-            block = DepthwiseSeparableConvolution(in_channels=64)
+            block = DepthwiseSeparableConvolution(in_channels=64, out_channels=64)
         elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual(in_channels=16)
+            block = InvertedResidual(in_channels=64, out_channels=64)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(in_channels=16)
+            block = MobileNetV3Bottleneck(in_channels=16, out_channels=64)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
-            block = ShuffleNetV1(in_channels=64)
+            block = ShuffleNetV1(in_channels=64, out_channels=64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
-            block = ShuffleNetV2(in_channels=64)
+            block = ShuffleNetV2(channels=64)
         else:
             raise NameError("Please check the block name, the block name must be "
                             "`srgan`, `esrgan`, `rfb-esrgan` or "
@@ -298,19 +299,20 @@ class InvertedResidual(nn.Module):
 
     """
 
-    def __init__(self, in_channels, expand_factor=4):
+    def __init__(self, in_channels, out_channels, expand_factor=6):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
-            expand_factor (optional, int): Channel expansion multiple. (Default: 4).
+            out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
         """
         super(InvertedResidual, self).__init__()
         hidden_channels = int(round(in_channels * expand_factor))
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(hidden_channels),
             nn.ReLU6(inplace=True)
         )
@@ -325,8 +327,8 @@ class InvertedResidual(nn.Module):
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(hidden_channels)
+            nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels)
         )
 
         for m in self.modules():
@@ -362,18 +364,19 @@ class MobileNetV3Bottleneck(nn.Module):
 
     """
 
-    def __init__(self, in_channels, expand_factor=4):
+    def __init__(self, in_channels, out_channels, expand_factor=6):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
-            expand_factor (optional, int): Channel expansion multiple. (Default: 4).
+            out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
         """
         super(MobileNetV3Bottleneck, self).__init__()
         hidden_channels = int(round(in_channels * expand_factor))
 
         self.shortcut = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(hidden_channels)
         )
 
@@ -399,8 +402,8 @@ class MobileNetV3Bottleneck(nn.Module):
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(hidden_channels),
+            nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels),
         )
 
         for m in self.modules():
@@ -718,11 +721,12 @@ class ShuffleNetV1(nn.Module):
 
     """
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, out_channels):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
         """
         super(ShuffleNetV1, self).__init__()
 
@@ -744,8 +748,8 @@ class ShuffleNetV1(nn.Module):
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            nn.Conv2d(channels, in_channels, kernel_size=1, stride=1, padding=0, groups=4, bias=False),
-            nn.BatchNorm2d(in_channels)
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, groups=4, bias=False),
+            nn.BatchNorm2d(out_channels)
         )
 
         for m in self.modules():
@@ -786,14 +790,14 @@ class ShuffleNetV2(nn.Module):
 
     """
 
-    def __init__(self, in_channels):
+    def __init__(self, channels):
         r""" This is a structure for simple versions.
 
         Args:
-            in_channels (int): Number of channels in the input image.
+            channels (int): Number of channels in the input image.
         """
         super(ShuffleNetV2, self).__init__()
-        branch_features = in_channels // 2
+        branch_features = channels // 2
 
         self.branch1 = nn.Sequential()
 
