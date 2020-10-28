@@ -234,7 +234,7 @@ class Generator(nn.Module):
         elif block == "mobilenet-v2":  # For MobileNet v2
             block = InvertedResidual(in_channels=64, out_channels=64)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(in_channels=16, out_channels=64)
+            block = MobileNetV3Bottleneck(in_channels=64, out_channels=64)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
             block = ShuffleNetV1(in_channels=64, out_channels=64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
@@ -376,13 +376,13 @@ class MobileNetV3Bottleneck(nn.Module):
         hidden_channels = int(round(in_channels * expand_factor))
 
         self.shortcut = nn.Sequential(
-            nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(hidden_channels)
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(out_channels)
         )
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(hidden_channels),
             HSwish()
         )
