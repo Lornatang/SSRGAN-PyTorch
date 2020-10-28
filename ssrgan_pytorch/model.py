@@ -239,15 +239,12 @@ class Generator(nn.Module):
             block = ShuffleNetV1(in_channels=64, out_channels=64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
             block = ShuffleNetV2(channels=64)
-        elif block == "xception":  # For Xception
-            block = ShuffleNetV2(channels=64)
         else:
             raise NameError("Please check the block name, the block name must be "
                             "`srgan`, `esrgan`, `rfb-esrgan` or "
                             "`squeezenet` or "
                             "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or "
-                            "`shufflenet-v1`, `shufflenet-v2` or"
-                            "`Xception`")
+                            "`shufflenet-v1`, `shufflenet-v2`")
 
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
