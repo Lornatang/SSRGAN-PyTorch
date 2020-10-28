@@ -232,19 +232,22 @@ class Generator(nn.Module):
         elif block == "mobilenet-v1":  # For MobileNet v1
             block = DepthwiseSeparableConvolution(in_channels=64, out_channels=64)
         elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual(in_channels=64, out_channels=64)
+            block = InvertedResidual(in_channels=64, out_channels=64, expand_factor=6)
         elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(in_channels=64, out_channels=64)
+            block = MobileNetV3Bottleneck(in_channels=64, out_channels=64, expand_factor=6)
         elif block == "shufflenet-v1":  # For ShuffleNet v1
             block = ShuffleNetV1(in_channels=64, out_channels=64)
         elif block == "shufflenet-v2":  # For ShuffleNet v2
+            block = ShuffleNetV2(channels=64)
+        elif block == "xception":  # For Xception
             block = ShuffleNetV2(channels=64)
         else:
             raise NameError("Please check the block name, the block name must be "
                             "`srgan`, `esrgan`, `rfb-esrgan` or "
                             "`squeezenet` or "
                             "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or "
-                            "`shufflenet-v1`, `shufflenet-v2`.")
+                            "`shufflenet-v1`, `shufflenet-v2` or"
+                            "`Xception`")
 
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
@@ -299,13 +302,13 @@ class InvertedResidual(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels, expand_factor=6):
+    def __init__(self, in_channels, out_channels, expand_factor):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
+            expand_factor (optional, int): Channel expansion multiple.
         """
         super(InvertedResidual, self).__init__()
         hidden_channels = int(round(in_channels * expand_factor))
@@ -364,13 +367,13 @@ class MobileNetV3Bottleneck(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels, expand_factor=6):
+    def __init__(self, in_channels, out_channels, expand_factor):
         r""" This is a structure for simple versions.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, int): Channel expansion multiple. (Default: 6).
+            expand_factor (optional, int): Channel expansion multiple.
         """
         super(MobileNetV3Bottleneck, self).__init__()
         hidden_channels = int(round(in_channels * expand_factor))
