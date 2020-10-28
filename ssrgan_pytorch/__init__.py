@@ -17,7 +17,6 @@ from .activation import HSwish
 from .activation import Mish
 from .activation import Sine
 from .calculate_niqe import cal_niqe
-from .contrib import lpips
 from .dataset import DatasetFromFolder
 from .dataset import check_image_file
 from .loss import LPIPSLoss
