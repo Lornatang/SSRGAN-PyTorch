@@ -49,12 +49,10 @@ parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                     help="mini-batch size (default: 16), this is the total "
                          "batch size of all GPUs on the current node when "
                          "using Data Parallel or Distributed Data Parallel.")
-parser.add_argument("--block", type=str, default="srgan",
-                    choices=["srgan", "esrgan", "rfb-esrgan",
-                             "squeezenet",
-                             "mobilenet-v1", "mobilenet-v2", "mobilenet-v3",
-                             "shufflenet-v1", "shufflenet-v2"],
-                    help="Which structure block is selected as the backbone network. (default: `srgan`).")
+parser.add_argument("--psnr-lr", type=float, default=2e-4,
+                    help="Learning rate for PSNR model. (default:2e-4)")
+parser.add_argument("--lr", type=float, default=1e-4,
+                    help="Learning rate. (default:1e-4)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
 parser.add_argument("--resume_PSNR", action="store_true",
@@ -101,19 +99,22 @@ dataloader = torch.utils.data.DataLoader(dataset,
 
 # Construct network architecture model of generator and discriminator.
 netD = DiscriminatorForVGG().to(device)
-netG = Generator(upscale_factor=args.upscale_factor, block=args.block).to(device)
+netG = Generator(upscale_factor=args.upscale_factor).to(device)
 
 # Define PSNR model optimizers
 psnr_epochs = int(args.psnr_iters // len(dataloader))
 epoch_indices = int(psnr_epochs // 4)
-optimizer = torch.optim.Adam(netG.parameters(), lr=2e-4, betas=(0.9, 0.99))
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=epoch_indices, gamma=0.5)
+optimizer = torch.optim.Adam(netG.parameters(), lr=args.psnr_lr, betas=(0.9, 0.999))
+scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer,
+                                                                 T_0=epoch_indices,
+                                                                 T_mult=1,
+                                                                 eta_min=1e-7)
 
 # Loading PSNR pre training model
 if args.resume_PSNR:
     args.start_epoch = load_checkpoint(netG,
                                        optimizer,
-                                       f"./weight/SRResNet_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+                                       f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
 
 # We use VGG5.4 as our feature extraction method by default.
 vgg_criterion = VGGLoss().to(device)
@@ -128,14 +129,14 @@ netG.train()
 # Pre-train generator using raw l1 loss
 print("[*] Start training PSNR model based on L1 loss.")
 # Save the generator model based on MSE pre training to speed up the training time
-if os.path.exists(f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth"):
+if os.path.exists(f"./weight/SRResNet_{args.upscale_factor}x.pth"):
     print("[*] Found PSNR pretrained model weights. Skip pre-train.")
     netG.load_state_dict(
-        torch.load(f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth", map_location=device))
+        torch.load(f"./weight/SRResNet_{args.upscale_factor}x.pth", map_location=device))
 else:
     # Writer train PSNR model log.
     if args.start_epoch == 0:
-        with open(f"SRResNet_{args.upscale_factor}x_Loss_for_{args.block}.csv", "w+") as f:
+        with open(f"SRResNet_{args.upscale_factor}x_Loss.csv", "w+") as f:
             writer = csv.writer(f)
             writer.writerow(["Epoch", "L1 Loss"])
     print("[!] Not found pretrained weights. Start training PSNR model.")
@@ -176,16 +177,16 @@ else:
         torch.save({"epoch": epoch + 1,
                     "optimizer": optimizer.state_dict(),
                     "state_dict": netG.state_dict()
-                    }, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+                    }, f"./weight/SRResNet_{args.upscale_factor}x_checkpoint.pth")
 
         # Writer training log
-        with open(f"SRResNet_{args.upscale_factor}x_Loss_for_{args.block}.csv", "a+") as f:
+        with open(f"SRResNet_{args.upscale_factor}x_Loss.csv", "a+") as f:
             writer = csv.writer(f)
             writer.writerow([epoch + 1, avg_loss / len(dataloader)])
 
-    torch.save(netG.state_dict(), f"./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth")
+    torch.save(netG.state_dict(), f"./weight/SRResNet_{args.upscale_factor}x.pth")
     print(f"[*] Training PSNR model done! Saving PSNR model weight to "
-          f"`./weight/SRResNet_{args.upscale_factor}x_for_{args.block}.pth`.")
+          f"`./weight/SRResNet_{args.upscale_factor}x.pth`.")
 
 # After training the PSNR model, set the initial iteration to 0.
 args.start_epoch = 0
@@ -194,8 +195,8 @@ args.start_epoch = 0
 epochs = int(args.iters // len(dataloader))
 base_epoch = int(epochs // 8)
 epoch_indices = [base_epoch, base_epoch * 2, base_epoch * 4, base_epoch * 6]
-optimizerD = torch.optim.Adam(netD.parameters(), lr=1e-4, betas=(0.9, 0.99))
-optimizerG = torch.optim.Adam(netG.parameters(), lr=1e-4, betas=(0.9, 0.99))
+optimizerD = torch.optim.Adam(netD.parameters(), lr=args.lr)
+optimizerG = torch.optim.Adam(netG.parameters(), lr=args.lr)
 schedulerD = torch.optim.lr_scheduler.MultiStepLR(optimizerD, milestones=epoch_indices, gamma=0.5)
 schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizerG, milestones=epoch_indices, gamma=0.5)
 
@@ -203,17 +204,17 @@ schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizerG, milestones=epoch_i
 if args.resume:
     args.start_epoch = load_checkpoint(netD,
                                        optimizerD,
-                                       f"./weight/netD_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+                                       f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
     args.start_epoch = load_checkpoint(netG,
                                        optimizerG,
-                                       f"./weight/netG_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+                                       f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
 
 # Train SSRGAN model.
 print(f"[*] Staring training SSRGAN model!")
 print(f"[*] Training for {epochs} epochs.")
 # Writer train SSRGAN model log.
 if args.start_epoch == 0:
-    with open(f"SSRGAN_{args.upscale_factor}x_Loss_for_{args.block}.csv", "w+") as f:
+    with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
         writer = csv.writer(f)
         writer.writerow(["Epoch", "D Loss", "G Loss"])
 
@@ -293,19 +294,19 @@ for epoch in range(args.start_epoch, epochs):
     torch.save({"epoch": epoch + 1,
                 "optimizer": optimizerD.state_dict(),
                 "state_dict": netD.state_dict()
-                }, f"./weight/netD_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+                }, f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
     torch.save({"epoch": epoch + 1,
                 "optimizer": optimizerG.state_dict(),
                 "state_dict": netG.state_dict()
-                }, f"./weight/netG_{args.upscale_factor}x_checkpoint_for_{args.block}.pth")
+                }, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
 
     # Writer training log
-    with open(f"SSRGAN_{args.upscale_factor}x_Loss_for_{args.block}.csv", "a+") as f:
+    with open(f"SSRGAN_{args.upscale_factor}x_Loss.csv", "a+") as f:
         writer = csv.writer(f)
         writer.writerow([epoch + 1,
                          d_avg_loss / len(dataloader),
                          g_avg_loss / len(dataloader)])
 
-torch.save(netG.state_dict(), f"./weight/SSRGAN_{args.upscale_factor}x_for_{args.block}.pth")
+torch.save(netG.state_dict(), f"./weight/SSRGAN_{args.upscale_factor}x.pth")
 logger.info(f"[*] Training SRGAN model done! Saving SSRGAN model weight "
-            f"to `./weight/SSRGAN_{args.upscale_factor}x_for_{args.block}.pth`.")
+            f"to `./weight/SSRGAN_{args.upscale_factor}x.pth`.")

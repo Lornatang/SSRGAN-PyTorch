@@ -26,6 +26,7 @@ from .model import DepthwiseSeparableConvolution
 from .model import DiscriminatorForVGG
 from .model import Fire
 from .model import Generator
+from .model import Inception
 from .model import InvertedResidual
 from .model import MobileNetV3Bottleneck
 from .model import ReceptiveFieldBlock
@@ -37,6 +38,7 @@ from .model import ResidualOfReceptiveFieldDenseBlock
 from .model import SEModule
 from .model import ShuffleNetV1
 from .model import ShuffleNetV2
+from .model import SymmetricBlock
 from .model import channel_shuffle
 from .utils import calculate_weights_indices
 from .utils import cubic

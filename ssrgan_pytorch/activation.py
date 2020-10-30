@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 __all__ = [
-    "FReLU", "HSigmoid", "HSwish", "Mish", "Sine"
+    "FReLU", "HSigmoid", "HSwish", "Mish", "Sine", "Swish"
 ]
 
 
@@ -28,9 +28,10 @@ class FReLU(nn.Module):
     `"Funnel Activation for Visual Recognition" <https://arxiv.org/pdf/2007.11824.pdf>`_
 
     Examples:
-        >>> m = Mish()
+        >>> channels = 64
+        >>> frelu = FReLU(channels)
         >>> input = torch.randn(2)
-        >>> output = m(input)
+        >>> output = frelu(input)
     """
 
     def __init__(self, channels):
@@ -104,7 +105,7 @@ class Sine(nn.Module):
     `"Implicit Neural Representations with Periodic Activation Functions" <https://arxiv.org/pdf/2006.09661.pdf>`_
 
     Examples:
-        >>> m = Mish()
+        >>> m = Sine()
         >>> input = torch.randn(2)
         >>> output = m(input)
     """
@@ -113,3 +114,19 @@ class Sine(nn.Module):
     def forward(input: Tensor) -> Tensor:
         # See paper sec. 3.2, final paragraph, and supplement Sec. 1.5 for discussion of factor 30
         return torch.sin(30 * input)
+
+
+class Swish(nn.Module):
+    r""" Applies the swish function element-wise.
+
+    `"Searching for Activation Functions" <https://arxiv.org/pdf/1710.05941.pdf>`_ paper.
+
+    Examples:
+        >>> m = Swish()
+        >>> input = torch.randn(2)
+        >>> output = m(input)
+    """
+
+    @staticmethod
+    def forward(input: Tensor) -> Tensor:
+        return input * F.sigmoid(input)

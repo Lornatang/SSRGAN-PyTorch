@@ -25,7 +25,7 @@ __all__ = [
     "DepthwiseSeparableConvolution", "DiscriminatorForVGG", "Fire", "Generator",
     "InvertedResidual", "MobileNetV3Bottleneck", "ReceptiveFieldBlock", "ReceptiveFieldDenseBlock",
     "ResidualBlock", "ResidualDenseBlock", "ResidualInResidualDenseBlock", "ResidualOfReceptiveFieldDenseBlock",
-    "SEModule", "ShuffleNetV1", "ShuffleNetV2", "channel_shuffle"
+    "SEModule", "ShuffleNetV1", "ShuffleNetV2", "SymmetricBlock", "channel_shuffle"
 ]
 
 
@@ -37,26 +37,25 @@ class DepthwiseSeparableConvolution(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, channels):
         r""" This is a structure for simple versions.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
+            channels (int): Number of channels in the input image.
         """
         super(DepthwiseSeparableConvolution, self).__init__()
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
-            nn.BatchNorm2d(in_channels),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
+            nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True)
         )
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True)
         )
 
@@ -206,57 +205,133 @@ class Fire(nn.Module):
         return out
 
 
+# class Generator(nn.Module):
+#     r""" It is mainly based on the mobile net network as the backbone network generator"""
+#     __constants__ = ["upscale_factor", "block"]
+#
+#     def __init__(self, upscale_factor=4, block="srgan", num_block=4):
+#         r""" This is an ssrgan model defined by the author himself.
+#
+#         Args:
+#             upscale_factor (int): Image magnification factor. (Default: 4).
+#             block (str): Select the structure used by the backbone network. (Default: ``srgan``).
+#             num_block (int): How many block are combined. (Default: 16).
+#         """
+#         super(Generator, self).__init__()
+#         num_upsample_block = int(math.log(upscale_factor, 2))
+#
+#         if block == "srgan":  # For SRGAN
+#             block = ResidualBlock(in_channels=64)
+#         elif block == "esrgan":  # For ESRGAN
+#             block = ResidualInResidualDenseBlock(in_channels=64, growth_channels=32, scale_ratio=0.2)
+#         elif block == "rfb-esrgan":  # For RFB-ESRGAN
+#             block = ResidualOfReceptiveFieldDenseBlock(in_channels=64, growth_channels=32, scale_ratio=0.2)
+#         elif block == "squeezenet":  # For SqueezeNet
+#             block = Fire(in_channels=64, squeeze_channels=8, expand1x1_channels=32, expand3x3_channels=32)
+#         elif block == "mobilenet-v1":  # For MobileNet v1
+#             block = DepthwiseSeparableConvolution(in_channels=64, out_channels=64)
+#         elif block == "mobilenet-v2":  # For MobileNet v2
+#             block = InvertedResidual(in_channels=64, out_channels=64, expand_factor=6)
+#         elif block == "mobilenet-v3":  # For MobileNet v3
+#             block = MobileNetV3Bottleneck(in_channels=64, out_channels=64, expand_factor=6)
+#         elif block == "shufflenet-v1":  # For ShuffleNet v1
+#             block = ShuffleNetV1(in_channels=64, out_channels=64)
+#         elif block == "shufflenet-v2":  # For ShuffleNet v2
+#             block = ShuffleNetV2(channels=64)
+#         elif block == "symmetric":  # For Our trunk-A
+#             block = SymmetricBlock(channels=54)
+#         else:
+#             raise NameError("Please check the block name, the block name must be "
+#                             "`srgan`, `esrgan`, `rfb-esrgan` or "
+#                             "`squeezenet` or "
+#                             "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or "
+#                             "`shufflenet-v1`, `shufflenet-v2` or "
+#                             "symmetric")
+#
+#         # First layer
+#         self.conv1 = nn.Conv2d(3, 54, kernel_size=3, stride=1, padding=1, bias=False)
+#
+#         # 16 layer similar stack block structure.
+#         blocks = []
+#         for _ in range(num_block):
+#             blocks.append(block)
+#         self.Trunk = nn.Sequential(*blocks)
+#
+#         # Second conv layer post residual blocks
+#         self.conv2 = nn.Conv2d(54, 54, kernel_size=3, stride=1, padding=1, bias=False)
+#
+#         # Upsampling layers
+#         upsampling = []
+#         for _ in range(num_upsample_block):
+#             upsampling += [
+#                 nn.Conv2d(54, 216, kernel_size=3, stride=1, padding=1, bias=False),
+#                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
+#                 nn.PixelShuffle(upscale_factor=2)
+#             ]
+#         self.upsampling = nn.Sequential(*upsampling)
+#
+#         # Next layer after upper sampling
+#         self.conv3 = nn.Sequential(
+#             nn.Conv2d(54, 54, kernel_size=3, stride=1, padding=1, bias=False),
+#             nn.LeakyReLU(negative_slope=0.2, inplace=True)
+#         )
+#
+#         # Final output layer
+#         self.conv4 = nn.Sequential(
+#             nn.Conv2d(54, 3, kernel_size=3, stride=1, padding=1, bias=False),
+#             nn.Tanh()
+#         )
+#
+#     def forward(self, input: Tensor) -> Tensor:
+#         out1 = self.conv1(input)
+#         out = self.Trunk(out1)
+#         out2 = self.conv2(out)
+#         out = torch.add(out1, out2)
+#         out = self.upsampling(out)
+#         out = self.conv3(out)
+#         out = self.conv4(out)
+#
+#         return out
+
 class Generator(nn.Module):
     r""" It is mainly based on the mobile net network as the backbone network generator"""
     __constants__ = ["upscale_factor", "block"]
 
-    def __init__(self, upscale_factor=4, block="srgan", num_block=16):
+    def __init__(self, upscale_factor=4):
         r""" This is an ssrgan model defined by the author himself.
 
         Args:
             upscale_factor (int): Image magnification factor. (Default: 4).
-            block (str): Select the structure used by the backbone network. (Default: ``srgan``).
-            num_block (int): How many block are combined. (Default: 16).
         """
         super(Generator, self).__init__()
         num_upsample_block = int(math.log(upscale_factor, 2))
 
-        if block == "srgan":  # For SRGAN
-            block = ResidualBlock(in_channels=64)
-        elif block == "esrgan":  # For ESRGAN
-            block = ResidualInResidualDenseBlock(in_channels=64, growth_channels=32, scale_ratio=0.2)
-        elif block == "rfb-esrgan":  # For RFB-ESRGAN
-            block = ResidualOfReceptiveFieldDenseBlock(in_channels=64, growth_channels=32, scale_ratio=0.2)
-        elif block == "squeezenet":  # For SqueezeNet
-            block = Fire(in_channels=64, squeeze_channels=8, expand1x1_channels=32, expand3x3_channels=32)
-        elif block == "mobilenet-v1":  # For MobileNet v1
-            block = DepthwiseSeparableConvolution(in_channels=64, out_channels=64)
-        elif block == "mobilenet-v2":  # For MobileNet v2
-            block = InvertedResidual(in_channels=64, out_channels=64, expand_factor=6)
-        elif block == "mobilenet-v3":  # For MobileNet v3
-            block = MobileNetV3Bottleneck(in_channels=64, out_channels=64, expand_factor=6)
-        elif block == "shufflenet-v1":  # For ShuffleNet v1
-            block = ShuffleNetV1(in_channels=64, out_channels=64)
-        elif block == "shufflenet-v2":  # For ShuffleNet v2
-            block = ShuffleNetV2(channels=64)
-        else:
-            raise NameError("Please check the block name, the block name must be "
-                            "`srgan`, `esrgan`, `rfb-esrgan` or "
-                            "`squeezenet` or "
-                            "`mobilenet-v1`, `mobilenet-v2`, `mobilenet-v3` or "
-                            "`shufflenet-v1`, `shufflenet-v2`")
-
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
-        # 16 layer similar stack block structure.
-        blocks = []
-        for _ in range(num_block):
-            blocks.append(block)
-        self.Trunk = nn.Sequential(*blocks)
+        # Two structures similar to U-Net network.
+        trunk_a = []
+        for _ in range(2):
+            trunk_a.append(SymmetricBlock(64))
+        self.Trunk_A = nn.Sequential(*trunk_a)
 
-        # Second conv layer post residual blocks
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        # Two structures similar to MobileNet network.
+        trunk_b = []
+        for _ in range(2):
+            trunk_b.append(DepthwiseSeparableConvolution(64))
+        self.Trunk_B = nn.Sequential(*trunk_b)
+
+        # Two structures similar to Inception network.
+        trunk_c = []
+        for _ in range(2):
+            trunk_c.append(Inception(64))
+        self.Trunk_C = nn.Sequential(*trunk_c)
+
+        # Two structures similar to MobileNet network.
+        trunk_d = []
+        for _ in range(2):
+            trunk_d.append(DepthwiseSeparableConvolution(64))
+        self.Trunk_D = nn.Sequential(*trunk_d)
 
         # Upsampling layers
         upsampling = []
@@ -281,15 +356,110 @@ class Generator(nn.Module):
         )
 
     def forward(self, input: Tensor) -> Tensor:
-        out1 = self.conv1(input)
-        out = self.Trunk(out1)
-        out2 = self.conv2(out)
-        out = torch.add(out1, out2)
+        conv1 = self.conv1(input)
+        trunk_a = self.Trunk_A(conv1)
+        out = torch.add(conv1, trunk_a)
+        trunk_b = self.Trunk_B(out)
+        out = torch.add(conv1, trunk_b)
+        trunk_c = self.Trunk_C(out)
+        out = torch.add(conv1, trunk_c)
+        trunk_d = self.Trunk_D(out)
+        out = torch.add(conv1, trunk_d)
         out = self.upsampling(out)
         out = self.conv3(out)
         out = self.conv4(out)
 
         return out
+
+
+class Inception(nn.Module):
+
+    def __init__(self, channels):
+        r""" Modules introduced in SqueezeNet paper.
+
+        Args:
+            channels (int): Number of channels in the input image.
+        """
+        super(Inception, self).__init__()
+        branch_features = int(channels // 4)
+
+        self.branch1 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, groups=branch_features,
+                      bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.branch2 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, groups=branch_features,
+                      bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.branch1_2 = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0,
+                                   bias=False)
+
+        self.branch3 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1), bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0),
+                      groups=branch_features,
+                      bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.branch4 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0), bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1),
+                      groups=branch_features,
+                      bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.branch3_4 = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0,
+                                   bias=False)
+
+        self.conv1x1 = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias.data, 0.0)
+
+    def forward(self, input: Tensor) -> Tensor:
+        # Squeeze layer
+        out1 = self.branch1(input)
+        out2 = self.branch2(input)
+        squeeze_concat = torch.cat([out1, out2], dim=1)
+        squeeze_out = self.branch1_2(squeeze_concat)
+        # Depthwise layer
+        out3 = self.branch3(input)
+        out4 = self.branch4(input)
+        depthwise_concat = torch.cat([out3, out4], dim=1)
+        depthwise_out = self.branch3_4(depthwise_concat)
+        # Concat layer
+        out = torch.cat([squeeze_out, depthwise_out], dim=1)
+        out = self.conv1x1(out)
+
+        return out + input
 
 
 class InvertedResidual(nn.Module):
@@ -834,6 +1004,70 @@ class ShuffleNetV2(nn.Module):
         out = channel_shuffle(out, 2)
 
         return out
+
+
+class SymmetricBlock(nn.Module):
+
+    def __init__(self, channels):
+        r""" Modules introduced in SqueezeNet paper.
+
+        Args:
+            channels (int): Number of channels in the input image.
+        """
+        super(SymmetricBlock, self).__init__()
+        hidden_channels = channels * 2
+
+        # Down sampling
+        self.down = nn.Conv2d(channels, channels, kernel_size=3, stride=2, padding=1, bias=False)
+
+        # Residual block1
+        self.body1 = nn.Sequential(
+            nn.Conv2d(channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
+                      bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        )
+
+        # Up sampling
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+
+        # Residual block1
+        self.body2 = nn.Sequential(
+            nn.Conv2d(hidden_channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0, bias=False),
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias.data, 0.0)
+
+    def forward(self, input: Tensor) -> Tensor:
+        # Down sampling
+        out = self.down(input)
+        # Down body
+        out = self.body1(out)
+        # Up sampling
+        out = self.up(out)
+        # Up body
+        out = self.body2(out)
+
+        return out + input
 
 
 # Source from `https://github.com/pytorch/vision/blob/master/torchvision/models/shufflenetv2.py`
