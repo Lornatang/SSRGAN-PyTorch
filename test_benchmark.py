@@ -65,7 +65,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
 
 # Construct SRGAN model.
 model = Generator(upscale_factor=args.upscale_factor).to(device)
-model.load_state_dict(torch.load(args.model_path, map_location=device)["state_dict"])
+model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
 model.eval()
