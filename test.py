@@ -16,8 +16,8 @@ import time
 import torch
 import torchvision.transforms as transforms
 from PIL import Image
-from ssrgan import Generator
-from ssrgan import select_device
+from ssrgan_pytorch import Generator
+from ssrgan_pytorch import select_device
 
 
 # Super divide image reasoning entry, return the picture in pillow format.
@@ -53,11 +53,11 @@ def inference(filename):
 
 if __name__ == "__main__":
     # Selection of appropriate treatment equipment. default set CUDA:0
-    device = select_device("cpu", batch_size=1)
+    device = select_device("0", batch_size=1)
 
     # Construct SRGAN model.
-    model = Generator(upscale_factor=4, block="shufflenet-v2").to(device)
-    model.load_state_dict(torch.load("weight/SRResNet_4x_for_shufflenet-v2.pth", map_location=device))
+    model = Generator(upscale_factor=4,block="esrgan").to(device)
+    model.load_state_dict(torch.load("weight/tiny/50000/SRResNet_4x_for_esrgan.pth", map_location=device))
 
     # Set model eval mode
     model.eval()
@@ -68,10 +68,10 @@ if __name__ == "__main__":
 
     # Define image params
     UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
-    LR_WIDTH, LR_HEIGHT = 1920, 1080
+    LR_WIDTH, LR_HEIGHT = 486, 486
     SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
     SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
-    NUM_WIDTH, NUM_HEIGHT = 32, 20  # For our patch size (width=64 height=54)
+    NUM_WIDTH, NUM_HEIGHT = 9, 9  # For our patch size (width=64 height=54)
     sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
     # Get LR patch size.
     PATCH_LR_WIDTH_SIZE = int(LR_WIDTH // NUM_WIDTH)
@@ -81,5 +81,5 @@ if __name__ == "__main__":
     PATCH_HR_HEIGHT_SIZE = int(SR_HEIGHT // NUM_HEIGHT)
 
     start_time = time.time()
-    inference("a.bmp")
+    inference("lr.bmp").save("esrgan.bmp")
     print(f"Use time: {time.time() - start_time:.2}s")

@@ -209,7 +209,7 @@ class Fire(nn.Module):
 #     r""" It is mainly based on the mobile net network as the backbone network generator"""
 #     __constants__ = ["upscale_factor", "block"]
 #
-#     def __init__(self, upscale_factor=4, block="srgan", num_block=4):
+#     def __init__(self, upscale_factor=4, block="srgan", num_block=16):
 #         r""" This is an ssrgan model defined by the author himself.
 #
 #         Args:
@@ -249,7 +249,7 @@ class Fire(nn.Module):
 #                             "symmetric")
 #
 #         # First layer
-#         self.conv1 = nn.Conv2d(3, 54, kernel_size=3, stride=1, padding=1, bias=False)
+#         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 #
 #         # 16 layer similar stack block structure.
 #         blocks = []
@@ -258,13 +258,13 @@ class Fire(nn.Module):
 #         self.Trunk = nn.Sequential(*blocks)
 #
 #         # Second conv layer post residual blocks
-#         self.conv2 = nn.Conv2d(54, 54, kernel_size=3, stride=1, padding=1, bias=False)
+#         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
 #
 #         # Upsampling layers
 #         upsampling = []
 #         for _ in range(num_upsample_block):
 #             upsampling += [
-#                 nn.Conv2d(54, 216, kernel_size=3, stride=1, padding=1, bias=False),
+#                 nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
 #                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
 #                 nn.PixelShuffle(upscale_factor=2)
 #             ]
@@ -272,13 +272,13 @@ class Fire(nn.Module):
 #
 #         # Next layer after upper sampling
 #         self.conv3 = nn.Sequential(
-#             nn.Conv2d(54, 54, kernel_size=3, stride=1, padding=1, bias=False),
+#             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
 #             nn.LeakyReLU(negative_slope=0.2, inplace=True)
 #         )
 #
 #         # Final output layer
 #         self.conv4 = nn.Sequential(
-#             nn.Conv2d(54, 3, kernel_size=3, stride=1, padding=1, bias=False),
+#             nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
 #             nn.Tanh()
 #         )
 #
@@ -295,7 +295,7 @@ class Fire(nn.Module):
 
 class Generator(nn.Module):
     r""" It is mainly based on the mobile net network as the backbone network generator"""
-    __constants__ = ["upscale_factor", "block"]
+    __constants__ = ["upscale_factor"]
 
     def __init__(self, upscale_factor=4):
         r""" This is an ssrgan model defined by the author himself.
