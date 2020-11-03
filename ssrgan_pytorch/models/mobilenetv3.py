@@ -16,6 +16,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from ssrgan_pytorch.activation import HSigmoid
+from ssrgan_pytorch.activation import HSwish
 
 __all__ = ["SEModule", "MobileNetV3Bottleneck", "MobileNetV3"]
 
@@ -80,7 +81,7 @@ class MobileNetV3Bottleneck(nn.Module):
         # squeeze and excitation module.
         self.SEModule = nn.Sequential(
             SEModule(hidden_channels),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            HSwish()
         )
 
         # pw-linear
