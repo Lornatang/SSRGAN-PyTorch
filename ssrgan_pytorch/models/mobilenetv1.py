@@ -15,52 +15,35 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-__all__ = ["SymmetricBlock", "UNet"]
+__all__ = ["DepthwiseSeparableConvolution", "MobileNetV1"]
 
 
-class SymmetricBlock(nn.Module):
-    r""" U-shaped network.
+class DepthwiseSeparableConvolution(nn.Module):
+    r""" Depthwise separable convolution implemented in mobilenet version 1.
 
-    `"U-Net: Convolutional Networks for Biomedical
-    Image Segmentation" <https://arxiv.org/abs/1505.04597>`_ paper
+    `"MobileNets: Efficient Convolutional Neural Networks for
+    Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_ paper
 
     """
 
     def __init__(self, in_channels, out_channels):
-        r""" Modules introduced in U-Net paper.
+        r""" Modules introduced in MobileNetV1 paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
         """
-        super(SymmetricBlock, self).__init__()
-        hidden_channels = in_channels * 2
+        super(DepthwiseSeparableConvolution, self).__init__()
 
-        # Down sampling
-        self.down = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1, bias=False)
-
-        # Residual block1
-        self.body1 = nn.Sequential(
-            nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+        # dw
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
-        # Up sampling
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
-
-        # Residual block1
-        self.body2 = nn.Sequential(
-            nn.Conv2d(out_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
+        # pw
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
@@ -80,47 +63,43 @@ class SymmetricBlock(nn.Module):
                 nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
-        # Down sampling
-        out = self.down(input)
-        # Down body
-        out = self.body1(out)
-        # Up sampling
-        out = self.up(out)
-        # Up body
-        out = self.body2(out)
+        # DepthWise convolution
+        out = self.depthwise(input)
+        # Projection convolution
+        out = self.pointwise(out)
 
-        return out + input
+        return out
 
 
-class UNet(nn.Module):
-    r""" It is mainly based on the mobile net network as the backbone network generator"""
+class MobileNetV1(nn.Module):
+    r""" It is mainly based on the mobilenet-v1 network as the backbone network generator"""
 
     def __init__(self):
-        r""" This is made up of u-net network structure.
+        r""" This is made up of mobilenet-v1 network structure.
         """
-        super(UNet, self).__init__()
+        super(MobileNetV1, self).__init__()
 
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
-        # Two structures similar to U-Net network.
+        # Eight structures similar to MobileNetV1 network.
         trunk = []
         for _ in range(8):
-            trunk.append(SymmetricBlock(64, 64))
+            trunk.append(DepthwiseSeparableConvolution(64, 64))
         self.Trunk = nn.Sequential(*trunk)
 
-        self.unet = SymmetricBlock(64, 64)
+        self.mobilenet = DepthwiseSeparableConvolution(64, 64)
 
         # Upsampling layers
         upsampling = []
         for _ in range(1):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                SymmetricBlock(64, 64),
+                DepthwiseSeparableConvolution(64, 64),
                 nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.PixelShuffle(upscale_factor=2),
-                SymmetricBlock(64, 64)
+                DepthwiseSeparableConvolution(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
@@ -139,8 +118,8 @@ class UNet(nn.Module):
     def forward(self, input: Tensor) -> Tensor:
         conv1 = self.conv1(input)
         trunk = self.Trunk(conv1)
-        unet = self.unet(trunk)
-        out = torch.add(conv1, unet)
+        mobilenet = self.mobilenet(trunk)
+        out = torch.add(conv1, mobilenet)
         out = self.upsampling(out)
         out = self.conv3(out)
         out = self.conv4(out)

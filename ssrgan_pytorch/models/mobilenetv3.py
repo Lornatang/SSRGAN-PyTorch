@@ -15,54 +15,76 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-__all__ = ["SymmetricBlock", "UNet"]
+from ssrgan_pytorch.activation import HSigmoid
+
+__all__ = ["SEModule", "MobileNetV3Bottleneck", "MobileNetV3"]
 
 
-class SymmetricBlock(nn.Module):
-    r""" U-shaped network.
+class SEModule(nn.Module):
+    r""" Squeeze-and-Excite module.
 
-    `"U-Net: Convolutional Networks for Biomedical
-    Image Segmentation" <https://arxiv.org/abs/1505.04597>`_ paper
+    `"MnasNet: Platform-Aware Neural Architecture Search for Mobile" <https://arxiv.org/pdf/1807.11626.pdf>`_
 
     """
 
-    def __init__(self, in_channels, out_channels):
-        r""" Modules introduced in U-Net paper.
+    def __init__(self, in_channels, reduction=4):
+        super(SEModule, self).__init__()
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(in_channels, in_channels // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(in_channels // reduction, in_channels, bias=False),
+            HSigmoid()
+        )
+
+    def forward(self, input: Tensor) -> Tensor:
+        b, c, _, _ = input.size()
+        out = self.avgpool(input).view(b, c)
+        out = self.fc(out).view(b, c, 1, 1)
+        return input * out.expand_as(input)
+
+
+class MobileNetV3Bottleneck(nn.Module):
+    r""" Base on MobileNetV2 + Squeeze-and-Excite.
+
+    `"Searching for MobileNetV3" <https://arxiv.org/pdf/1905.02244.pdf>`_
+
+    """
+
+    def __init__(self, in_channels, out_channels, expand_factor=1):
+        r""" Modules introduced in MobileNetV3 paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, int): Number of channels produced by the expand convolution. (Default: 1).
         """
-        super(SymmetricBlock, self).__init__()
-        hidden_channels = in_channels * 2
+        super(MobileNetV3Bottleneck, self).__init__()
+        hidden_channels = int(round(in_channels * expand_factor))
 
-        # Down sampling
-        self.down = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1, bias=False)
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
 
-        # Residual block1
-        self.body1 = nn.Sequential(
+        # pw
+        self.pointwise = nn.Sequential(
             nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
-        # Up sampling
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        # dw
+        self.depthwise = nn.Conv2d(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2,
+                                   groups=hidden_channels, bias=False)
 
-        # Residual block1
-        self.body2 = nn.Sequential(
-            nn.Conv2d(out_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
+        # squeeze and excitation module.
+        self.SEModule = nn.Sequential(
+            SEModule(hidden_channels),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
+
+        # pw-linear
+        self.pointwise_linear = nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -80,47 +102,47 @@ class SymmetricBlock(nn.Module):
                 nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
-        # Down sampling
-        out = self.down(input)
-        # Down body
-        out = self.body1(out)
-        # Up sampling
-        out = self.up(out)
-        # Up body
-        out = self.body2(out)
+        # Expansion convolution
+        out = self.pointwise(input)
+        # DepthWise convolution
+        out = self.depthwise(out)
+        # Squeeze-and-Excite
+        out = self.SEModule(out)
+        # Projection convolution
+        out = self.pointwise_linear(out)
 
-        return out + input
+        return out + self.shortcut(input)
 
 
-class UNet(nn.Module):
-    r""" It is mainly based on the mobile net network as the backbone network generator"""
+class MobileNetV3(nn.Module):
+    r""" It is mainly based on the MobileNet-v3 network as the backbone network generator"""
 
     def __init__(self):
-        r""" This is made up of u-net network structure.
+        r""" This is made up of MobileNet-v3 network structure.
         """
-        super(UNet, self).__init__()
+        super(MobileNetV3, self).__init__()
 
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
-        # Two structures similar to U-Net network.
+        # Eight structures similar to MobileNetV3 network.
         trunk = []
         for _ in range(8):
-            trunk.append(SymmetricBlock(64, 64))
+            trunk.append(MobileNetV3Bottleneck(64, 64))
         self.Trunk = nn.Sequential(*trunk)
 
-        self.unet = SymmetricBlock(64, 64)
+        self.mobilenet = MobileNetV3Bottleneck(64, 64)
 
         # Upsampling layers
         upsampling = []
         for _ in range(1):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                SymmetricBlock(64, 64),
+                MobileNetV3Bottleneck(64, 64),
                 nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.PixelShuffle(upscale_factor=2),
-                SymmetricBlock(64, 64)
+                MobileNetV3Bottleneck(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
@@ -139,8 +161,8 @@ class UNet(nn.Module):
     def forward(self, input: Tensor) -> Tensor:
         conv1 = self.conv1(input)
         trunk = self.Trunk(conv1)
-        unet = self.unet(trunk)
-        out = torch.add(conv1, unet)
+        mobilenet = self.mobilenet(trunk)
+        out = torch.add(conv1, mobilenet)
         out = self.upsampling(out)
         out = self.conv3(out)
         out = self.conv4(out)
