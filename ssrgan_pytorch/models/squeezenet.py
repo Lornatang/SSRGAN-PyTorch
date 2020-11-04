@@ -91,21 +91,21 @@ class SqueezeNet(nn.Module):
         # Eight structures similar to SqueezeNet network.
         trunk = []
         for _ in range(8):
-            trunk.append(Fire(64, 16, 32, 32))
+            trunk.append(Fire(64, 8, 32, 32))
         self.Trunk = nn.Sequential(*trunk)
 
-        self.fire = Fire(64, 16, 32, 32)
+        self.fire = Fire(64, 8, 32, 32)
 
         # Upsampling layers
         upsampling = []
         for _ in range(1):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                Fire(64, 16, 32, 32),
+                Fire(64, 8, 32, 32),
                 nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.PixelShuffle(upscale_factor=2),
-                Fire(64, 16, 32, 32),
+                Fire(64, 8, 32, 32)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
