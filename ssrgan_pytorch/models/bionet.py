@@ -51,7 +51,9 @@ class BioNet(nn.Module):
             DepthwiseSeparableConvolution(64, 64)
         )
 
-        self.inception = InceptionA(64, 64)
+        self.inception = nn.Sequential(
+            InceptionA(64, 64)
+        )
 
         # Upsampling layers
         self.upsampling = nn.Sequential(
