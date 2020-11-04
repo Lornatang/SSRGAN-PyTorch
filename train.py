@@ -29,7 +29,7 @@ from ssrgan_pytorch import VGGLoss
 from ssrgan_pytorch import init_torch_seeds
 from ssrgan_pytorch import load_checkpoint
 from ssrgan_pytorch import select_device
-from ssrgan_pytorch.models import UNet
+from ssrgan_pytorch.models import SqueezeNet
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
 
 # Construct network architecture model of generator and discriminator.
 netD = DiscriminatorForVGG().to(device)
-netG = UNet().to(device)
+netG = SqueezeNet().to(device)
 
 # Define PSNR model optimizers
 psnr_epochs = int(args.psnr_iters // len(dataloader))

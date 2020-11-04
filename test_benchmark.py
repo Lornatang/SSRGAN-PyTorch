@@ -28,9 +28,9 @@ from sewar.full_ref import vifp
 from tqdm import tqdm
 
 from ssrgan_pytorch import DatasetFromFolder
-from ssrgan_pytorch import Generator
 from ssrgan_pytorch import cal_niqe
 from ssrgan_pytorch import select_device
+from ssrgan_pytorch.models import UNet
 
 parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                              "technology for pathological microscopic images.")
@@ -40,8 +40,8 @@ parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (default:4)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--model-path", default="./weight/SSRGAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weight/SSRGAN_4x.pth``).")
+parser.add_argument("--model-path", default="./weight/GAN_4x.pth", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (default: ``./weight/GAN_4x.pth``).")
 parser.add_argument("--device", default="0",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``CUDA:0``).")
 
@@ -63,8 +63,8 @@ dataloader = torch.utils.data.DataLoader(dataset,
                                          pin_memory=True,
                                          num_workers=int(args.workers))
 
-# Construct SRGAN model.
-model = Generator(upscale_factor=args.upscale_factor).to(device)
+# Construct GAN model.
+model = UNet().to(device)
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
