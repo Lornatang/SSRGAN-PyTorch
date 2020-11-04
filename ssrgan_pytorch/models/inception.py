@@ -15,14 +15,14 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-__all__ = ["DepthwiseSeparableConvolution", "MobileNetV1"]
+__all__ = ["InceptionA", "MobileNetV1"]
 
 
-class DepthwiseSeparableConvolution(nn.Module):
-    r""" Depthwise separable convolution implemented in mobilenet version 1.
+class InceptionA(nn.Module):
+    r""" It is improved by referring to the structure of the original paper.
 
-    `"MobileNets: Efficient Convolutional Neural Networks for
-    Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_ paper
+    `"Inception-v4, Inception-ResNet and
+    the Impact of Residual Connections on Learning" <https://arxiv.org/abs/1602.07261>`_ paper
 
     """
 
@@ -33,7 +33,7 @@ class DepthwiseSeparableConvolution(nn.Module):
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
         """
-        super(DepthwiseSeparableConvolution, self).__init__()
+        super(InceptionA, self).__init__()
 
         # dw
         self.depthwise = nn.Sequential(
@@ -80,55 +80,48 @@ class MobileNetV1(nn.Module):
         super(MobileNetV1, self).__init__()
 
         # First layer
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
-        )
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
-        # Eight structures similar to MobileNet network.
-        self.trunk = nn.Sequential(
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64)
-        )
+        # Eight structures similar to MobileNetV1 network.
+        trunk = []
+        for _ in range(8):
+            trunk.append(InceptionA(64, 64))
+        self.Trunk = nn.Sequential(*trunk)
 
-        self.mobilenet = nn.Sequential(
-            DepthwiseSeparableConvolution(64, 64)
-        )
+        self.mobilenet = InceptionA(64, 64)
 
         # Upsampling layers
-        self.upsampling = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="nearest"),
-            DepthwiseSeparableConvolution(64, 64),
-            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.PixelShuffle(upscale_factor=2),
-            DepthwiseSeparableConvolution(64, 64)
-        )
+        upsampling = []
+        for _ in range(1):
+            upsampling += [
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                InceptionA(64, 64),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
+                nn.PixelShuffle(upscale_factor=2),
+                InceptionA(64, 64)
+            ]
+        self.upsampling = nn.Sequential(*upsampling)
 
         # Next layer after upper sampling
-        self.conv2 = nn.Sequential(
+        self.conv3 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         # Final output layer
-        self.conv3 = nn.Sequential(
+        self.conv4 = nn.Sequential(
             nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
             nn.Tanh()
         )
 
     def forward(self, input: Tensor) -> Tensor:
         conv1 = self.conv1(input)
-        trunk = self.trunk(conv1)
+        trunk = self.Trunk(conv1)
         mobilenet = self.mobilenet(trunk)
         out = torch.add(conv1, mobilenet)
         out = self.upsampling(out)
-        out = self.conv2(out)
         out = self.conv3(out)
+        out = self.conv4(out)
 
         return out

@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+from ssrgan_pytorch.models.bionet import BioNet
 from ssrgan_pytorch.models.mobilenetv1 import MobileNetV1
 from ssrgan_pytorch.models.mobilenetv2 import MobileNetV2
 from ssrgan_pytorch.models.mobilenetv3 import MobileNetV3
@@ -19,6 +20,7 @@ from ssrgan_pytorch.models.u_net import SymmetricBlock
 from ssrgan_pytorch.models.u_net import UNet
 
 __all__ = [
+    "BioNet",
     "MobileNetV1",
     "MobileNetV2",
     "MobileNetV3",

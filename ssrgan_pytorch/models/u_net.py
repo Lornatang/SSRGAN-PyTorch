@@ -101,48 +101,55 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
 
         # First layer
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
+        )
 
-        # Two structures similar to U-Net network.
-        trunk = []
-        for _ in range(8):
-            trunk.append(SymmetricBlock(64, 64))
-        self.Trunk = nn.Sequential(*trunk)
+        # Eight structures similar to U-Net network.
+        self.trunk = nn.Sequential(
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64)
+        )
 
-        self.unet = SymmetricBlock(64, 64)
+        self.unet = nn.Sequential(
+            SymmetricBlock(64, 64)
+        )
 
         # Upsampling layers
-        upsampling = []
-        for _ in range(1):
-            upsampling += [
-                nn.Upsample(scale_factor=2, mode="nearest"),
-                SymmetricBlock(64, 64),
-                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
-                nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                nn.PixelShuffle(upscale_factor=2),
-                SymmetricBlock(64, 64)
-            ]
-        self.upsampling = nn.Sequential(*upsampling)
+        self.upsampling = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode="nearest"),
+            SymmetricBlock(64, 64),
+            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.PixelShuffle(upscale_factor=2),
+            SymmetricBlock(64, 64)
+        )
 
         # Next layer after upper sampling
-        self.conv3 = nn.Sequential(
+        self.conv2 = nn.Sequential(
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         # Final output layer
-        self.conv4 = nn.Sequential(
+        self.conv3 = nn.Sequential(
             nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
             nn.Tanh()
         )
 
     def forward(self, input: Tensor) -> Tensor:
         conv1 = self.conv1(input)
-        trunk = self.Trunk(conv1)
+        trunk = self.trunk(conv1)
         unet = self.unet(trunk)
         out = torch.add(conv1, unet)
         out = self.upsampling(out)
+        out = self.conv2(out)
         out = self.conv3(out)
-        out = self.conv4(out)
 
         return out

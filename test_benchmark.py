@@ -30,7 +30,7 @@ from tqdm import tqdm
 from ssrgan_pytorch import DatasetFromFolder
 from ssrgan_pytorch import cal_niqe
 from ssrgan_pytorch import select_device
-from ssrgan_pytorch.models import UNet
+from ssrgan_pytorch.models import MobileNetV2
 
 parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                              "technology for pathological microscopic images.")
@@ -64,7 +64,7 @@ dataloader = torch.utils.data.DataLoader(dataset,
                                          num_workers=int(args.workers))
 
 # Construct GAN model.
-model = UNet().to(device)
+model = MobileNetV2().to(device)
 model.load_state_dict(torch.load(args.model_path, map_location=device))
 
 # Set model eval mode
