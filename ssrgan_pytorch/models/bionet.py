@@ -59,7 +59,7 @@ class BioNet(nn.Module):
         self.upsampling = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="nearest"),
             InceptionX(64, 64),
-            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, groups=64, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.PixelShuffle(upscale_factor=2),
             InceptionX(64, 64)
@@ -67,7 +67,7 @@ class BioNet(nn.Module):
 
         # Next layer after upper sampling
         self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, groups=64, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
