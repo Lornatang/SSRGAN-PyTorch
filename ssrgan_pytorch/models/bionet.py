@@ -15,11 +15,11 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from ssrgan_pytorch.models.inception import InceptionA
+from ssrgan_pytorch.models.inception import InceptionX
 from ssrgan_pytorch.models.mobilenetv1 import DepthwiseSeparableConvolution
 from ssrgan_pytorch.models.u_net import SymmetricBlock
 
-__all__ = ["InceptionA", "DepthwiseSeparableConvolution", "SymmetricBlock", "BioNet"]
+__all__ = ["InceptionX", "DepthwiseSeparableConvolution", "SymmetricBlock", "BioNet"]
 
 
 class BioNet(nn.Module):
@@ -30,10 +30,10 @@ class BioNet(nn.Module):
 
         # First layer
         self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         )
 
-        # Eight structures similar to U-Net network.
+        # Eight structures similar to BioNet network.
         self.trunk_A = nn.Sequential(
             SymmetricBlock(64, 64),
             SymmetricBlock(64, 64)
@@ -43,8 +43,8 @@ class BioNet(nn.Module):
             DepthwiseSeparableConvolution(64, 64)
         )
         self.trunk_C = nn.Sequential(
-            InceptionA(64, 64),
-            InceptionA(64, 64)
+            InceptionX(64, 64),
+            InceptionX(64, 64)
         )
         self.trunk_D = nn.Sequential(
             DepthwiseSeparableConvolution(64, 64),
@@ -52,17 +52,17 @@ class BioNet(nn.Module):
         )
 
         self.inception = nn.Sequential(
-            InceptionA(64, 64)
+            InceptionX(64, 64)
         )
 
         # Upsampling layers
         self.upsampling = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="nearest"),
-            InceptionA(64, 64),
+            InceptionX(64, 64),
             nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.PixelShuffle(upscale_factor=2),
-            InceptionA(64, 64)
+            InceptionX(64, 64)
         )
 
         # Next layer after upper sampling

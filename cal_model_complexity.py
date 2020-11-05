@@ -13,12 +13,12 @@
 # ==============================================================================
 from ptflops import get_model_complexity_info
 
-from ssrgan_pytorch.models import SqueezeNet
+from ssrgan_pytorch.models import BioNet
 from ssrgan_pytorch.utils import select_device
 
 device = select_device("0")
 
-model = SqueezeNet().to(device)
+model = BioNet().to(device)
 
 size = (3, 54, 54)
 flops, params = get_model_complexity_info(model, size, as_strings=True, print_per_layer_stat=True)

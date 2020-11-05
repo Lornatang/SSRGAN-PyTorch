@@ -200,17 +200,13 @@ schedulerG = torch.optim.lr_scheduler.MultiStepLR(optimizerG, milestones=epoch_i
 
 # Loading SRGAN checkpoint
 if args.resume:
-    args.start_epoch = load_checkpoint(netD,
-                                       optimizerD,
-                                       f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
-    args.start_epoch = load_checkpoint(netG,
-                                       optimizerG,
-                                       f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
+    args.start_epoch = load_checkpoint(netD, optimizerD, f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
+    args.start_epoch = load_checkpoint(netG, optimizerG, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
 
-# Train SSRGAN model.
+# Train GAN model.
 print(f"[*] Staring training GAN model!")
 print(f"[*] Training for {epochs} epochs.")
-# Writer train SSRGAN model log.
+# Writer train GAN model log.
 if args.start_epoch == 0:
     with open(f"GAN_{args.upscale_factor}x_Loss.csv", "w+") as f:
         writer = csv.writer(f)
