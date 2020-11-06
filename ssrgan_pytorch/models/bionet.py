@@ -40,12 +40,14 @@ class BioNet(nn.Module):
         self.trunk_B = nn.Sequential(
             DepthwiseSeparableConvolution(64, 64),
             DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64)
         )
         self.trunk_C = nn.Sequential(
             InceptionX(64, 64),
             InceptionX(64, 64)
+        )
+        self.trunk_D = nn.Sequential(
+            DepthwiseSeparableConvolution(64, 64),
+            DepthwiseSeparableConvolution(64, 64)
         )
 
         self.inception = InceptionX(64, 64)
@@ -73,12 +75,15 @@ class BioNet(nn.Module):
         # two squeeze block.
         trunk_a = self.trunk_A(conv1)
         out = torch.add(conv1, trunk_a)
-        # Four depthwise block.
+        # Two depthwise block.
         trunk_b = self.trunk_B(out)
         out = torch.add(conv1, trunk_b)
         # Two inceptionA block.
         trunk_c = self.trunk_C(out)
         out = torch.add(conv1, trunk_c)
+        # Two depthwise block.
+        trunk_d = self.trunk_D(out)
+        out = torch.add(conv1, trunk_d)
         # Single layer in all backbone networks.
         inception = self.inception(out)
         out = torch.add(conv1, inception)

@@ -18,7 +18,15 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image
+from sewar.full_ref import mse
+from sewar.full_ref import msssim
+from sewar.full_ref import psnr
+from sewar.full_ref import rmse
+from sewar.full_ref import sam
+from sewar.full_ref import ssim
+from sewar.full_ref import vifp
 
+from ssrgan_pytorch import cal_niqe
 from ssrgan_pytorch import opencv2pil
 from ssrgan_pytorch import pil2opencv
 from ssrgan_pytorch import select_device
@@ -91,10 +99,34 @@ if __name__ == "__main__":
     # Set model eval mode
     model.eval()
 
-    img = cv2.imread("lr.bmp")
+    lr = cv2.imread("lr.bmp")
 
     start_time = time.time()
-    sr = inference(model, img, device)
+    sr = inference(model, lr, device)
     print(f"Use time: {time.time() - start_time:.2}s")
 
     cv2.imwrite("sr.bmp", sr)
+
+    # Evaluate performance
+    src_img = cv2.imread("sr.bmp")
+    dst_img = cv2.imread("hr.bmp")
+
+    mse_value = mse(src_img, dst_img)
+    rmse_value = rmse(src_img, dst_img)
+    psnr_value = psnr(src_img, dst_img)
+    ssim_value = ssim(src_img, dst_img)
+    ms_ssim_value = msssim(src_img, dst_img)  # 30.00+000j
+    niqe_value = cal_niqe("sr.bmp")
+    sam_value = sam(src_img, dst_img)
+    vif_value = vifp(src_img, dst_img)
+
+    print("====================== Performance summary ======================")
+    print(f"MSE: {mse_value:.2f}\n"
+          f"RMSE: {rmse_value:.2f}\n"
+          f"PSNR: {psnr_value:.2f}\n"
+          f"SSIM: {ssim_value[0]:.4f}\n"
+          f"MS-SSIM: {ms_ssim_value.real:.4f}\n"
+          f"NIQE: {niqe_value:.2f}\n"
+          f"SAM: {sam_value:.4f}\n"
+          f"VIF: {vif_value:.4f}")
+    print("============================== End ==============================")

@@ -220,8 +220,6 @@ def opencv2pil(img: np.ndarray) -> PIL.BmpImagePlugin.BmpImageFile:
     Returns:
         PIL.Image.
     """
-    if not isinstance(img, np.ndarray):
-        raise TypeError("The current file format is not ` np.ndarray`.")
 
     img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     return img
@@ -233,8 +231,6 @@ def pil2opencv(img: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
     Returns:
         np.ndarray.
     """
-    if not isinstance(img, PIL.BmpImagePlugin.BmpImageFile):
-        raise TypeError("The current file format is not `PIL.BmpImagePlugin.BmpImageFile`.")
 
     img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
     return img
