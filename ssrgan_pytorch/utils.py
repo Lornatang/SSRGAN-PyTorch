@@ -15,12 +15,16 @@ import logging
 import math
 import os
 
+import PIL.BmpImagePlugin
+import cv2
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+from PIL import Image
 
 __all__ = [
     "calculate_weights_indices", "cubic", "imresize", "init_torch_seeds", "load_checkpoint",
-    "select_device",
+    "opencv2pil", "pil2opencv", "select_device",
 ]
 
 logger = logging.getLogger(__name__)
@@ -208,6 +212,32 @@ def load_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Adam = torch.
         epoch = 0
 
     return epoch
+
+
+def opencv2pil(img: np.ndarray) -> PIL.BmpImagePlugin.BmpImageFile:
+    """ OpenCV Convert to PIL.Image format.
+
+    Returns:
+        PIL.Image.
+    """
+    if not isinstance(img, np.ndarray):
+        raise TypeError("The current file format is not ` np.ndarray`.")
+
+    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    return img
+
+
+def pil2opencv(img: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
+    """ PIL.Image Convert to OpenCV format.
+
+    Returns:
+        np.ndarray.
+    """
+    if not isinstance(img, PIL.BmpImagePlugin.BmpImageFile):
+        raise TypeError("The current file format is not `PIL.BmpImagePlugin.BmpImageFile`.")
+
+    img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
+    return img
 
 
 def select_device(device: str = None, batch_size: int = 1) -> torch.device:

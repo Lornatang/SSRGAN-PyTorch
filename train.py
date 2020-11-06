@@ -19,17 +19,16 @@ import random
 
 import torch.nn as nn
 import torch.utils.data
-import torch.utils.data.distributed
 import torchvision.utils as vutils
 from tqdm import tqdm
 
 from ssrgan_pytorch import DatasetFromFolder
-from ssrgan_pytorch import DiscriminatorForVGG
 from ssrgan_pytorch import VGGLoss
 from ssrgan_pytorch import init_torch_seeds
 from ssrgan_pytorch import load_checkpoint
 from ssrgan_pytorch import select_device
 from ssrgan_pytorch.models import BioNet
+from ssrgan_pytorch.models import DiscriminatorForVGG
 
 logger = logging.getLogger(__name__)
 

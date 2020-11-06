@@ -13,6 +13,7 @@
 # ==============================================================================
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 
 from ssrgan_pytorch.models.inception import InceptionX
@@ -29,9 +30,7 @@ class BioNet(nn.Module):
         super(BioNet, self).__init__()
 
         # First layer
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        )
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
         # Eight structures similar to BioNet network.
         self.trunk_A = nn.Sequential(
@@ -40,20 +39,16 @@ class BioNet(nn.Module):
         )
         self.trunk_B = nn.Sequential(
             DepthwiseSeparableConvolution(64, 64),
+            DepthwiseSeparableConvolution(64, 64),
+            DepthwiseSeparableConvolution(64, 64),
             DepthwiseSeparableConvolution(64, 64)
         )
         self.trunk_C = nn.Sequential(
             InceptionX(64, 64),
             InceptionX(64, 64)
         )
-        self.trunk_D = nn.Sequential(
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64)
-        )
 
-        self.inception = nn.Sequential(
-            InceptionX(64, 64)
-        )
+        self.inception = InceptionX(64, 64)
 
         # Upsampling layers
         self.upsampling = nn.Sequential(
@@ -66,29 +61,35 @@ class BioNet(nn.Module):
         )
 
         # Next layer after upper sampling
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, groups=64, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
         # Final output layer
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Tanh()
-        )
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False)
 
     def forward(self, input: Tensor) -> Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # two squeeze block.
         trunk_a = self.trunk_A(conv1)
         out = torch.add(conv1, trunk_a)
+        # Four depthwise block.
         trunk_b = self.trunk_B(out)
         out = torch.add(conv1, trunk_b)
+        # Two inceptionA block.
         trunk_c = self.trunk_C(out)
         out = torch.add(conv1, trunk_c)
-        trunk_d = self.trunk_D(out)
-        out = torch.add(conv1, trunk_d)
+        # Single layer in all backbone networks.
+        inception = self.inception(out)
+        out = torch.add(conv1, inception)
+
+        # Upsampling layers
         out = self.upsampling(out)
-        out = self.conv2(out)
+
+        # Next layer after upper sampling
+        out = F.leaky_relu(self.conv2(out), negative_slope=0.2, inplace=True)
+
+        # Final output layer
         out = self.conv3(out)
 
-        return out
+        return torch.tanh(out)

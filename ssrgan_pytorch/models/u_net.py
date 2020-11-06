@@ -26,7 +26,7 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels=64, out_channels=64, ):
         r""" Modules introduced in U-Net paper.
 
         Args:
@@ -34,19 +34,25 @@ class SymmetricBlock(nn.Module):
             out_channels (int): Number of channels produced by the convolution.
         """
         super(SymmetricBlock, self).__init__()
-        hidden_channels = in_channels * 2
 
         # Down sampling
-        self.down = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1, bias=False)
+        self.down = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1, groups=in_channels,
+                      bias=False),
+            nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        )
 
         # Residual block1
         self.body1 = nn.Sequential(
-            nn.Conv2d(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
+            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels,
                       bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(in_channels // 2, in_channels // 2, kernel_size=3, stride=1, padding=1, groups=in_channels // 2,
+                      bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(in_channels // 2, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
@@ -55,12 +61,12 @@ class SymmetricBlock(nn.Module):
 
         # Residual block1
         self.body2 = nn.Sequential(
-            nn.Conv2d(out_channels, hidden_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(out_channels, in_channels // 2, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, groups=hidden_channels,
+            nn.Conv2d(in_channels // 2, in_channels // 2, kernel_size=3, stride=1, padding=1, groups=in_channels // 2,
                       bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.Conv2d(in_channels // 2, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 

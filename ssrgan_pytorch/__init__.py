@@ -45,6 +45,8 @@ from .utils import cubic
 from .utils import imresize
 from .utils import init_torch_seeds
 from .utils import load_checkpoint
+from .utils import opencv2pil
+from .utils import pil2opencv
 from .utils import select_device
 
 __all__ = [
@@ -54,7 +56,6 @@ __all__ = [
     "Mish",
     "Sine",
     "cal_niqe",
-    "lpips",
     "DatasetFromFolder",
     "check_image_file",
     "TVLoss",
@@ -80,6 +81,8 @@ __all__ = [
     "imresize",
     "init_torch_seeds",
     "load_checkpoint",
+    "opencv2pil",
+    "pil2opencv",
     "select_device",
 ]
 

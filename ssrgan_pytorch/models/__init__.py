@@ -17,8 +17,10 @@ from ssrgan_pytorch.models.mobilenetv1 import MobileNetV1
 from ssrgan_pytorch.models.mobilenetv2 import MobileNetV2
 from ssrgan_pytorch.models.mobilenetv3 import MobileNetV3
 from ssrgan_pytorch.models.squeezenet import SqueezeNet
+from ssrgan_pytorch.models.srgan import SRGAN
 from ssrgan_pytorch.models.u_net import SymmetricBlock
 from ssrgan_pytorch.models.u_net import UNet
+from ssrgan_pytorch.models.vgg import DiscriminatorForVGG
 
 __all__ = [
     "BioNet",
@@ -27,5 +29,7 @@ __all__ = [
     "MobileNetV2",
     "MobileNetV3",
     "SqueezeNet",
+    "SRGAN",
     "SymmetricBlock",
-    "UNet"]
+    "UNet",
+    "DiscriminatorForVGG"]

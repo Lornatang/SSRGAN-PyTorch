@@ -43,7 +43,7 @@ if __name__ == "__main__":
     device = select_device("0")
     # feature = FeatureVisualization("data/4x/train/input/1_1_1.bmp", 0)
     # 插入维度
-    img = Image.open("./1.bmp")
+    img = Image.open("lr.bmp")
     input = transforms.ToTensor()(img)
     input = input.unsqueeze(0)
     # Convert to define device.

@@ -13,7 +13,9 @@
 # ==============================================================================
 import time
 
+import cv2
 import torch
+import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image
 
@@ -22,16 +24,32 @@ from ssrgan_pytorch import pil2opencv
 from ssrgan_pytorch import select_device
 from ssrgan_pytorch.models import BioNet
 
+# Define image params
+UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
+LR_WIDTH, LR_HEIGHT = 486, 486
+SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
+SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
+NUM_WIDTH, NUM_HEIGHT = 9, 9  # For our patch size (width=64 height=54)
+sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
+
+# Get LR patch size.
+PATCH_LR_WIDTH_SIZE = int(LR_WIDTH // NUM_WIDTH)
+PATCH_LR_HEIGHT_SIZE = int(LR_HEIGHT // NUM_HEIGHT)
+# Get HR patch size.
+PATCH_HR_WIDTH_SIZE = int(SR_WIDTH // NUM_WIDTH)
+PATCH_HR_HEIGHT_SIZE = int(SR_HEIGHT // NUM_HEIGHT)
+
 
 # Super divide image reasoning entry, return the picture in pillow format.
-def inference(img):
+def inference(model: nn.Module, img, device):
     """
 
     Args:
-        img (cv2.imread): Opencv read format. Image stream before super resolution.
+        model
+        img:
+        device:
 
     Returns:
-        img (cv2.imread): Opencv read format. Image stream after super resolution.
 
     """
     # OpenCV to PIL.Image format
@@ -62,31 +80,21 @@ if __name__ == "__main__":
     # Selection of appropriate treatment equipment. default set CUDA:0
     device = select_device("0", batch_size=1)
 
-    # Construct GAN model.
-    model = BioNet().to(device)
-    model.load_state_dict(torch.load("weight/ResNet.pth", map_location=device))
-
-    # Set model eval mode
-    model.eval()
-
     # Conversion between PIL format and tensor format.
     pil2tensor = transforms.ToTensor()
     tensor2pil = transforms.ToPILImage()
 
-    # Define image params
-    UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
-    LR_WIDTH, LR_HEIGHT = 486, 486
-    SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
-    SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
-    NUM_WIDTH, NUM_HEIGHT = 9, 9  # For our patch size (width=64 height=54)
-    sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
-    # Get LR patch size.
-    PATCH_LR_WIDTH_SIZE = int(LR_WIDTH // NUM_WIDTH)
-    PATCH_LR_HEIGHT_SIZE = int(LR_HEIGHT // NUM_HEIGHT)
-    # Get HR patch size.
-    PATCH_HR_WIDTH_SIZE = int(SR_WIDTH // NUM_WIDTH)
-    PATCH_HR_HEIGHT_SIZE = int(SR_HEIGHT // NUM_HEIGHT)
+    # Construct GAN model.
+    model = BioNet().to(device)
+    model.load_state_dict(torch.load("weight/ResNet_4x.pth", map_location=device))
+
+    # Set model eval mode
+    model.eval()
+
+    img = cv2.imread("lr.bmp")
 
     start_time = time.time()
-    inference("lr.bmp")
+    sr = inference(model, img, device)
     print(f"Use time: {time.time() - start_time:.2}s")
+
+    cv2.imwrite("sr.bmp", sr)

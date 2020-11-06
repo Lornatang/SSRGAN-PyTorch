@@ -6,4 +6,5 @@ opencv-python
 sewar
 numpy
 lpips
+ptflops
 scipy
