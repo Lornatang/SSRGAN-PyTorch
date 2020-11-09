@@ -121,17 +121,18 @@ class InceptionX(nn.Module):
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, groups=branch_features,
                       bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
-
-        self.branch1_2 = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0,
-                                   bias=False)
 
         self.branch3 = nn.Sequential(
             nn.Conv2d(in_channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1), bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0),
                       groups=branch_features, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
@@ -140,13 +141,20 @@ class InceptionX(nn.Module):
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1),
                       groups=branch_features, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
-        self.branch3_4 = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0,
-                                   bias=False)
+        self.branch_concat = nn.Sequential(
+            nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
 
-        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv1x1 = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -168,12 +176,12 @@ class InceptionX(nn.Module):
         out1 = self.branch1(input)
         out2 = self.branch2(input)
         squeeze_concat = torch.cat([out1, out2], dim=1)
-        squeeze_out = self.branch1_2(squeeze_concat)
+        squeeze_out = self.branch_concat(squeeze_concat)
         # Depthwise layer
         out3 = self.branch3(input)
         out4 = self.branch4(input)
         depthwise_concat = torch.cat([out3, out4], dim=1)
-        depthwise_out = self.branch3_4(depthwise_concat)
+        depthwise_out = self.branch_concat(depthwise_concat)
         # Concat layer
         out = torch.cat([squeeze_out, depthwise_out], dim=1)
         out = self.conv1x1(out)

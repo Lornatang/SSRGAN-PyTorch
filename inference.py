@@ -34,10 +34,10 @@ from ssrgan_pytorch.models import BioNet
 
 # Define image params
 UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
-LR_WIDTH, LR_HEIGHT = 486, 486
+LR_WIDTH, LR_HEIGHT = 1920, 1080
 SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
 SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
-NUM_WIDTH, NUM_HEIGHT = 9, 9  # For our patch size (width=64 height=54)
+NUM_WIDTH, NUM_HEIGHT = 32, 20  # For our patch size (width=64 height=54)
 sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
 
 # Get LR patch size.
@@ -107,26 +107,26 @@ if __name__ == "__main__":
 
     cv2.imwrite("sr.bmp", sr)
 
-    # Evaluate performance
-    src_img = cv2.imread("sr.bmp")
-    dst_img = cv2.imread("hr.bmp")
-
-    mse_value = mse(src_img, dst_img)
-    rmse_value = rmse(src_img, dst_img)
-    psnr_value = psnr(src_img, dst_img)
-    ssim_value = ssim(src_img, dst_img)
-    ms_ssim_value = msssim(src_img, dst_img)  # 30.00+000j
-    niqe_value = cal_niqe("sr.bmp")
-    sam_value = sam(src_img, dst_img)
-    vif_value = vifp(src_img, dst_img)
-
-    print("====================== Performance summary ======================")
-    print(f"MSE: {mse_value:.2f}\n"
-          f"RMSE: {rmse_value:.2f}\n"
-          f"PSNR: {psnr_value:.2f}\n"
-          f"SSIM: {ssim_value[0]:.4f}\n"
-          f"MS-SSIM: {ms_ssim_value.real:.4f}\n"
-          f"NIQE: {niqe_value:.2f}\n"
-          f"SAM: {sam_value:.4f}\n"
-          f"VIF: {vif_value:.4f}")
-    print("============================== End ==============================")
+    # # Evaluate performance
+    # src_img = cv2.imread("sr.bmp")
+    # dst_img = cv2.imread("hr.bmp")
+    #
+    # mse_value = mse(src_img, dst_img)
+    # rmse_value = rmse(src_img, dst_img)
+    # psnr_value = psnr(src_img, dst_img)
+    # ssim_value = ssim(src_img, dst_img)
+    # ms_ssim_value = msssim(src_img, dst_img)  # 30.00+000j
+    # niqe_value = cal_niqe("sr.bmp")
+    # sam_value = sam(src_img, dst_img)
+    # vif_value = vifp(src_img, dst_img)
+    #
+    # print("====================== Performance summary ======================")
+    # print(f"MSE: {mse_value:.2f}\n"
+    #       f"RMSE: {rmse_value:.2f}\n"
+    #       f"PSNR: {psnr_value:.2f}\n"
+    #       f"SSIM: {ssim_value[0]:.4f}\n"
+    #       f"MS-SSIM: {ms_ssim_value.real:.4f}\n"
+    #       f"NIQE: {niqe_value:.2f}\n"
+    #       f"SAM: {sam_value:.4f}\n"
+    #       f"VIF: {vif_value:.4f}")
+    # print("============================== End ==============================")

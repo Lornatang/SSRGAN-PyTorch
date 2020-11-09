@@ -26,7 +26,7 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels=64, out_channels=64, ):
+    def __init__(self, in_channels=64, out_channels=64):
         r""" Modules introduced in U-Net paper.
 
         Args:
@@ -39,7 +39,9 @@ class SymmetricBlock(nn.Module):
         self.down = nn.Sequential(
             nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1, groups=in_channels,
                       bias=False),
-            nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False)
+            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         # Residual block1
