@@ -11,16 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from ssrgan_pytorch.models.bionet import BioNet
-from ssrgan_pytorch.models.inception import Inception
-from ssrgan_pytorch.models.mobilenetv1 import MobileNetV1
-from ssrgan_pytorch.models.mobilenetv2 import MobileNetV2
-from ssrgan_pytorch.models.mobilenetv3 import MobileNetV3
-from ssrgan_pytorch.models.squeezenet import SqueezeNet
-from ssrgan_pytorch.models.srgan import SRGAN
-from ssrgan_pytorch.models.u_net import SymmetricBlock
-from ssrgan_pytorch.models.u_net import UNet
-from ssrgan_pytorch.models.vgg import DiscriminatorForVGG
+from ssrgan.models.bionet import BioNet
+from ssrgan.models.inception import Inception
+from ssrgan.models.mobilenetv1 import MobileNetV1
+from ssrgan.models.mobilenetv2 import MobileNetV2
+from ssrgan.models.mobilenetv3 import MobileNetV3
+from ssrgan.models.squeezenet import SqueezeNet
+from ssrgan.models.srgan import SRGAN
+from ssrgan.models.u_net import SymmetricBlock
+from ssrgan.models.u_net import UNet
+from ssrgan.models.vgg import DiscriminatorForVGG
 
 __all__ = [
     "BioNet",

@@ -27,10 +27,10 @@ from sewar.full_ref import ssim
 from sewar.full_ref import vifp
 from tqdm import tqdm
 
-from ssrgan_pytorch import DatasetFromFolder
-from ssrgan_pytorch import cal_niqe
-from ssrgan_pytorch import select_device
-from ssrgan_pytorch.models import BioNet
+from ssrgan import DatasetFromFolder
+from ssrgan import cal_niqe
+from ssrgan import select_device
+from ssrgan.models import BioNet
 
 parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                              "technology for pathological microscopic images.")

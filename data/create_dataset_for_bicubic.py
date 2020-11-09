@@ -20,8 +20,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan_pytorch import check_image_file
-from ssrgan_pytorch import utils
+from ssrgan import check_image_file
+from ssrgan import utils
 
 parser = argparse.ArgumentParser(description="Low resolution image generation using bicubic simple down sampling.")
 parser.add_argument("input-dir", type=str, required=True,

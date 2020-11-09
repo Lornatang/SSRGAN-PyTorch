@@ -23,8 +23,8 @@ from PIL import Image
 from scipy.io import loadmat
 from tqdm import tqdm
 
-from ssrgan_pytorch import check_image_file
-from ssrgan_pytorch import utils
+from ssrgan import check_image_file
+from ssrgan import utils
 
 parser = argparse.ArgumentParser(description="Using the image distribution algorithm learned in kernelgan to "
                                              "construct pairwise hyperspectral data.")

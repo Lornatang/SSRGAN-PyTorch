@@ -13,10 +13,10 @@
 # ==============================================================================
 from ptflops import get_model_complexity_info
 
-from ssrgan_pytorch.models import BioNet
-from ssrgan_pytorch.utils import select_device
+from ssrgan.models import BioNet
+from ssrgan.utils import select_device
 
-device = select_device("0")
+device = select_device("cpu")
 
 model = BioNet().to(device)
 

@@ -15,9 +15,9 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from ssrgan_pytorch.models.inception import InceptionX
-from ssrgan_pytorch.models.mobilenetv1 import DepthwiseSeparableConvolution
-from ssrgan_pytorch.models.u_net import SymmetricBlock
+from ssrgan.models.inception import InceptionX
+from ssrgan.models.mobilenetv1 import DepthwiseSeparableConvolution
+from ssrgan.models.u_net import SymmetricBlock
 
 __all__ = ["InceptionX", "DepthwiseSeparableConvolution", "SymmetricBlock", "BioNet"]
 

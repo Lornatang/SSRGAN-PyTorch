@@ -28,9 +28,9 @@ from sewar.full_ref import sam
 from sewar.full_ref import ssim
 from sewar.full_ref import vifp
 
-from ssrgan_pytorch import Generator
-from ssrgan_pytorch import cal_niqe
-from ssrgan_pytorch import select_device
+from ssrgan import Generator
+from ssrgan import cal_niqe
+from ssrgan import select_device
 
 parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                              "technology for pathological microscopic images.")

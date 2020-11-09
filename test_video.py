@@ -21,8 +21,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan_pytorch import Generator
-from ssrgan_pytorch import select_device
+from ssrgan import Generator
+from ssrgan import select_device
 
 parser = argparse.ArgumentParser(description="SSRGAN algorithm is applied to video files.")
 parser.add_argument("--file", type=str, required=True,

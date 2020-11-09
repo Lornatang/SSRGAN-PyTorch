@@ -15,8 +15,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from ssrgan_pytorch.activation import HSigmoid
-from ssrgan_pytorch.activation import HSwish
+from ssrgan.activation import HSigmoid
+from ssrgan.activation import HSwish
 
 __all__ = ["SEModule", "MobileNetV3Bottleneck", "MobileNetV3"]
 

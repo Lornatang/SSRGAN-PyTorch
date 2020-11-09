@@ -22,13 +22,13 @@ import torch.utils.data
 import torchvision.utils as vutils
 from tqdm import tqdm
 
-from ssrgan_pytorch import DatasetFromFolder
-from ssrgan_pytorch import VGGLoss
-from ssrgan_pytorch import init_torch_seeds
-from ssrgan_pytorch import load_checkpoint
-from ssrgan_pytorch import select_device
-from ssrgan_pytorch.models import BioNet
-from ssrgan_pytorch.models import DiscriminatorForVGG
+from ssrgan import DatasetFromFolder
+from ssrgan import VGGLoss
+from ssrgan import init_torch_seeds
+from ssrgan import load_checkpoint
+from ssrgan import select_device
+from ssrgan.models import BioNet
+from ssrgan.models import DiscriminatorForVGG
 
 logger = logging.getLogger(__name__)
 

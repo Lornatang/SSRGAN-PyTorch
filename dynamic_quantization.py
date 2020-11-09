@@ -21,10 +21,10 @@ import torch.quantization
 import torchvision.transforms as transforms
 from PIL import Image
 
-from ssrgan_pytorch import opencv2pil
-from ssrgan_pytorch import pil2opencv
-from ssrgan_pytorch import select_device
-from ssrgan_pytorch.models import BioNet
+from ssrgan import opencv2pil
+from ssrgan import pil2opencv
+from ssrgan import select_device
+from ssrgan.models import BioNet
 
 torch.manual_seed(200824)  # set the seed for reproducibility
 MODEL_PATH = "weight/ResNet_4x.pth"

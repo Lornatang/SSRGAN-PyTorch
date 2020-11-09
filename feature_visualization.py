@@ -11,15 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import cv2
 import matplotlib.pyplot as plt
-import numpy as np
 import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image
 
-from ssrgan_pytorch.models import UNet
-from ssrgan_pytorch.utils import select_device
+from ssrgan.models import UNet
+from ssrgan.utils import select_device
 
 
 # 中间特征提取
