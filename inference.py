@@ -29,7 +29,7 @@ UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
 LR_WIDTH, LR_HEIGHT = 1920, 1080
 SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
 SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
-NUM_WIDTH, NUM_HEIGHT = 10, 10  # For our patch size (width=192 height=108)
+NUM_WIDTH, NUM_HEIGHT = 10, 10  # For our patch size (width=128 height=72)
 sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
 
 # Get LR patch size.
@@ -86,7 +86,7 @@ if __name__ == "__main__":
 
     # Construct GAN model.
     model = BioNet().to(device)
-    model.load_state_dict(torch.load("weight/GAN_4x.pth", map_location=device))
+    model.load_state_dict(torch.load("weight/ResNet_4x_checkpoint.pth", map_location=device)["state_dict"])
 
     # Set model eval mode
     model.eval()
@@ -95,6 +95,6 @@ if __name__ == "__main__":
 
     start_time = time.time()
     sr = inference(model, lr, device)
-    print(f"Use time: {time.time() - start_time:.2}s")
+    print(f"Use time: {time.time() - start_time}s")
 
     cv2.imwrite("sr.bmp", sr)

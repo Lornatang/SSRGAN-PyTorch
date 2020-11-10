@@ -29,40 +29,27 @@ class BioNet(nn.Module):
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
-        # Eight structures similar to BioNet network.
-        self.trunk = nn.Sequential(
-            InceptionX(64, 64),
-            InceptionX(64, 64)
-        )
-
         self.bionet = InceptionX(64, 64)
 
         # Upsampling layers
-        upsampling = []
-        for _ in range(2):
-            upsampling += [
-                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, groups=64, bias=False),
-                nn.Conv2d(64, 256, kernel_size=1, stride=1, padding=0, bias=False),
-                nn.PixelShuffle(upscale_factor=2),
-                nn.LeakyReLU(negative_slope=0.2, inplace=True)
-            ]
+        upsampling = [
+            nn.Upsample(scale_factor=2, mode="nearest"),
+            nn.Upsample(scale_factor=2, mode="nearest")
+        ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Final output layer
-        self.conv2 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, groups=64, bias=False),
+            nn.Conv2d(64, 3, kernel_size=1, stride=1, padding=0, bias=False)
+        )
 
     def forward(self, input: Tensor) -> Tensor:
         # First conv layer.
-        conv1 = self.conv1(input)
-
-        # Four U-Net block.
-        trunk = self.trunk(conv1)
-        bionet = self.bionet(trunk)
-        out = torch.add(conv1, bionet)
-
+        out = self.conv1(input)
+        out = self.bionet(out)
         # Upsampling layers
         out = self.upsampling(out)
-
         # Final output layer
         out = self.conv2(out)
 
