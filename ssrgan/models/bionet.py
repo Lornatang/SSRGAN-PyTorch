@@ -32,15 +32,7 @@ class BioNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
 
         # Eight structures similar to BioNet network.
-        self.trunk_A = nn.Sequential(
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64)
-        )
-        self.trunk_B = nn.Sequential(
-            InceptionX(64, 64),
-            InceptionX(64, 64),
+        self.trunk = nn.Sequential(
             InceptionX(64, 64),
             InceptionX(64, 64)
         )
@@ -66,12 +58,8 @@ class BioNet(nn.Module):
         conv1 = self.conv1(input)
 
         # Four U-Net block.
-        trunk_a = self.trunk_A(conv1)
-        out = torch.add(conv1, trunk_a)
-        # Four InceptionA block.
-        trunk_b = self.trunk_B(out)
-        out = torch.add(conv1, trunk_b)
-        bionet = self.bionet(out)
+        trunk = self.trunk(conv1)
+        bionet = self.bionet(trunk)
         out = torch.add(conv1, bionet)
 
         # Upsampling layers

@@ -15,20 +15,13 @@ import argparse
 import os
 
 import cv2
-import lpips
 import torch.utils.data
 import torchvision.utils as vutils
-from sewar.full_ref import mse
-from sewar.full_ref import msssim
 from sewar.full_ref import psnr
-from sewar.full_ref import rmse
-from sewar.full_ref import sam
 from sewar.full_ref import ssim
-from sewar.full_ref import vifp
 from tqdm import tqdm
 
 from ssrgan import DatasetFromFolder
-from ssrgan import cal_niqe
 from ssrgan import select_device
 from ssrgan.models import BioNet
 
@@ -70,19 +63,9 @@ model.load_state_dict(torch.load(args.model_path, map_location=device))
 # Set model eval mode
 model.eval()
 
-# Reference sources from `https://github.com/richzhang/PerceptualSimilarity`
-lpips_loss = lpips.LPIPS(net="vgg").to(device)
-
 # Evaluate algorithm performance
-total_mse_value = 0.0
-total_rmse_value = 0.0
 total_psnr_value = 0.0
 total_ssim_value = 0.0
-total_ms_ssim_value = 0.0
-total_niqe_value = 0.0
-total_sam_value = 0.0
-total_vif_value = 0.0
-total_lpips_value = 0.0
 
 # Start evaluate model performance
 progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -102,51 +85,22 @@ for i, (input, target) in progress_bar:
     src_img = cv2.imread(f"./benchmark/sr_{i}.bmp")
     dst_img = cv2.imread(f"./benchmark/hr_{i}.bmp")
 
-    mse_value = mse(src_img, dst_img)
-    rmse_value = rmse(src_img, dst_img)
     psnr_value = psnr(src_img, dst_img)
     ssim_value = ssim(src_img, dst_img)
-    ms_ssim_value = msssim(src_img, dst_img)
-    niqe_value = cal_niqe(f"./benchmark/sr_{i}.bmp")
-    sam_value = sam(src_img, dst_img)
-    vif_value = vifp(src_img, dst_img)
-    lpips_value = lpips_loss(sr, hr)
 
-    total_mse_value += mse_value
-    total_rmse_value += rmse_value
     total_psnr_value += psnr_value
     total_ssim_value += ssim_value[0]
-    total_ms_ssim_value += ms_ssim_value.real
-    total_niqe_value += niqe_value
-    total_sam_value += sam_value
-    total_vif_value += vif_value
-    total_lpips_value += lpips_value.item()
 
     progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
                                  f"PSNR: {psnr_value:.2f}dB "
-                                 f"SSIM: {ssim_value[0]:.4f} "
-                                 f"LPIPS: {lpips_value.item():.4f}")
+                                 f"SSIM: {ssim_value[0]:.4f}")
 
-avg_mse_value = total_mse_value / len(dataloader)
-avg_rmse_value = total_rmse_value / len(dataloader)
 avg_psnr_value = total_psnr_value / len(dataloader)
 avg_ssim_value = total_ssim_value / len(dataloader)
-avg_ms_ssim_value = total_ms_ssim_value / len(dataloader)
-avg_niqe_value = total_niqe_value / len(dataloader)
-avg_sam_value = total_sam_value / len(dataloader)
-avg_vif_value = total_vif_value / len(dataloader)
-avg_lpips_value = total_lpips_value / len(dataloader)
 
 print("\n")
 print("====================== Performance summary ======================")
-print(f"Avg MSE: {avg_mse_value:.2f}\n"
-      f"Avg RMSE: {avg_rmse_value:.2f}\n"
-      f"Avg PSNR: {avg_psnr_value:.2f}\n"
-      f"Avg SSIM: {avg_ssim_value:.4f}\n"
-      f"Avg MS-SSIM: {avg_ms_ssim_value:.4f}\n"
-      f"Avg NIQE: {avg_niqe_value:.2f}\n"
-      f"Avg SAM: {avg_sam_value:.4f}\n"
-      f"Avg VIF: {avg_vif_value:.4f}\n"
-      f"Avg LPIPS: {avg_lpips_value:.4f}")
+print(f"Avg PSNR: {avg_psnr_value:.2f}\n"
+      f"Avg SSIM: {avg_ssim_value:.4f}\n")
 print("============================== End ==============================")
 print("\n")
