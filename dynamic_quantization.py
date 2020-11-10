@@ -35,10 +35,10 @@ tensor2pil = transforms.ToPILImage()
 
 # Define image params
 UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
-LR_WIDTH, LR_HEIGHT = 486, 486
+LR_WIDTH, LR_HEIGHT = 1920, 1080
 SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
 SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
-NUM_WIDTH, NUM_HEIGHT = 9, 9  # For our patch size (width=64 height=54)
+NUM_WIDTH, NUM_HEIGHT = 10, 10  # For our patch size (width=64 height=54)
 sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
 # Get LR patch size.
 PATCH_LR_WIDTH_SIZE = int(LR_WIDTH // NUM_WIDTH)
@@ -48,7 +48,7 @@ PATCH_HR_WIDTH_SIZE = int(SR_WIDTH // NUM_WIDTH)
 PATCH_HR_HEIGHT_SIZE = int(SR_HEIGHT // NUM_HEIGHT)
 
 # Selection of appropriate treatment equipment
-device = select_device("0", batch_size=1)
+device = select_device("cpu", batch_size=1)
 
 # here is our floating point instance
 float_model = BioNet().to(device)
@@ -56,14 +56,14 @@ float_model.load_state_dict(torch.load("weight/ResNet_4x.pth", map_location=devi
 
 # this is the call that does the work
 quantized_model = torch.quantization.quantize_dynamic(float_model, dtype=torch.qint8)
-torch.save(quantized_model.state_dict(), "qat.pth")
+torch.save(quantized_model.state_dict(), "weight/qat.pth", _use_new_zipfile_serialization=False)
 
 
 def inference(model: nn.Module, img, device):
     """
 
     Args:
-        model
+        model:
         img:
         device:
 
@@ -107,18 +107,18 @@ f = print_size_of_model(float_model, "fp32")
 q = print_size_of_model(quantized_model, "int8")
 print("{0:.2f} times smaller".format(f / q))
 
-lr = cv2.imread("lr.bmp")
+lr = cv2.imread("assets/lr.bmp")
 
 # compare the performance
 print("Floating point FP32")
 start_time = time.time()
 inference(float_model, lr, device)
-print(f"Use time: {time.time() - start_time:.2}s")
+print(f"Use time: {time.time() - start_time}s")
 
 print("Quantized INT8")
 start_time = time.time()
 inference(quantized_model, lr, device)
-print(f"Use time: {time.time() - start_time:.2}s")
+print(f"Use time: {time.time() - start_time}s")
 
 #
 # start_time = time.time()
