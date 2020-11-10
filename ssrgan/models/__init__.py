@@ -11,16 +11,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from ssrgan.models.bionet import BioNet
-from ssrgan.models.inception import Inception
-from ssrgan.models.mobilenetv1 import MobileNetV1
-from ssrgan.models.mobilenetv2 import MobileNetV2
-from ssrgan.models.mobilenetv3 import MobileNetV3
-from ssrgan.models.squeezenet import SqueezeNet
-from ssrgan.models.srgan import SRGAN
-from ssrgan.models.u_net import SymmetricBlock
-from ssrgan.models.u_net import UNet
-from ssrgan.models.vgg import DiscriminatorForVGG
+from .bionet import BioNet
+from .inception import Inception
+from .mobilenetv1 import MobileNetV1
+from .mobilenetv2 import MobileNetV2
+from .mobilenetv3 import MobileNetV3
+from .squeezenet import SqueezeNet
+from .srgan import SRGAN
+from .u_net import SymmetricBlock
+from .u_net import UNet
+from .vgg import DiscriminatorForVGG
 
 __all__ = [
     "BioNet",
