@@ -147,10 +147,11 @@ def calculate_weights_indices(in_length, out_length, scale, kernel_width, antial
 
 def create_initialization_folder():
     try:
+        os.makedirs("./benchmark")
         os.makedirs("./output/lr")
         os.makedirs("./output/hr")
         os.makedirs("./output/sr")
-        os.makedirs("weights")
+        os.makedirs("./weights")
     except OSError:
         pass
 
