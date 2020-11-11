@@ -24,9 +24,9 @@ from tqdm import tqdm
 
 from ssrgan import DatasetFromFolder
 from ssrgan import VGGLoss
-from ssrgan import init_torch_seeds
-from ssrgan import load_checkpoint
-from ssrgan import select_device
+from ssrgan.utils import init_torch_seeds
+from ssrgan.utils import load_checkpoint
+from ssrgan.utils import select_device
 from ssrgan.models import BioNet
 from ssrgan.models import DiscriminatorForVGG
 

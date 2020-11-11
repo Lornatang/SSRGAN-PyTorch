@@ -25,8 +25,8 @@ import torch.backends.cudnn as cudnn
 from PIL import Image
 from tensorboardX import SummaryWriter
 
-__all__ = ["Logger", "calculate_weights_indices", "cubic", "imresize", "init_torch_seeds", "load_checkpoint",
-           "opencv2pil", "pil2opencv", "select_device"]
+__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic",
+           "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "pil2opencv", "select_device"]
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +143,16 @@ def calculate_weights_indices(in_length, out_length, scale, kernel_width, antial
     sym_len_e = indices.max() - in_length
     indices = indices + sym_len_s - 1
     return weights, indices, int(sym_len_s), int(sym_len_e)
+
+
+def create_initialization_folder():
+    try:
+        os.makedirs("./output/lr")
+        os.makedirs("./output/hr")
+        os.makedirs("./output/sr")
+        os.makedirs("weights")
+    except OSError:
+        pass
 
 
 def cubic(x):

@@ -11,22 +11,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import math
+from typing import Any
+
 import torch
 import torch.nn as nn
-from torch import Tensor
+from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
+from .utils import conv1x1
+from .utils import conv3x3
+from .utils import conv5x5
 
-__all__ = ["FReLU", "InceptionA", "InceptionX", "Inception"]
+__all__ = ["FReLU", "InceptionA", "InceptionX", "Inception", "inception"]
+
+model_urls = {
+    "inception": ""
+}
 
 
 class InceptionA(nn.Module):
     r""" InceptionA implemented in inception version 4.
 
-    `"Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning" <https://arxiv.org/abs/1602.07261>`_ paper
+    `"Inception-v4, Inception-ResNet and the Impact of Residual Connections
+    on Learning" <https://arxiv.org/abs/1602.07261>`_ paper
     """
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels: int = 64) -> None:
         r""" Modules introduced in InceptionV4 paper.
 
         Args:
@@ -37,30 +48,30 @@ class InceptionA(nn.Module):
         branch_features = int(in_channels // 4)
 
         self.branch1 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, branch_features),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, branch_features),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, bias=False),
+            conv3x3(branch_features, branch_features, groups=1),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.branch3 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=5, stride=1, padding=2, bias=False),
+            conv5x5(branch_features, branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.branch4 = nn.Sequential(
             nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, branch_features),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
         )
@@ -80,7 +91,7 @@ class InceptionA(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias.data, 0.0)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         branch1 = self.branch1(input)
         branch2 = self.branch2(input)
         branch3 = self.branch3(input)
@@ -108,58 +119,55 @@ class InceptionX(nn.Module):
 
         # Squeeze style layer
         self.branch1_1 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features // 4, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, branch_features // 4),
             FReLU(branch_features // 4)
         )
         self.branch1_2 = nn.Sequential(
-            nn.Conv2d(branch_features // 4, branch_features // 2, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(branch_features // 4, branch_features // 2),
             FReLU(branch_features // 2)
         )
         self.branch1_3 = nn.Sequential(
-            nn.Conv2d(branch_features // 4, branch_features // 2, kernel_size=3, stride=1, padding=1, bias=False),
+            conv3x3(branch_features // 4, branch_features // 2, groups=1),
             FReLU(branch_features // 2)
         )
 
         # InvertedResidual style layer
         self.branch2_1 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features * 2, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, branch_features * 2),
             FReLU(branch_features * 2)
         )
         self.branch2_2 = nn.Sequential(
-            nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=3, stride=1, padding=1,
-                      groups=branch_features * 2, bias=False),
+            conv3x3(branch_features * 2, branch_features * 2),
             FReLU(branch_features * 2)
         )
         self.branch2_3 = nn.Sequential(
-            nn.Conv2d(branch_features * 2, branch_features, kernel_size=3, stride=1, padding=1, bias=False),
+            conv1x1(branch_features * 2, branch_features),
             FReLU(branch_features)
         )
 
         # Inception style layer 1
         self.branch3 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1), bias=False),
+            conv3x3(in_channels, branch_features, kernel_size=(1, 3), padding=(0, 1)),
             FReLU(branch_features),
-            nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0),
-                      groups=branch_features, bias=False),
+            conv3x3(branch_features, branch_features, kernel_size=(3, 1), padding=(1, 0)),
             FReLU(branch_features),
-            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(branch_features, branch_features),
             FReLU(branch_features)
         )
 
         # Inception style layer 2
         self.branch4 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0), bias=False),
+            conv3x3(in_channels, branch_features, kernel_size=(3, 1), padding=(1, 0)),
             FReLU(branch_features),
-            nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1),
-                      groups=branch_features, bias=False),
+            conv3x3(branch_features, branch_features, kernel_size=(1, 3), padding=(0, 1)),
             FReLU(branch_features),
-            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(branch_features, branch_features),
             FReLU(branch_features)
         )
 
-        self.branch_concat = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, bias=False)
+        self.branch_concat = conv1x1(branch_features * 2, branch_features * 2)
 
-        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        self.conv1x1 = conv1x1(in_channels, out_channels)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -176,7 +184,7 @@ class InceptionX(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias.data, 0.0)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Squeeze layer.
         branch1_1 = self.branch1_1(input)  # Squeeze convolution
         branch1_2 = self.branch1_2(branch1_1)  # Expand convolution 1x1
@@ -206,19 +214,18 @@ class InceptionX(nn.Module):
 
 
 class Inception(nn.Module):
-    r""" It is mainly based on the mobilenet-v1 network as the backbone network generator"""
+    r""" It is mainly based on the Inception network as the backbone network generator"""
 
-    def __init__(self):
-        r""" This is made up of Inception network structure.
-        """
+    def __init__(self, upscale_factor: int = 4) -> None:
         super(Inception, self).__init__()
+        num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to InceptionX network.
+        # Sixteen structures similar to Inception network.
         trunk = []
-        for _ in range(8):
+        for _ in range(16):
             trunk.append(InceptionX(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
@@ -226,36 +233,59 @@ class Inception(nn.Module):
 
         # Upsampling layers
         upsampling = []
-        for _ in range(1):
+        for _ in range(num_upsample_block):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 InceptionX(64, 64),
-                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
-                nn.LeakyReLU(negative_slope=0.2, inplace=True),
+                conv3x3(64, 64),
+                FReLU(64),
+                conv1x1(64, 256),
+                FReLU(256),
                 nn.PixelShuffle(upscale_factor=2),
                 InceptionX(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        # Next layer after upper sampling
+        # Next conv layer
         self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            conv3x3(64, 64),
+            FReLU(64),
+            conv1x1(64, 64),
+            FReLU(64)
         )
 
         # Final output layer
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Tanh()
-        )
+        self.conv3 = conv3x3(64, 3)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # InceptionX trunk.
         trunk = self.trunk(conv1)
-        inception = self.inception(trunk)
-        out = torch.add(conv1, inception)
+        # Concat conv1 and trunk.
+        out = torch.add(conv1, trunk)
+
+        out = self.inception(out)
+        # Upsampling layers.
         out = self.upsampling(out)
+        # Next conv layer.
         out = self.conv2(out)
+        # Final output layer.
         out = self.conv3(out)
 
-        return out
+        return torch.tanh(out)
+
+
+def inception(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> Inception:
+    r"""Inception model architecture from the
+    `"One weird trick..." <https://arxiv.org/abs/1602.07261>`_ paper.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    model = Inception(**kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls["inception"], progress=progress)
+        model.load_state_dict(state_dict)
+    return model

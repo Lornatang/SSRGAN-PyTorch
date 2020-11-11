@@ -11,13 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import math
+from typing import Any
+
 import torch
 import torch.nn as nn
-from torch import Tensor
+from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
+from .utils import conv1x1
+from .utils import conv3x3
 
-__all__ = ["FReLU", "DepthwiseSeparableConvolution", "MobileNetV1"]
+__all__ = ["FReLU", "DepthwiseSeparableConvolution", "MobileNetV1", "mobilenetv1"]
+
+model_urls = {
+    "mobilenetv1": ""
+}
 
 
 class DepthwiseSeparableConvolution(nn.Module):
@@ -28,7 +37,7 @@ class DepthwiseSeparableConvolution(nn.Module):
 
     """
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels: int = 64, out_channels: int = 64) -> None:
         r""" Modules introduced in MobileNetV1 paper.
 
         Args:
@@ -39,13 +48,13 @@ class DepthwiseSeparableConvolution(nn.Module):
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
+            conv3x3(in_channels, in_channels, groups=in_channels),
             FReLU(in_channels)
         )
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
+            conv1x1(in_channels, out_channels),
             FReLU(out_channels)
         )
 
@@ -64,7 +73,7 @@ class DepthwiseSeparableConvolution(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias.data, 0.0)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         # DepthWise convolution
         out = self.depthwise(input)
         # Projection convolution
@@ -76,61 +85,76 @@ class DepthwiseSeparableConvolution(nn.Module):
 class MobileNetV1(nn.Module):
     r""" It is mainly based on the mobilenet-v1 network as the backbone network generator"""
 
-    def __init__(self):
-        r""" This is made up of mobilenet-v1 network structure.
-        """
+    def __init__(self, upscale_factor: int = 4) -> None:
         super(MobileNetV1, self).__init__()
+        num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
-        )
+        self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to MobileNet network.
-        self.trunk = nn.Sequential(
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64),
-            DepthwiseSeparableConvolution(64, 64)
-        )
+        # Sixteen structures similar to MobileNetV1 network.
+        trunk = []
+        for _ in range(16):
+            trunk.append(DepthwiseSeparableConvolution(64, 64))
+        self.trunk = nn.Sequential(*trunk)
 
-        self.mobilenet = nn.Sequential(
-            DepthwiseSeparableConvolution(64, 64)
-        )
+        self.mobilenet = DepthwiseSeparableConvolution(64, 64)
 
         # Upsampling layers
-        self.upsampling = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="nearest"),
-            DepthwiseSeparableConvolution(64, 64),
-            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.PixelShuffle(upscale_factor=2),
-            DepthwiseSeparableConvolution(64, 64)
-        )
+        upsampling = []
+        for _ in range(num_upsample_block):
+            upsampling += [
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                DepthwiseSeparableConvolution(64, 64),
+                conv3x3(64, 64, groups=64),
+                FReLU(64),
+                conv1x1(64, 256),
+                FReLU(256),
+                nn.PixelShuffle(upscale_factor=2),
+                DepthwiseSeparableConvolution(64, 64)
+            ]
+        self.upsampling = nn.Sequential(*upsampling)
 
-        # Next layer after upper sampling
+        # Next conv layer
         self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            conv3x3(64, 64),
+            FReLU(64),
+            conv1x1(64, 64),
+            FReLU(64)
         )
 
         # Final output layer
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Tanh()
-        )
+        self.conv3 = conv3x3(64, 3)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # MobileNetV1 trunk.
         trunk = self.trunk(conv1)
-        mobilenet = self.mobilenet(trunk)
-        out = torch.add(conv1, mobilenet)
+        # Concat conv1 and trunk.
+        out = torch.add(conv1, trunk)
+
+        out = self.mobilenet(out)
+        # Upsampling layers.
         out = self.upsampling(out)
+        # Next conv layer.
         out = self.conv2(out)
+        # Final output layer.
         out = self.conv3(out)
 
-        return out
+        return torch.tanh(out)
+
+
+def mobilenetv1(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> MobileNetV1:
+    r"""MobileNetV1 model architecture from the
+    `"One weird trick..." <https://arxiv.org/abs/1704.04861>`_ paper.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    model = MobileNetV1(**kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls["mobilenetv1"], progress=progress)
+        model.load_state_dict(state_dict)
+    return model

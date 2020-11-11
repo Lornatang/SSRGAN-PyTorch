@@ -11,20 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from ptflops import get_model_complexity_info
+"""General convolution layer"""
 
-from ssrgan.models import BioNet
-from ssrgan.utils import select_device
+import torch.nn as nn
 
-device = select_device("cpu")
+__all__ = ["conv1x1", "conv3x3", "conv5x5"]
 
-model = BioNet().to(device)
 
-size = (3, 54, 54)
-flops, params = get_model_complexity_info(model, size, as_strings=True, print_per_layer_stat=True)
-print(f"                   Summary                     ")
-print(f"-----------------------------------------------")
-print(f"|       Model       |    Params   |   FLOPs   |")
-print(f"-----------------------------------------------")
-print(f"|{model.__class__.__name__.center(19):19}|{params.center(13):13}|{flops.center(11):11}|")
-print(f"-----------------------------------------------")
+def conv1x1(i, o, kernel_size=1, stride=1, padding=0, bias=False):
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+
+
+def conv3x3(i, o, kernel_size=3, stride=1, padding=1, groups=1, bias=False):
+    if i == o and groups != 1:
+        groups = i
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups, bias=bias)
+
+
+def conv5x5(i, o, kernel_size=5, stride=1, padding=2, bias=False):
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)

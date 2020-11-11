@@ -27,7 +27,7 @@ from ssrgan import select_device
 from ssrgan.models import BioNet
 
 torch.manual_seed(200824)  # set the seed for reproducibility
-MODEL_PATH = "weight/ResNet_4x.pth"
+MODEL_PATH = "../weight/ResNet_4x.pth"
 
 # Conversion between PIL format and tensor format.
 pil2tensor = transforms.ToTensor()
@@ -107,7 +107,7 @@ f = print_size_of_model(float_model, "fp32")
 q = print_size_of_model(quantized_model, "int8")
 print("{0:.2f} times smaller".format(f / q))
 
-lr = cv2.imread("assets/lr.bmp")
+lr = cv2.imread("../assets/lr.bmp")
 
 # compare the performance
 print("Floating point FP32")

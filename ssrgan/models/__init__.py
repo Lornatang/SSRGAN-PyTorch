@@ -11,25 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .bionet import BioNet
-from .inception import Inception
-from .mobilenetv1 import MobileNetV1
-from .mobilenetv2 import MobileNetV2
-from .mobilenetv3 import MobileNetV3
-from .squeezenet import SqueezeNet
-from .srgan import SRGAN
-from .u_net import SymmetricBlock
-from .u_net import UNet
-from .vgg import DiscriminatorForVGG
-
-__all__ = [
-    "BioNet",
-    "Inception",
-    "MobileNetV1",
-    "MobileNetV2",
-    "MobileNetV3",
-    "SqueezeNet",
-    "SRGAN",
-    "SymmetricBlock",
-    "UNet",
-    "DiscriminatorForVGG"]
+from .bionet import *
+from .inception import *
+from .mobilenetv1 import *
+from .mobilenetv2 import *
+from .mobilenetv3 import *
+from .squeezenet import *
+from .srgan import *
+from .u_net import *
+from .u_net import *
+from .vgg import *

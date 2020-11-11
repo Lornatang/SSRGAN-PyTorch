@@ -11,11 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import math
+from typing import Any
+
 import torch
 import torch.nn as nn
-from torch import Tensor
+from torch.hub import load_state_dict_from_url
 
-__all__ = ["SymmetricBlock", "UNet"]
+from ssrgan.activation import FReLU
+from .utils import conv1x1
+from .utils import conv3x3
+
+__all__ = ["SymmetricBlock", "UNet", "unet"]
+
+model_urls = {
+    "unet": ""
+}
 
 
 class SymmetricBlock(nn.Module):
@@ -26,7 +37,7 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels=64, out_channels=64):
+    def __init__(self, in_channels: int = 64, out_channels: int = 64) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
@@ -37,25 +48,23 @@ class SymmetricBlock(nn.Module):
 
         # Down sampling
         self.down = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1, groups=in_channels,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            conv3x3(in_channels, in_channels, stride=2),
+            FReLU(in_channels),
+            conv1x1(in_channels, in_channels),
+            FReLU(in_channels)
         )
 
         # Residual block1
         self.body1 = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(in_channels // 2, in_channels // 2, kernel_size=3, stride=1, padding=1, groups=in_channels // 2,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(in_channels // 2, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            conv3x3(in_channels, in_channels),
+            FReLU(in_channels),
+            conv1x1(in_channels, in_channels // 2),
+            FReLU(in_channels // 2),
+
+            conv3x3(in_channels // 2, in_channels // 2),
+            FReLU(in_channels // 2),
+            conv1x1(in_channels // 2, out_channels),
+            FReLU(out_channels)
         )
 
         # Up sampling
@@ -63,13 +72,15 @@ class SymmetricBlock(nn.Module):
 
         # Residual block1
         self.body2 = nn.Sequential(
-            nn.Conv2d(out_channels, in_channels // 2, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(in_channels // 2, in_channels // 2, kernel_size=3, stride=1, padding=1, groups=in_channels // 2,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(in_channels // 2, in_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            conv3x3(out_channels, out_channels),
+            FReLU(out_channels),
+            conv1x1(out_channels, in_channels // 2),
+            FReLU(in_channels // 2),
+
+            conv3x3(in_channels // 2, in_channels // 2),
+            FReLU(in_channels // 2),
+            conv1x1(in_channels // 2, in_channels),
+            FReLU(in_channels)
         )
 
         for m in self.modules():
@@ -87,7 +98,7 @@ class SymmetricBlock(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias.data, 0.0)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Down sampling
         out = self.down(input)
         # Down body
@@ -103,61 +114,76 @@ class SymmetricBlock(nn.Module):
 class UNet(nn.Module):
     r""" It is mainly based on the mobile net network as the backbone network generator"""
 
-    def __init__(self):
-        r""" This is made up of u-net network structure.
-        """
+    def __init__(self, upscale_factor: int = 4) -> None:
         super(UNet, self).__init__()
+        num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
-        )
+        self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to U-Net network.
-        self.trunk = nn.Sequential(
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64)
-        )
+        # Sixteen structures similar to U-Net network.
+        trunk = []
+        for _ in range(16):
+            trunk.append(SymmetricBlock(64, 64))
+        self.trunk = nn.Sequential(*trunk)
 
-        self.unet = nn.Sequential(
-            SymmetricBlock(64, 64)
-        )
+        self.unet = SymmetricBlock(64, 64)
 
         # Upsampling layers
-        self.upsampling = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="nearest"),
-            SymmetricBlock(64, 64),
-            nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.PixelShuffle(upscale_factor=2),
-            SymmetricBlock(64, 64)
-        )
+        upsampling = []
+        for _ in range(num_upsample_block):
+            upsampling += [
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                SymmetricBlock(64, 64),
+                conv3x3(64, 64),
+                FReLU(64),
+                conv1x1(64, 256),
+                FReLU(256),
+                nn.PixelShuffle(upscale_factor=2),
+                SymmetricBlock(64, 64)
+            ]
+        self.upsampling = nn.Sequential(*upsampling)
 
-        # Next layer after upper sampling
+        # Next conv layer
         self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            conv3x3(64, 64),
+            FReLU(64),
+            conv1x1(64, 64),
+            FReLU(64)
         )
 
         # Final output layer
-        self.conv3 = nn.Sequential(
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.Tanh()
-        )
+        self.conv3 = conv3x3(64, 3)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # U-Net trunk.
         trunk = self.trunk(conv1)
-        unet = self.unet(trunk)
-        out = torch.add(conv1, unet)
+        # Concat conv1 and trunk.
+        out = torch.add(conv1, trunk)
+
+        out = self.unet(out)
+        # Upsampling layers.
         out = self.upsampling(out)
+        # Next conv layer.
         out = self.conv2(out)
+        # Final output layer.
         out = self.conv3(out)
 
-        return out
+        return torch.tanh(out)
+
+
+def unet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> UNet:
+    r"""UNet model architecture from the
+    `"One weird trick..." <https://arxiv.org/abs/1505.04597>`_ paper.
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    model = UNet(**kwargs)
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls["unet"], progress=progress)
+        model.load_state_dict(state_dict)
+    return model

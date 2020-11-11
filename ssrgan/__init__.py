@@ -42,6 +42,7 @@ from .model import SymmetricBlock
 from .model import channel_shuffle
 from .utils import Logger
 from .utils import calculate_weights_indices
+from .utils import create_initialization_folder
 from .utils import cubic
 from .utils import imresize
 from .utils import init_torch_seeds
@@ -77,6 +78,16 @@ __all__ = [
     "ResidualInResidualDenseBlock",
     "ResidualOfReceptiveFieldDenseBlock",
     "channel_shuffle",
+    "Logger",
+    "calculate_weights_indices",
+    "create_initialization_folder",
+    "cubic",
+    "imresize",
+    "init_torch_seeds",
+    "load_checkpoint",
+    "opencv2pil",
+    "pil2opencv",
+    "select_device"
 ]
 
 __version__ = "0.0.1"
