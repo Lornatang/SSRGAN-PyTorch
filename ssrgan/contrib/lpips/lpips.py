@@ -19,12 +19,12 @@ def upsample(in_tens, out_HW=(64, 64)):  # assumes scale factor is same for H an
 # Learned perceptual metric
 class LPIPS(nn.Module):
     def __init__(self, pretrained=True, net='alex', version='0.1', lpips=True, spatial=False,
-                 pnet_rand=False, pnet_tune=False, use_dropout=True, model_path=None, eval_mode=True, verbose=True):
+                 pnet_rand=False, pnet_tune=False, use_dropout=True, model_path=None, eval_mode=True, verbose=False):
         # lpips - [True] means with linear calibration on top of base network
         # pretrained - [True] means load linear weights
 
         super(LPIPS, self).__init__()
-        if (verbose):
+        if verbose:
             print('Setting up [%s] perceptual loss: trunk [%s], v[%s], spatial [%s]' %
                   ('LPIPS' if lpips else 'baseline', net, version, 'on' if spatial else 'off'))
 
