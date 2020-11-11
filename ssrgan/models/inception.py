@@ -15,7 +15,9 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-__all__ = ["InceptionA", "InceptionX", "Inception"]
+from ssrgan.activation import FReLU
+
+__all__ = ["FReLU", "InceptionA", "InceptionX", "Inception"]
 
 
 class InceptionA(nn.Module):
@@ -104,57 +106,60 @@ class InceptionX(nn.Module):
 
         branch_features = int(in_channels // 4)
 
-        self.branch1 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, groups=branch_features,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        # Squeeze style layer
+        self.branch1_1 = nn.Sequential(
+            nn.Conv2d(in_channels, branch_features // 4, kernel_size=1, stride=1, padding=0, bias=False),
+            FReLU(branch_features // 4)
+        )
+        self.branch1_2 = nn.Sequential(
+            nn.Conv2d(branch_features // 4, branch_features // 2, kernel_size=1, stride=1, padding=0, bias=False),
+            FReLU(branch_features // 2)
+        )
+        self.branch1_3 = nn.Sequential(
+            nn.Conv2d(branch_features // 4, branch_features // 2, kernel_size=3, stride=1, padding=1, bias=False),
+            FReLU(branch_features // 2)
         )
 
-        self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1, groups=branch_features,
-                      bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        # InvertedResidual style layer
+        self.branch2_1 = nn.Sequential(
+            nn.Conv2d(in_channels, branch_features * 2, kernel_size=1, stride=1, padding=0, bias=False),
+            FReLU(branch_features * 2)
+        )
+        self.branch2_2 = nn.Sequential(
+            nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=3, stride=1, padding=1,
+                      groups=branch_features * 2, bias=False),
+            FReLU(branch_features * 2)
+        )
+        self.branch2_3 = nn.Sequential(
+            nn.Conv2d(branch_features * 2, branch_features, kernel_size=3, stride=1, padding=1, bias=False),
+            FReLU(branch_features)
         )
 
+        # Inception style layer 1
         self.branch3 = nn.Sequential(
             nn.Conv2d(in_channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1), bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            FReLU(branch_features),
             nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0),
                       groups=branch_features, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            FReLU(branch_features),
             nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            FReLU(branch_features)
         )
 
+        # Inception style layer 2
         self.branch4 = nn.Sequential(
             nn.Conv2d(in_channels, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0), bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            FReLU(branch_features),
             nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1),
                       groups=branch_features, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True),
+            FReLU(branch_features),
             nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            FReLU(branch_features)
         )
 
-        self.branch_concat = nn.Sequential(
-            nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        )
+        self.branch_concat = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, bias=False)
 
-        self.conv1x1 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        )
+        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -172,18 +177,29 @@ class InceptionX(nn.Module):
                 nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: Tensor) -> Tensor:
-        # Squeeze layer
-        out1 = self.branch1(input)
-        out2 = self.branch2(input)
-        squeeze_concat = torch.cat([out1, out2], dim=1)
-        squeeze_out = self.branch_concat(squeeze_concat)
-        # Depthwise layer
-        out3 = self.branch3(input)
-        out4 = self.branch4(input)
-        depthwise_concat = torch.cat([out3, out4], dim=1)
-        depthwise_out = self.branch_concat(depthwise_concat)
+        # Squeeze layer.
+        branch1_1 = self.branch1_1(input)  # Squeeze convolution
+        branch1_2 = self.branch1_2(branch1_1)  # Expand convolution 1x1
+        branch1_3 = self.branch1_3(branch1_1)  # Expand convolution 3x3
+        squeeze_out = torch.cat([branch1_2, branch1_3], dim=1)
+
+        # InvertedResidual layer.
+        branch2_1 = self.branch2_1(input)
+        branch2_2 = self.branch2_2(branch2_1)
+        mobile_out = self.branch2_3(branch2_2)
+
+        # Concat Squeeze and InvertedResidual layer.
+        branch_concat1_2 = torch.cat([squeeze_out, mobile_out], dim=1)
+        branch_out1 = self.branch_concat(branch_concat1_2)
+
+        # Inception layer
+        branch3 = self.branch3(input)
+        branch4 = self.branch4(input)
+        branch_concat3_4 = torch.cat([branch3, branch4], dim=1)
+        branch_out2 = self.branch_concat(branch_concat3_4)
+
         # Concat layer
-        out = torch.cat([squeeze_out, depthwise_out], dim=1)
+        out = torch.cat([branch_out1, branch_out2], dim=1)
         out = self.conv1x1(out)
 
         return out + input

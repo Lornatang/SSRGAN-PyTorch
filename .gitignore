@@ -145,6 +145,7 @@ output
 result
 logs
 
+*.bmp
 *.pth
 *.mp4
 *.zip

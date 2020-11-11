@@ -40,6 +40,7 @@ from .model import ShuffleNetV1
 from .model import ShuffleNetV2
 from .model import SymmetricBlock
 from .model import channel_shuffle
+from .utils import Logger
 from .utils import calculate_weights_indices
 from .utils import cubic
 from .utils import imresize
@@ -76,14 +77,6 @@ __all__ = [
     "ResidualInResidualDenseBlock",
     "ResidualOfReceptiveFieldDenseBlock",
     "channel_shuffle",
-    "calculate_weights_indices",
-    "cubic",
-    "imresize",
-    "init_torch_seeds",
-    "load_checkpoint",
-    "opencv2pil",
-    "pil2opencv",
-    "select_device",
 ]
 
 __version__ = "0.0.1"

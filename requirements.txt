@@ -8,3 +8,7 @@ numpy
 lpips
 ptflops
 scipy
+matplotlib
+tensorflow
+tensorboardx
+setuptools

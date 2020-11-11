@@ -15,7 +15,9 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-__all__ = ["DepthwiseSeparableConvolution", "MobileNetV1"]
+from ssrgan.activation import FReLU
+
+__all__ = ["FReLU", "DepthwiseSeparableConvolution", "MobileNetV1"]
 
 
 class DepthwiseSeparableConvolution(nn.Module):
@@ -38,13 +40,13 @@ class DepthwiseSeparableConvolution(nn.Module):
         # dw
         self.depthwise = nn.Sequential(
             nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            FReLU(in_channels)
         )
 
         # pw
         self.pointwise = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            FReLU(out_channels)
         )
 
         for m in self.modules():
@@ -68,7 +70,7 @@ class DepthwiseSeparableConvolution(nn.Module):
         # Projection convolution
         out = self.pointwise(out)
 
-        return out
+        return out + input
 
 
 class MobileNetV1(nn.Module):
