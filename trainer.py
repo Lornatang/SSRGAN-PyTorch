@@ -174,6 +174,7 @@ class Trainer:
                 with open(f"ResNet_{args.upscale_factor}x_Loss.csv", "w+") as f:
                     writer = csv.writer(f)
                     writer.writerow(["Epoch", "Loss"])
+
             logger.print_info("[!] Not found pretrained weights. Start training PSNR model.")
             for epoch in range(args.start_epoch, psnr_epochs):
                 progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
