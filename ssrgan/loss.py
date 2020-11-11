@@ -12,7 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 """It mainly implements all the losses used in the model."""
-import lpips
+from ssrgan.contrib import lpips
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

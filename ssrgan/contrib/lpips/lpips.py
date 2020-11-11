@@ -1,10 +1,9 @@
-import lpips
-import torch
 import torch.nn
 import torch.nn as nn
 from torch.autograd import Variable
 
 from . import pretrained_networks as pn
+from .utils import *
 
 
 def spatial_average(in_tens, keepdim=True):
@@ -36,20 +35,20 @@ class LPIPS(nn.Module):
         self.version = version
         self.scaling_layer = ScalingLayer()
 
-        if (self.pnet_type in ['vgg', 'vgg16']):
+        if self.pnet_type in ['vgg', 'vgg16']:
             net_type = pn.vgg16
             self.chns = [64, 128, 256, 512, 512]
-        elif (self.pnet_type == 'alex'):
+        elif self.pnet_type == 'alex':
             net_type = pn.alexnet
             self.chns = [64, 192, 384, 256, 256]
-        elif (self.pnet_type == 'squeeze'):
+        elif self.pnet_type == 'squeeze':
             net_type = pn.squeezenet
             self.chns = [64, 128, 256, 384, 384, 512, 512]
         self.L = len(self.chns)
 
         self.net = net_type(pretrained=not self.pnet_rand, requires_grad=self.pnet_tune)
 
-        if (lpips):
+        if lpips:
             self.lin0 = NetLinLayer(self.chns[0], use_dropout=use_dropout)
             self.lin1 = NetLinLayer(self.chns[1], use_dropout=use_dropout)
             self.lin2 = NetLinLayer(self.chns[2], use_dropout=use_dropout)
@@ -69,7 +68,7 @@ class LPIPS(nn.Module):
                     model_path = os.path.abspath(
                         os.path.join(inspect.getfile(self.__init__), '..', 'weights/v%s/%s.pth' % (version, net)))
 
-                if (verbose):
+                if verbose:
                     print('Loading model from: %s' % model_path)
                 self.load_state_dict(torch.load(model_path, map_location='cpu'), strict=False)
 
@@ -88,7 +87,7 @@ class LPIPS(nn.Module):
         feats0, feats1, diffs = {}, {}, {}
 
         for kk in range(self.L):
-            feats0[kk], feats1[kk] = lpips.normalize_tensor(outs0[kk]), lpips.normalize_tensor(outs1[kk])
+            feats0[kk], feats1[kk] = normalize_tensor(outs0[kk]), normalize_tensor(outs1[kk])
             diffs[kk] = (feats0[kk] - feats1[kk]) ** 2
 
         if (self.lpips):
@@ -196,8 +195,8 @@ class L2(FakeNet):
                                dim=3).view(N)
             return value
         elif (self.colorspace == 'Lab'):
-            value = lpips.l2(lpips.tensor2np(lpips.tensor2tensorlab(in0.data, to_norm=False)),
-                             lpips.tensor2np(lpips.tensor2tensorlab(in1.data, to_norm=False)), range=100.).astype(
+            value = l2(tensor2np(tensor2tensorlab(in0.data, to_norm=False)),
+                       tensor2np(tensor2tensorlab(in1.data, to_norm=False)), range=100.).astype(
                 'float')
             ret_var = Variable(torch.Tensor((value,)))
             if (self.use_gpu):
@@ -210,12 +209,12 @@ class DSSIM(FakeNet):
     def forward(self, in0, in1, retPerLayer=None):
         assert (in0.size()[0] == 1)  # currently only supports batchSize 1
 
-        if (self.colorspace == 'RGB'):
-            value = lpips.dssim(1. * lpips.tensor2im(in0.data), 1. * lpips.tensor2im(in1.data), range=255.).astype(
+        if self.colorspace == 'RGB':
+            value = dssim(1. * tensor2im(in0.data), 1. * tensor2im(in1.data), range=255.).astype(
                 'float')
-        elif (self.colorspace == 'Lab'):
-            value = lpips.dssim(lpips.tensor2np(lpips.tensor2tensorlab(in0.data, to_norm=False)),
-                                lpips.tensor2np(lpips.tensor2tensorlab(in1.data, to_norm=False)), range=100.).astype(
+        elif self.colorspace == 'Lab':
+            value = dssim(tensor2np(tensor2tensorlab(in0.data, to_norm=False)),
+                          tensor2np(tensor2tensorlab(in1.data, to_norm=False)), range=100.).astype(
                 'float')
         ret_var = Variable(torch.Tensor((value,)))
         if (self.use_gpu):

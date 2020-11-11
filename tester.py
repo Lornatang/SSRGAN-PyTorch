@@ -15,7 +15,7 @@ import os
 import time
 
 import cv2
-import lpips
+from ssrgan.contrib import lpips
 import numpy as np
 import torch
 import torchvision.transforms as transforms
