@@ -26,7 +26,6 @@ import ssrgan.models as models
 from ssrgan import DatasetFromFolder
 from ssrgan import VGGLoss
 from ssrgan.contrib import lpips
-from ssrgan.models import BioNet
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import Logger
 from ssrgan.utils import init_torch_seeds
@@ -38,7 +37,7 @@ model_names = sorted(name for name in models.__dict__
                      and callable(models.__dict__[name]))
 
 
-class Trainer:
+class Trainer(object):
     def __init__(self, args):
         args.tensorboard_dir = args.log_dir if args.tensorboard_dir is None else args.tensorboard_dir
         # Set random initialization seed, easy to reproduce.
@@ -57,7 +56,7 @@ class Trainer:
                                                  num_workers=int(args.workers))
         # Construct network architecture model of generator and discriminator.
         discriminator = DiscriminatorForVGG().to(device)
-        generator = BioNet().to(device)
+        generator = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
 
         # Parameters of pre training model.
         psnr_epochs = int(args.psnr_iters // len(dataloader))
