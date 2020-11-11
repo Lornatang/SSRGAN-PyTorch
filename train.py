@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+from ssrgan.utils import create_initialization_folder
 
 import ssrgan.models as models
 from trainer import Trainer
@@ -72,6 +73,7 @@ args = parser.parse_args()
 print(args)
 
 if __name__ == "__main__":
+    create_initialization_folder()
     trainer = Trainer(args)
     trainer.run()
     print("All training has been completed!")
