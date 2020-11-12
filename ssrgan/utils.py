@@ -165,7 +165,7 @@ def configure(args):
 
     # Construct GAN model.
     model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-    model.load_state_dict(torch.load(args.model_path, map_location=device)["state_dict"])
+    model.load_state_dict(torch.load(args.model_path, map_location=device))
     return model, device
 
 
@@ -314,26 +314,30 @@ def init_torch_seeds(seed: int = 0):
     torch.cuda.manual_seed_all(seed)
 
 
-def inference(model, lr):
+def inference(model, lr, statistical_time=False):
     r"""General inference method.
 
     Args:
         model (nn.Module): Neural network model.
         lr (Torch.Tensor): Picture in pytorch format (N*C*H*W).
+        statistical_time (optional, bool): Is reasoning time counted. (default: ``False``).
 
     Returns:
-        super resolution image, time consumption of super resolution image.
+        super resolution image, time consumption of super resolution image (if `statistical_time` set to `True`).
     """
     # Set eval model.
     model.eval()
 
-    start_time = time.time()
-    with torch.no_grad():
-        sr = model(lr)
-
-    use_time = time.time() - start_time
-
-    return sr, use_time
+    if statistical_time:
+        start_time = time.time()
+        with torch.no_grad():
+            sr = model(lr)
+        use_time = time.time() - start_time
+        return sr, use_time
+    else:
+        with torch.no_grad():
+            sr = model(lr)
+        return sr
 
 
 def load_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Adam = torch.optim.Adam,

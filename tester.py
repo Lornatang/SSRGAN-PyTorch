@@ -15,13 +15,11 @@ import os
 
 import cv2
 import numpy as np
-import torch
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan.utils import Logger
 from ssrgan.utils import configure
 from ssrgan.utils import image_quality_evaluation
 from ssrgan.utils import inference
@@ -36,12 +34,10 @@ class Estimate(object):
         args = self.args
         model, device = configure(args)
 
-        # Read img to tensor.
-        lr = process_image(args.lr)
-        # Transfer to the specified device for processing.
-        lr = lr.to(device)
+        # Read img to tensor and transfer to the specified device for processing.
+        lr = process_image(args.lr).to(device)
 
-        sr, use_time = inference(model, lr)
+        sr, use_time = inference(model, lr, statistical_time=True)
         vutils.save_image(sr, "sr.bmp")  # Save super resolution image.
 
         psnr_value, ssim_value, lpips_value = image_quality_evaluation("sr.bmp", args.hr, device)
@@ -55,56 +51,33 @@ class Estimate(object):
 
 class Video(object):
     def __init__(self, args):
+        self.args = args
 
-        model, device = configure(args)
+        self.model, self.device = configure(args)
 
         # Image preprocessing operation
-        pil2tensor = transforms.ToTensor()
-        tensor2pil = transforms.ToPILImage()
+        self.tensor2pil = transforms.ToPILImage()
 
-        video_capture = cv2.VideoCapture(args.file)
+        self.video_capture = cv2.VideoCapture(args.file)
         # Prepare to write the processed image into the video.
-        fps = video_capture.get(cv2.CAP_PROP_FPS)
-        total_frames = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.video_capture.get(cv2.CAP_PROP_FPS)
+        self.total_frames = int(self.video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
         # Set video size
-        size = (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-        sr_size = (size[0] * args.upscale_factor, size[1] * args.upscale_factor)
-        pare_size = (sr_size[0] * 2 + 10, sr_size[1] + 10 + sr_size[0] // 5 - 9)
+        self.size = (int(self.video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                     int(self.video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        self.sr_size = (self.size[0] * args.upscale_factor, self.size[1] * args.upscale_factor)
+        self.pare_size = (self.sr_size[0] * 2 + 10, self.sr_size[1] + 10 + self.sr_size[0] // 5 - 9)
         # Video write loader.
-        sr_writer = cv2.VideoWriter(f"sr_{args.scale_factor}x_{os.path.basename(args.file)}",
-                                    cv2.VideoWriter_fourcc(*"MPEG"), fps, sr_size)
-        compare_writer = cv2.VideoWriter(f"compare_{args.scale_factor}x_{os.path.basename(args.file)}",
-                                         cv2.VideoWriter_fourcc(*"MPEG"), fps, pare_size)
-
-        logger = Logger(args)
-
-        self.args = args
-        self.device = device
-        self.model = model
-
-        # Image processing operations
-        self.pil2tensor = pil2tensor
-        self.tensor2pil = tensor2pil
-
-        # Video parameters
-        self.video_capture = video_capture
-        self.fps = fps
-        self.total_frames = total_frames
-        self.size = size
-        self.sr_size = sr_size
-        self.pare_size = pare_size
-        self.sr_writer = sr_writer
-        self.compare_writer = compare_writer
-
-        # Print log.
-        self.logger = logger
+        self.sr_writer = cv2.VideoWriter(f"sr_{args.scale_factor}x_{os.path.basename(args.file)}",
+                                         cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.sr_size)
+        self.compare_writer = cv2.VideoWriter(f"compare_{args.scale_factor}x_{os.path.basename(args.file)}",
+                                              cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.pare_size)
 
     def run(self):
         args = self.args
         model = self.model
         device = self.device
 
-        pil2tensor = self.pil2tensor
         tensor2pil = self.tensor2pil
         video_capture = self.video_capture
         total_frames = self.total_frames
@@ -120,11 +93,10 @@ class Video(object):
         progress_bar = tqdm(range(total_frames), desc="[processing video and saving/view result videos]")
         for _ in progress_bar:
             if success:
-                img = pil2tensor(raw_frame).unsqueeze(0)
-                lr = img.to(device)
+                # Read img to tensor and transfer to the specified device for processing.
+                lr = process_image(args.lr).to(device)
 
-                with torch.no_grad():
-                    sr = model(lr)
+                sr = inference(model, lr)
 
                 sr = sr.cpu()
                 sr = sr.data[0].numpy()
@@ -140,8 +112,8 @@ class Video(object):
                 crop_sr_imgs = [np.asarray(transforms.Pad(padding=(10, 5, 0, 0))(img)) for img in crop_sr_imgs]
                 sr = transforms.Pad(padding=(5, 0, 0, 5))(sr)
                 # Five areas in the contrast map are selected as the bottom contrast map
-                compare_img = transforms.Resize((sr_size[1], sr_size[0]), interpolation=Image.BICUBIC)(
-                    tensor2pil(raw_frame))
+                compare_img = transforms.Resize((sr_size[1], sr_size[0]),
+                                                interpolation=Image.BICUBIC)(tensor2pil(raw_frame))
                 crop_compare_imgs = transforms.FiveCrop(size=compare_img.width // 5 - 9)(compare_img)
                 crop_compare_imgs = [np.asarray(transforms.Pad(padding=(0, 5, 10, 0))(img)) for img in
                                      crop_compare_imgs]
