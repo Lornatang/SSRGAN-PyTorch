@@ -128,8 +128,8 @@ class Trainer(object):
         optimizerG = self.optimizerG
         args.start_epoch = load_checkpoint(discriminator, optimizerD,
                                            f"./weights/netD_{args.upscale_factor}x_checkpoint.pth")
-        args.start_epoch = load_checkpoint(generator, optimizerG,
-                                           f"./weights/netG_{args.upscale_factor}x_checkpoint.pth")
+        _ = load_checkpoint(generator, optimizerG,
+                            f"./weights/netG_{args.upscale_factor}x_checkpoint.pth")
 
     def evaluate(self):
         device = self.device

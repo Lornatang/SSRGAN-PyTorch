@@ -19,48 +19,30 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from PIL import Image
-from sewar.full_ref import psnr
-from sewar.full_ref import ssim
 from tqdm import tqdm
 
 from ssrgan.utils import Logger
 from ssrgan.utils import configure
+from ssrgan.utils import image_quality_evaluation
 from ssrgan.utils import inference
 from ssrgan.utils import process_image
 
 
 class Estimate(object):
     def __init__(self, args):
-        self.args = args
+        model, device = configure(args)
 
+        self.args = args
+        self.model = model
+        self.device = device
         # Print log.
         self.logger = Logger(args)
 
-    def image_quality_evaluation(self, sr_filename, hr_filename):
-        """Image quality evaluation function.
-
-        Args:
-            sr_filename (str): Image file name after super resolution.
-            hr_filename (str): Original high resolution image file name.
-        """
-        logger = self.logger
-
-        # Evaluate performance
-        sr = cv2.imread(sr_filename)
-        hr = cv2.imread(hr_filename)
-
-        psnr_value = psnr(sr, hr)
-        ssim_value = ssim(sr, hr)
-
-        logger.print_info("====================== Performance summary ======================")
-        logger.print_info(f"PSNR: {psnr_value:.2f}dB\n"
-                          f"SSIM: {ssim_value[0]:.4f}\n")
-        logger.print_info("============================== End ==============================")
-
     def run(self):
         args = self.args
-
-        model, device = configure(args)
+        model = self.model
+        device = self.device
+        logger = self.logger
 
         # Read img to tensor.
         lr = process_image(args.lr)
@@ -72,7 +54,13 @@ class Estimate(object):
 
         vutils.save_image(sr, "sr.bmp")  # Save super resolution image.
 
-        self.image_quality_evaluation("sr.bmp", args.hr)
+        psnr_value, ssim_value, lpips_value = image_quality_evaluation("sr.bmp", args.hr, device)
+
+        logger.print_info("====================== Performance summary ======================")
+        logger.print_info(f"PSNR: {psnr_value:.2f}dB\n"
+                          f"SSIM: {ssim_value[0]:.4f}\n"
+                          f"LPIPS: {lpips_value.item():.4f}.")
+        logger.print_info("============================== End ==============================")
 
 
 class Video(object):

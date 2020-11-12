@@ -19,11 +19,14 @@ import time
 
 import PIL.BmpImagePlugin
 import cv2
+import lpips
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torchvision.transforms as transforms
 from PIL import Image
+from sewar.full_ref import psnr
+from sewar.full_ref import ssim
 from tensorboardX import SummaryWriter
 
 import ssrgan.models as models
@@ -33,8 +36,8 @@ model_names = sorted(name for name in models.__dict__
                      and callable(models.__dict__[name]))
 
 __all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "configure",
-           "inference", "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "pil2opencv",
-           "process_image", "select_device"]
+           "inference", "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "opencv2tensor",
+           "pil2opencv", "process_image", "select_device"]
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +156,19 @@ def calculate_weights_indices(in_length, out_length, scale, kernel_width, antial
     return weights, indices, int(sym_len_s), int(sym_len_e)
 
 
+def configure(args):
+    """Global profile.
+
+    """
+    # Selection of appropriate treatment equipment
+    device = select_device(args.device, batch_size=args.batch_size)
+
+    # Construct GAN model.
+    model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
+    model.load_state_dict(torch.load(args.model_path, map_location=device))
+    return model, device
+
+
 def create_initialization_folder():
     try:
         os.makedirs("./benchmark")
@@ -172,17 +188,32 @@ def cubic(x):
             -0.5 * absx3 + 2.5 * absx2 - 4 * absx + 2) * (((absx > 1) * (absx <= 2)).type_as(absx))
 
 
-def configure(args):
-    """Global profile.
+def image_quality_evaluation(sr_filename, hr_filename, device):
+    """Image quality evaluation function.
 
+    Args:
+        sr_filename (str): Image file name after super resolution.
+        hr_filename (str): Original high resolution image file name.
+        device (torch.device): Selection of data processing equipment in PyTorch.
+
+    Returns:
+        psnr, ssim, lpips
     """
-    # Selection of appropriate treatment equipment
-    device = select_device(args.device, batch_size=args.batch_size)
+    # Reference sources from `https://github.com/richzhang/PerceptualSimilarity`
+    lpips_loss = lpips.LPIPS(net="vgg").to(device)
+    # Evaluate performance
+    sr = cv2.imread(sr_filename)
+    hr = cv2.imread(hr_filename)
 
-    # Construct GAN model.
-    model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-    model.load_state_dict(torch.load(args.model_path, map_location=device))
-    return model, device
+    # For LPIPS evaluation
+    sr_tensor = opencv2tensor(sr).to(device)
+    hr_tensor = opencv2tensor(hr).to(device)
+
+    psnr_value = psnr(sr, hr)
+    ssim_value = ssim(sr, hr)
+    lpips_value = lpips_loss(sr_tensor, hr_tensor)
+
+    return psnr_value, ssim_value, lpips_value
 
 
 def imresize(img, scale, antialiasing=True):
@@ -339,6 +370,18 @@ def opencv2pil(img: np.ndarray) -> PIL.BmpImagePlugin.BmpImageFile:
     """
 
     img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    return img
+
+
+def opencv2tensor(img: np.ndarray) -> torch.Tensor:
+    """ OpenCV Convert to torch.Tensor format.
+
+    Returns:
+        torch.Tensor.
+    """
+    img = np.transpose(img, (2, 0, 1))
+    img = torch.from_numpy(img)
+    img = torch.tensor(img, dtype=torch.float)
     return img
 
 

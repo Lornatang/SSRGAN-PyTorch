@@ -45,11 +45,13 @@ from .utils import calculate_weights_indices
 from .utils import configure
 from .utils import create_initialization_folder
 from .utils import cubic
+from .utils import image_quality_evaluation
 from .utils import imresize
 from .utils import inference
 from .utils import init_torch_seeds
 from .utils import load_checkpoint
 from .utils import opencv2pil
+from .utils import opencv2tensor
 from .utils import pil2opencv
 from .utils import process_image
 from .utils import select_device
@@ -86,11 +88,13 @@ __all__ = [
     "configure",
     "create_initialization_folder",
     "cubic",
+    "image_quality_evaluation",
     "imresize",
     "inference",
     "init_torch_seeds",
     "load_checkpoint",
     "opencv2pil",
+    "opencv2tensor",
     "pil2opencv",
     "process_image",
     "select_device"
