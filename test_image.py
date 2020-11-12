@@ -28,19 +28,26 @@ parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
                     help="model architecture: " +
                          " | ".join(model_names) +
                          " (default: bionet)")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
+parser.add_argument("--upscale_factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
+parser.add_argument("--model_path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
 
+# test parameters
 parser.add_argument("--lr", type=str,
                     help="Test low resolution image name.")
 parser.add_argument("--hr", type=str,
                     help="Raw high resolution image name.")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
-                    help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--model-path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
 parser.add_argument("--device", default="cpu",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``CUDA:0``).")
+
+# log parameters
+parser.add_argument("--log_dir", type=str, default="logs",
+                    help="Training logs are saved here.")
+parser.add_argument("--tensorboard_dir", type=str, default=None,
+                    help="Tensorboard is saved here.")
+parser.add_argument("--save_freq", type=int, default=5000,
+                    help="frequency of evaluating and save the model.")
 
 args = parser.parse_args()
 

@@ -35,14 +35,11 @@ class Estimate(object):
         self.args = args
         self.model = model
         self.device = device
-        # Print log.
-        self.logger = Logger(args)
 
     def run(self):
         args = self.args
         model = self.model
         device = self.device
-        logger = self.logger
 
         # Read img to tensor.
         lr = process_image(args.lr)
@@ -56,11 +53,11 @@ class Estimate(object):
 
         psnr_value, ssim_value, lpips_value = image_quality_evaluation("sr.bmp", args.hr, device)
 
-        logger.print_info("====================== Performance summary ======================")
-        logger.print_info(f"PSNR: {psnr_value:.2f}dB\n"
-                          f"SSIM: {ssim_value[0]:.4f}\n"
-                          f"LPIPS: {lpips_value.item():.4f}.")
-        logger.print_info("============================== End ==============================")
+        print("====================== Performance summary ======================")
+        print(f"PSNR: {psnr_value:.2f}dB\n"
+              f"SSIM: {ssim_value[0]:.4f}\n"
+              f"LPIPS: {lpips_value.item():.4f}.")
+        print("============================== End ==============================")
 
 
 class Video(object):

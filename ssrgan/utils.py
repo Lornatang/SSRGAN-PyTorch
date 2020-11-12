@@ -35,8 +35,8 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
-__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "configure",
-           "inference", "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "opencv2tensor",
+__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "image_quality_evaluation",
+           "configure", "inference", "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "opencv2tensor",
            "pil2opencv", "process_image", "select_device"]
 
 logger = logging.getLogger(__name__)
@@ -161,11 +161,11 @@ def configure(args):
 
     """
     # Selection of appropriate treatment equipment
-    device = select_device(args.device, batch_size=args.batch_size)
+    device = select_device(args.device, batch_size=1)
 
     # Construct GAN model.
     model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-    model.load_state_dict(torch.load(args.model_path, map_location=device))
+    model.load_state_dict(torch.load(args.model_path, map_location=device)["state_dict"])
     return model, device
 
 
@@ -379,9 +379,9 @@ def opencv2tensor(img: np.ndarray) -> torch.Tensor:
     Returns:
         torch.Tensor.
     """
-    img = np.transpose(img, (2, 0, 1))
-    img = torch.from_numpy(img)
-    img = torch.tensor(img, dtype=torch.float)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = torch.from_numpy(img).div(255.0).unsqueeze(0)
+    img = img.permute(0, 3, 1, 2)
     return img
 
 
