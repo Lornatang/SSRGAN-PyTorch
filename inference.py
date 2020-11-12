@@ -29,7 +29,7 @@ UPSCALE_FACTOR = 4  # Ony support 4 expand factor.
 LR_WIDTH, LR_HEIGHT = 1920, 1080
 SR_WIDTH = LR_WIDTH * UPSCALE_FACTOR  # For SR image
 SR_HEIGHT = LR_HEIGHT * UPSCALE_FACTOR  # For SR image
-NUM_WIDTH, NUM_HEIGHT = 10, 10  # For our patch size (width=128 height=72)
+NUM_WIDTH, NUM_HEIGHT = 10, 10  # For our patch size (width=192 height=108)
 sr = Image.new("RGB", (SR_WIDTH, SR_HEIGHT))
 
 # Get LR patch size.

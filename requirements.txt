@@ -14,3 +14,5 @@ setuptools
 werkzeug
 flask
 strutil
+lpips
+requests
