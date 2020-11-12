@@ -15,6 +15,7 @@ import csv
 import os
 
 import cv2
+import lpips
 import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
@@ -25,7 +26,6 @@ from tqdm import tqdm
 import ssrgan.models as models
 from ssrgan import DatasetFromFolder
 from ssrgan import VGGLoss
-from ssrgan.contrib import lpips
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import Logger
 from ssrgan.utils import init_torch_seeds
