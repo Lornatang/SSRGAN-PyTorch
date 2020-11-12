@@ -12,7 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
-from ssrgan.utils import create_initialization_folder
+from ssrgan.utils import create_folder
 
 import ssrgan.models as models
 from trainer import Trainer
@@ -34,10 +34,6 @@ parser.add_argument("--device", default="",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
 
 # log parameters
-parser.add_argument("--log_dir", type=str, default="logs",
-                    help="Training logs are saved here.")
-parser.add_argument("--tensorboard_dir", type=str, default=None,
-                    help="Tensorboard is saved here.")
 parser.add_argument("--save_freq", type=int, default=5000,
                     help="frequency of evaluating and save the model.")
 
@@ -73,7 +69,7 @@ args = parser.parse_args()
 print(args)
 
 if __name__ == "__main__":
-    create_initialization_folder()
+    create_folder()
     trainer = Trainer(args)
     trainer.run()
     print("All training has been completed!")

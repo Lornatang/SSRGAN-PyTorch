@@ -35,7 +35,7 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
-__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "image_quality_evaluation",
+__all__ = ["Logger", "calculate_weights_indices", "create_folder", "cubic", "image_quality_evaluation",
            "configure", "inference", "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "opencv2tensor",
            "pil2opencv", "process_image", "select_device"]
 
@@ -169,14 +169,11 @@ def configure(args):
     return model, device
 
 
-def create_initialization_folder():
+def create_folder(folder):
     try:
-        os.makedirs("./benchmark")
-        os.makedirs("./output/lr")
-        os.makedirs("./output/hr")
-        os.makedirs("./output/sr")
-        os.makedirs("./weights")
+        os.makedirs(folder)
     except OSError:
+        print("[!]Folder already exists!")
         pass
 
 

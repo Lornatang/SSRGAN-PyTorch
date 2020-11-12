@@ -39,7 +39,6 @@ model_names = sorted(name for name in models.__dict__
 
 class Trainer(object):
     def __init__(self, args):
-        args.tensorboard_dir = args.log_dir if args.tensorboard_dir is None else args.tensorboard_dir
         # Set random initialization seed, easy to reproduce.
         init_torch_seeds(args.manualSeed)
         logger = Logger(args)

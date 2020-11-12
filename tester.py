@@ -15,24 +15,83 @@ import os
 
 import cv2
 import numpy as np
+import torch
+import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from PIL import Image
 from tqdm import tqdm
 
+from ssrgan.dataset import DatasetFromFolder
 from ssrgan.utils import configure
 from ssrgan.utils import image_quality_evaluation
 from ssrgan.utils import inference
 from ssrgan.utils import process_image
 
 
+class Test(object):
+    def __init__(self, args):
+        print(f"[*]Loading model architecture[{args.arch}]...")
+        self.model, self.device = configure(args)
+        print(f"[*]Loaded [{args.arch}] model done!")
+        self.dataloader = torch.utils.data.DataLoader(
+            DatasetFromFolder(input_dir=f"./data/{args.upscale_factor}x/train/input",
+                              target_dir=f"./data/{args.upscale_factor}x/train/target"),
+            batch_size=args.batch_size,
+            pin_memory=True,
+            num_workers=int(args.workers))
+
+    def run(self):
+        model = self.model
+        device = self.device
+        dataloader = self.dataloader
+
+        # Evaluate algorithm performance
+        total_psnr_value = 0.0
+        total_ssim_value = 0.0
+        total_lpips_value = 0.0
+
+        # Start evaluate model performance
+        progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
+        for i, (input, target) in progress_bar:
+            # Set model gradients to zero
+            lr = input.to(device)
+            hr = target.to(device)
+
+            sr = inference(model, lr)
+            vutils.save_image(sr, f"./benchmark/sr_{i}.bmp")  # Save super resolution image.
+            vutils.save_image(hr, f"./benchmark/hr_{i}.bmp")  # Save high resolution image.
+
+            # Evaluate performance
+            psnr_value, ssim_value, lpips_value = image_quality_evaluation(f"./benchmark/sr_{i}.bmp",
+                                                                           f"./benchmark/hr_{i}.bmp",
+                                                                           device)
+
+            total_psnr_value += psnr_value
+            total_ssim_value += ssim_value[0]
+            total_lpips_value += lpips_value.item()
+
+            progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
+                                         f"PSNR: {psnr_value:.2f}dB "
+                                         f"SSIM: {ssim_value[0]:.4f} "
+                                         f"LPIPS: {lpips_value.item():.4f}")
+
+        print("====================== Performance summary ======================")
+        print(f"Avg PSNR: {total_psnr_value / len(dataloader):.2f}\n"
+              f"Avg SSIM: {total_ssim_value / len(dataloader):.4f}\n"
+              f"Avg SSIM: {total_lpips_value / len(dataloader):.4f}\n")
+        print("============================== End ==============================")
+
+
 class Estimate(object):
     def __init__(self, args):
         self.args = args
+        self.model, self.device = configure(args)
 
     def run(self):
         args = self.args
-        model, device = configure(args)
+        model = self.model
+        device = self.device
 
         # Read img to tensor and transfer to the specified device for processing.
         lr = process_image(args.lr).to(device)

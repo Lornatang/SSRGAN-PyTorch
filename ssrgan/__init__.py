@@ -43,7 +43,7 @@ from .model import channel_shuffle
 from .utils import Logger
 from .utils import calculate_weights_indices
 from .utils import configure
-from .utils import create_initialization_folder
+from .utils import create_folder
 from .utils import cubic
 from .utils import image_quality_evaluation
 from .utils import imresize
@@ -86,7 +86,7 @@ __all__ = [
     "Logger",
     "calculate_weights_indices",
     "configure",
-    "create_initialization_folder",
+    "create_folder",
     "cubic",
     "image_quality_evaluation",
     "imresize",

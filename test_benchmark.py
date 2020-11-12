@@ -14,52 +14,47 @@
 import argparse
 
 import ssrgan.models as models
-from trainer import Trainer
+from ssrgan.utils import create_folder
+from tester import Test
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
-parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
-                                             "technology for pathological microscopic images.")
-# basic parameters
-parser.add_argument("--dataroot", type=str, default="./data",
-                    help="Path to datasets. (default:`./data`)")
-parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
-                    help="Number of data loading workers. (default:4)")
-parser.add_argument("--task", type=str, default="eval",
-                    help="Eval task.")
-parser.add_argument("--manualSeed", type=int, default=1111,
-                    help="Seed for initializing training. (default:1111)")
-parser.add_argument("--device", default="",
-                    help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
-
-# log parameters
-parser.add_argument("--log_dir", type=str, default="logs",
-                    help="Training logs are saved here.")
-parser.add_argument("--tensorboard_dir", type=str, default=None,
-                    help="Tensorboard is saved here.")
-
-# model parameters
-parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
-                    choices=model_names,
-                    help="model architecture: " +
-                         " | ".join(model_names) +
-                         " (default: bionet)")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
-                    help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--model_path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
-
-# test parameters
-parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
-                    help="mini-batch size (default: 16), this is the total "
-                         "batch size of all GPUs on the current node when "
-                         "using Data Parallel or Distributed Data Parallel.")
-args = parser.parse_args()
-print(args)
-
 if __name__ == "__main__":
-    trainer = Trainer(args)
-    trainer.evaluate()
-    print("Model evaluation completed!")
+    parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
+                                                 "technology for pathological microscopic images.")
+    # basic parameters
+    parser.add_argument("--dataroot", default="./data", type=str,
+                        help="Path to datasets. (default:`./data`)")
+    parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
+                        help="Number of data loading workers. (default:4)")
+    parser.add_argument("--outf", default="./test", type=str, metavar="PATH",
+                        help="The location of the image in the evaluation process. (default: ``./test``).")
+    parser.add_argument("--device", default="",
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
+
+    # model parameters
+    parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
+                        choices=model_names,
+                        help="model architecture: " +
+                             " | ".join(model_names) +
+                             " (default: bionet)")
+    parser.add_argument("--upscale_factor", type=int, default=4, choices=[4],
+                        help="Low to high resolution scaling factor. (default:4).")
+    parser.add_argument("--model_path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
+                        help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
+
+    # test parameters
+    parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
+                        help="mini-batch size (default: 16), this is the total "
+                             "batch size of all GPUs on the current node when "
+                             "using Data Parallel or Distributed Data Parallel.")
+    args = parser.parse_args()
+    print(args)
+
+    print("[*]Start evaluating test dataset performance...")
+    create_folder(args.outf)  # create evaluation directory.
+    test = Test(args)
+    test.run()
+    print("[*]Test dataset performance evaluation completed!")
