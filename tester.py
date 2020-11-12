@@ -23,34 +23,18 @@ from sewar.full_ref import psnr
 from sewar.full_ref import ssim
 from tqdm import tqdm
 
-import ssrgan.models as models
 from ssrgan.utils import Logger
+from ssrgan.utils import configure
 from ssrgan.utils import inference
 from ssrgan.utils import process_image
-from ssrgan.utils import select_device
-
-model_names = sorted(name for name in models.__dict__
-                     if name.islower() and not name.startswith("__")
-                     and callable(models.__dict__[name]))
 
 
 class Estimate(object):
     def __init__(self, args):
-        # Selection of appropriate treatment equipment
-        device = select_device(args.device, batch_size=1)
-
-        # Construct GAN model.
-        model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-        model.load_state_dict(torch.load(args.model_path, map_location=device)["state_dict"])
-
-        logger = Logger(args)
-
         self.args = args
-        self.device = device
-        self.model = model
 
         # Print log.
-        self.logger = logger
+        self.logger = Logger(args)
 
     def image_quality_evaluation(self, sr_filename, hr_filename):
         """Image quality evaluation function.
@@ -77,8 +61,8 @@ class Estimate(object):
 
     def run(self):
         args = self.args
-        device = self.device
-        model = self.model
+
+        model, device = configure(args)
 
         # Read img to tensor.
         lr = process_image(args.lr)
@@ -95,12 +79,8 @@ class Estimate(object):
 
 class Video(object):
     def __init__(self, args):
-        # Selection of appropriate treatment equipment
-        device = select_device(args.device, batch_size=1)
 
-        # Construct GAN model.
-        model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-        model.load_state_dict(torch.load(args.model_path, map_location=device))
+        model, device = configure(args)
 
         # Image preprocessing operation
         pil2tensor = transforms.ToTensor()

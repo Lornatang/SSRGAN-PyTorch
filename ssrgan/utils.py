@@ -26,9 +26,15 @@ import torchvision.transforms as transforms
 from PIL import Image
 from tensorboardX import SummaryWriter
 
-__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "inference",
-           "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "pil2opencv", "process_image",
-           "select_device"]
+import ssrgan.models as models
+
+model_names = sorted(name for name in models.__dict__
+                     if name.islower() and not name.startswith("__")
+                     and callable(models.__dict__[name]))
+
+__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "configure",
+           "inference", "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "pil2opencv",
+           "process_image", "select_device"]
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +170,19 @@ def cubic(x):
     absx3 = absx ** 3
     return (1.5 * absx3 - 2.5 * absx2 + 1) * ((absx <= 1).type_as(absx)) + (
             -0.5 * absx3 + 2.5 * absx2 - 4 * absx + 2) * (((absx > 1) * (absx <= 2)).type_as(absx))
+
+
+def configure(args):
+    """Global profile.
+
+    """
+    # Selection of appropriate treatment equipment
+    device = select_device(args.device, batch_size=args.batch_size)
+
+    # Construct GAN model.
+    model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
+    model.load_state_dict(torch.load(args.model_path, map_location=device))
+    return model, device
 
 
 def imresize(img, scale, antialiasing=True):
