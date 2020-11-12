@@ -106,9 +106,9 @@ class Estimate(object):
         lr = process_image(img).to(device)
 
         sr, use_time = inference(model, lr, statistical_time=True)
-        vutils.save_image(sr, "sr.bmp")  # Save super resolution image.
+        vutils.save_image(sr, f"./{args.outf}/{args.lr}")  # Save super resolution image.
 
-        psnr_value, ssim_value, lpips_value = image_quality_evaluation("sr.bmp", args.hr, device)
+        psnr_value, ssim_value, lpips_value = image_quality_evaluation(f"./{args.outf}/{args.lr}", args.hr, device)
         print("====================== Performance summary ======================")
         print(f"PSNR: {psnr_value:.2f}dB\n"
               f"SSIM: {ssim_value[0]:.4f}\n"
