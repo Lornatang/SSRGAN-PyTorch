@@ -30,16 +30,11 @@ from ssrgan.utils import process_image
 
 class Estimate(object):
     def __init__(self, args):
-        model, device = configure(args)
-
         self.args = args
-        self.model = model
-        self.device = device
 
     def run(self):
         args = self.args
-        model = self.model
-        device = self.device
+        model, device = configure(args)
 
         # Read img to tensor.
         lr = process_image(args.lr)
@@ -47,16 +42,14 @@ class Estimate(object):
         lr = lr.to(device)
 
         sr, use_time = inference(model, lr)
-        print(f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")  # Super resolution image time.
-
         vutils.save_image(sr, "sr.bmp")  # Save super resolution image.
 
         psnr_value, ssim_value, lpips_value = image_quality_evaluation("sr.bmp", args.hr, device)
-
         print("====================== Performance summary ======================")
         print(f"PSNR: {psnr_value:.2f}dB\n"
               f"SSIM: {ssim_value[0]:.4f}\n"
-              f"LPIPS: {lpips_value.item():.4f}.")
+              f"LPIPS: {lpips_value.item():.4f}."
+              "Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
         print("============================== End ==============================")
 
 
