@@ -52,12 +52,10 @@ class Estimate(object):
         psnr_value = psnr(sr, hr)
         ssim_value = ssim(sr, hr)
 
-        logger.print_info("\n")
         logger.print_info("====================== Performance summary ======================")
-        logger.print_info(f"PSNR: {psnr_value:.2f}\n"
+        logger.print_info(f"PSNR: {psnr_value:.2f}dB\n"
                           f"SSIM: {ssim_value[0]:.4f}\n")
         logger.print_info("============================== End ==============================")
-        logger.print_info("\n")
 
     def run(self):
         args = self.args
