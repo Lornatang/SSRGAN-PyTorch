@@ -45,6 +45,7 @@ from .utils import calculate_weights_indices
 from .utils import configure
 from .utils import create_folder
 from .utils import cubic
+from .utils import get_time
 from .utils import image_quality_evaluation
 from .utils import imresize
 from .utils import inference
@@ -88,6 +89,7 @@ __all__ = [
     "configure",
     "create_folder",
     "cubic",
+    "get_time",
     "image_quality_evaluation",
     "imresize",
     "inference",

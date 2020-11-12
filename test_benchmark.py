@@ -29,8 +29,8 @@ if __name__ == "__main__":
                         help="Path to datasets. (default:`./data`)")
     parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                         help="Number of data loading workers. (default:4)")
-    parser.add_argument("--outf", default="./test", type=str, metavar="PATH",
-                        help="The location of the image in the evaluation process. (default: ``./test``).")
+    parser.add_argument("--outf", default="test", type=str, metavar="PATH",
+                        help="The location of the image in the evaluation process. (default: ``test``).")
     parser.add_argument("--device", default="",
                         help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
 

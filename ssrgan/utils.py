@@ -185,6 +185,10 @@ def cubic(x):
             -0.5 * absx3 + 2.5 * absx2 - 4 * absx + 2) * (((absx > 1) * (absx <= 2)).type_as(absx))
 
 
+def get_time():
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+
+
 def image_quality_evaluation(sr_filename, hr_filename, device):
     """Image quality evaluation function.
 
@@ -397,20 +401,14 @@ def pil2opencv(img: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
     return img
 
 
-def process_image(filename: str) -> torch.Tensor:
-    """Read the image in tensor format.
+def process_image(img: PIL.BmpImagePlugin.BmpImageFile) -> torch.Tensor:
+    """ PIL.Image Convert to PyTorch format.
 
-    Args:
-        filename (str): Image address.
-
-    Returns:
-        torch.Tensor format image.
-    """
-
-    img = Image.open(filename)
-    tensor_img = transforms.ToTensor()(img).unsqueeze(0)
-
-    return tensor_img
+        Returns:
+            torch.Tensor.
+        """
+    img = transforms.ToTensor()(img).unsqueeze(0)
+    return img
 
 
 def select_device(device: str = None, batch_size: int = 1) -> torch.device:

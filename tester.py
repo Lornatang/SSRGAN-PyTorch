@@ -24,6 +24,7 @@ from tqdm import tqdm
 
 from ssrgan.dataset import DatasetFromFolder
 from ssrgan.utils import configure
+from ssrgan.utils import get_time
 from ssrgan.utils import image_quality_evaluation
 from ssrgan.utils import inference
 from ssrgan.utils import process_image
@@ -31,17 +32,22 @@ from ssrgan.utils import process_image
 
 class Test(object):
     def __init__(self, args):
-        print(f"[*]Loading model architecture[{args.arch}]...")
+        self.args = args
+        print(f"[*]({get_time()})Loading model architecture[{args.arch}]...")
         self.model, self.device = configure(args)
-        print(f"[*]Loaded [{args.arch}] model done!")
+        print(f"[*]({get_time()})Loaded [{args.arch}] model done!")
+
+        print(f"[*]({get_time()})Loading dataset...")
         self.dataloader = torch.utils.data.DataLoader(
             DatasetFromFolder(input_dir=f"./data/{args.upscale_factor}x/train/input",
                               target_dir=f"./data/{args.upscale_factor}x/train/target"),
             batch_size=args.batch_size,
             pin_memory=True,
             num_workers=int(args.workers))
+        print(f"[*]({get_time()})Loaded dataset done!")
 
     def run(self):
+        args = self.args
         model = self.model
         device = self.device
         dataloader = self.dataloader
@@ -59,12 +65,12 @@ class Test(object):
             hr = target.to(device)
 
             sr = inference(model, lr)
-            vutils.save_image(sr, f"./benchmark/sr_{i}.bmp")  # Save super resolution image.
-            vutils.save_image(hr, f"./benchmark/hr_{i}.bmp")  # Save high resolution image.
+            vutils.save_image(sr, f"./{args.outf}/sr_{i}.bmp")  # Save super resolution image.
+            vutils.save_image(hr, f"./{args.outf}/hr_{i}.bmp")  # Save high resolution image.
 
             # Evaluate performance
-            psnr_value, ssim_value, lpips_value = image_quality_evaluation(f"./benchmark/sr_{i}.bmp",
-                                                                           f"./benchmark/hr_{i}.bmp",
+            psnr_value, ssim_value, lpips_value = image_quality_evaluation(f"./{args.outf}/sr_{i}.bmp",
+                                                                           f"./{args.outf}/hr_{i}.bmp",
                                                                            device)
 
             total_psnr_value += psnr_value
@@ -86,7 +92,9 @@ class Test(object):
 class Estimate(object):
     def __init__(self, args):
         self.args = args
+        print(f"[*]({get_time()})Loading model architecture[{args.arch}]...")
         self.model, self.device = configure(args)
+        print(f"[*]({get_time()})Loaded [{args.arch}] model done!")
 
     def run(self):
         args = self.args
@@ -94,7 +102,8 @@ class Estimate(object):
         device = self.device
 
         # Read img to tensor and transfer to the specified device for processing.
-        lr = process_image(args.lr).to(device)
+        img = Image.open(args.lr)
+        lr = process_image(img).to(device)
 
         sr, use_time = inference(model, lr, statistical_time=True)
         vutils.save_image(sr, "sr.bmp")  # Save super resolution image.
@@ -112,7 +121,9 @@ class Video(object):
     def __init__(self, args):
         self.args = args
 
+        print(f"[*]({get_time()})Loading model architecture[{args.arch}]...")
         self.model, self.device = configure(args)
+        print(f"[*]({get_time()})Loaded [{args.arch}] model done!")
 
         # Image preprocessing operation
         self.tensor2pil = transforms.ToPILImage()
@@ -153,7 +164,8 @@ class Video(object):
         for _ in progress_bar:
             if success:
                 # Read img to tensor and transfer to the specified device for processing.
-                lr = process_image(args.lr).to(device)
+                img = Image.open(args.lr)
+                lr = process_image(img).to(device)
 
                 sr = inference(model, lr)
 
