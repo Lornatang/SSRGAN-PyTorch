@@ -12,10 +12,8 @@
 # limitations under the License.
 # ==============================================================================
 import os
-import time
 
 import cv2
-from ssrgan.contrib import lpips
 import numpy as np
 import torch
 import torchvision.transforms as transforms
@@ -27,6 +25,8 @@ from tqdm import tqdm
 
 import ssrgan.models as models
 from ssrgan.utils import Logger
+from ssrgan.utils import inference
+from ssrgan.utils import process_image
 from ssrgan.utils import select_device
 
 model_names = sorted(name for name in models.__dict__
@@ -41,76 +41,56 @@ class Estimate(object):
 
         # Construct GAN model.
         model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-        model.load_state_dict(torch.load(args.model_path, map_location=device))
-
-        # Reference sources from `https://github.com/richzhang/PerceptualSimilarity`
-        lpips_loss = lpips.LPIPS(net="vgg").to(device)
+        model.load_state_dict(torch.load(args.model_path, map_location=device)["state_dict"])
 
         logger = Logger(args)
 
         self.args = args
         self.device = device
         self.model = model
-        self.lpips_loss = lpips_loss
 
         # Print log.
         self.logger = logger
 
-    def process_image(self):
-        args = self.args
-        device = self.device
+    def image_quality_evaluation(self, sr_filename, hr_filename):
+        """Image quality evaluation function.
 
-        pre_process = transforms.ToTensor()
-        assert args.lr is None, "During evaluation, the low resolution image cannot be empty!"
-        assert args.hr is None, "During evaluation, the high resolution image cannot be empty!"
-        lr = Image.open(args.lr)
-        hr = Image.open(args.hr)
-        lr = pre_process(lr).unsqueeze(0)
-        hr = pre_process(hr).unsqueeze(0)
-        lr = lr.to(device)
-        hr = hr.to(device)
-
-        return lr, hr
-
-    def inference(self, lr):
-        model = self.model
-
-        # Set eval model.
-        model.eval()
-
-        start_time = time.time()
-        with torch.no_grad():
-            sr = model(lr)
-
-        return sr, time.time() - start_time
-
-    def run(self):
-        lpips_loss = self.lpips_loss
+        Args:
+            sr_filename (str): Image file name after super resolution.
+            hr_filename (str): Original high resolution image file name.
+        """
         logger = self.logger
 
-        lr, hr = self.process_image()
-        sr, use_time = self.inference(lr)
-
-        vutils.save_image(sr, "sr.bmp")
-        vutils.save_image(hr, "hr.bmp")
-
         # Evaluate performance
-        src_img = cv2.imread("sr.bmp")
-        dst_img = cv2.imread("hr.bmp")
+        sr = cv2.imread(sr_filename)
+        hr = cv2.imread(hr_filename)
 
-        psnr_value = psnr(src_img, dst_img)
-        ssim_value = ssim(src_img, dst_img)
-
-        lpips_value = lpips_loss(sr, hr)
+        psnr_value = psnr(sr, hr)
+        ssim_value = ssim(sr, hr)
 
         logger.print_info("\n")
         logger.print_info("====================== Performance summary ======================")
         logger.print_info(f"PSNR: {psnr_value:.2f}\n"
-                          f"SSIM: {ssim_value[0]:.4f}\n"
-                          f"LPIPS: {lpips_value.item():.4f}\n"
-                          f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
+                          f"SSIM: {ssim_value[0]:.4f}\n")
         logger.print_info("============================== End ==============================")
         logger.print_info("\n")
+
+    def run(self):
+        args = self.args
+        device = self.device
+        model = self.model
+
+        # Read img to tensor.
+        lr = process_image(args.lr)
+        # Transfer to the specified device for processing.
+        lr = lr.to(device)
+
+        sr, use_time = inference(model, lr)
+        print(f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")  # Super resolution image time.
+
+        vutils.save_image(sr, "sr.bmp")  # Save super resolution image.
+
+        self.image_quality_evaluation("sr.bmp", args.hr)
 
 
 class Video(object):

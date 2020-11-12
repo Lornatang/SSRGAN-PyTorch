@@ -117,7 +117,7 @@ class Trainer(object):
         generator = self.generator
         psnr_optimizer = self.psnr_optimizer
         args.start_epoch = load_checkpoint(generator, psnr_optimizer,
-                                           f"./weight/ResNet_{args.upscale_factor}x_checkpoint.pth")
+                                           f"./weights/ResNet_{args.upscale_factor}x_checkpoint.pth")
 
     # Loading GAN checkpoint
     def resume_gan(self):
@@ -127,9 +127,9 @@ class Trainer(object):
         optimizerD = self.optimizerD
         optimizerG = self.optimizerG
         args.start_epoch = load_checkpoint(discriminator, optimizerD,
-                                           f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
+                                           f"./weights/netD_{args.upscale_factor}x_checkpoint.pth")
         args.start_epoch = load_checkpoint(generator, optimizerG,
-                                           f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
+                                           f"./weights/netG_{args.upscale_factor}x_checkpoint.pth")
 
     def evaluate(self):
         device = self.device
@@ -223,9 +223,9 @@ class Trainer(object):
         # Pre-train generator using raw l1 loss
         logger.print_info("[*] Start training PSNR model based on L1 loss.")
         # Save the generator model based on MSE pre training to speed up the training time
-        if os.path.exists(f"./weight/ResNet_{args.upscale_factor}x.pth"):
+        if os.path.exists(f"./weights/ResNet_{args.upscale_factor}x.pth"):
             logger.print_info("[*] Found PSNR pretrained model weights. Skip pre-train.")
-            generator.load_state_dict(torch.load(f"./weight/ResNet_{args.upscale_factor}x.pth", map_location=device))
+            generator.load_state_dict(torch.load(f"./weights/ResNet_{args.upscale_factor}x.pth", map_location=device))
         else:
             # Writer train PSNR model log.
             if args.start_epoch == 0:
@@ -273,16 +273,16 @@ class Trainer(object):
                 torch.save({"epoch": epoch + 1,
                             "optimizer": psnr_optimizer.state_dict(),
                             "state_dict": generator.state_dict()
-                            }, f"./weight/ResNet_{args.upscale_factor}x_checkpoint.pth")
+                            }, f"./weights/ResNet_{args.upscale_factor}x_checkpoint.pth")
 
                 # Writer training log
                 with open(f"ResNet_{args.upscale_factor}x_Loss.csv", "a+") as f:
                     writer = csv.writer(f)
                     writer.writerow([epoch + 1, avg_loss / len(dataloader)])
 
-            torch.save(generator.state_dict(), f"./weight/ResNet_{args.upscale_factor}x.pth")
+            torch.save(generator.state_dict(), f"./weights/ResNet_{args.upscale_factor}x.pth")
             print(f"[*] Training PSNR model done! Saving PSNR model weight to "
-                  f"`./weight/ResNet_{args.upscale_factor}x.pth`.")
+                  f"`./weights/ResNet_{args.upscale_factor}x.pth`.")
 
             # After training the PSNR model, set the initial iteration to 0.
             args.start_epoch = 0
@@ -375,11 +375,11 @@ class Trainer(object):
                 torch.save({"epoch": epoch + 1,
                             "optimizer": optimizerD.state_dict(),
                             "state_dict": discriminator.state_dict()
-                            }, f"./weight/netD_{args.upscale_factor}x_checkpoint.pth")
+                            }, f"./weights/netD_{args.upscale_factor}x_checkpoint.pth")
                 torch.save({"epoch": epoch + 1,
                             "optimizer": optimizerG.state_dict(),
                             "state_dict": generator.state_dict()
-                            }, f"./weight/netG_{args.upscale_factor}x_checkpoint.pth")
+                            }, f"./weights/netG_{args.upscale_factor}x_checkpoint.pth")
 
                 # Writer training log
                 with open(f"GAN_{args.upscale_factor}x_Loss.csv", "a+") as f:
@@ -388,6 +388,6 @@ class Trainer(object):
                                      d_avg_loss / len(dataloader),
                                      g_avg_loss / len(dataloader)])
 
-            torch.save(generator.state_dict(), f"./weight/GAN_{args.upscale_factor}x.pth")
+            torch.save(generator.state_dict(), f"./weights/GAN_{args.upscale_factor}x.pth")
             logger.print_info(f"[*] Training GAN model done! Saving GAN model weight "
-                              f"to `./weight/GAN_{args.upscale_factor}x.pth`.")
+                              f"to `./weights/GAN_{args.upscale_factor}x.pth`.")

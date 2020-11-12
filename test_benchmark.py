@@ -27,6 +27,8 @@ parser.add_argument("--dataroot", type=str, default="./data",
                     help="Path to datasets. (default:`./data`)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (default:4)")
+parser.add_argument("--task", type=str, default="eval",
+                    help="Eval task.")
 parser.add_argument("--manualSeed", type=int, default=1111,
                     help="Seed for initializing training. (default:1111)")
 parser.add_argument("--device", default="",
@@ -46,8 +48,10 @@ parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
                          " (default: bionet)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
+parser.add_argument("--model_path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
 
-# training parameters
+# test parameters
 parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                     help="mini-batch size (default: 16), this is the total "
                          "batch size of all GPUs on the current node when "

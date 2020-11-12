@@ -22,11 +22,13 @@ import cv2
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+import torchvision.transforms as transforms
 from PIL import Image
 from tensorboardX import SummaryWriter
 
-__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic",
-           "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "pil2opencv", "select_device"]
+__all__ = ["Logger", "calculate_weights_indices", "create_initialization_folder", "cubic", "inference",
+           "imresize", "init_torch_seeds", "load_checkpoint", "opencv2pil", "pil2opencv", "process_image",
+           "select_device"]
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +264,28 @@ def init_torch_seeds(seed: int = 0):
     torch.cuda.manual_seed_all(seed)
 
 
+def inference(model, lr):
+    r"""General inference method.
+
+    Args:
+        model (nn.Module): Neural network model.
+        lr (Torch.Tensor): Picture in pytorch format (N*C*H*W).
+
+    Returns:
+        super resolution image, time consumption of super resolution image.
+    """
+    # Set eval model.
+    model.eval()
+
+    start_time = time.time()
+    with torch.no_grad():
+        sr = model(lr)
+
+    use_time = time.time() - start_time
+
+    return sr, use_time
+
+
 def load_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Adam = torch.optim.Adam,
                     file: str = None) -> int:
     r""" Quick loading model functions
@@ -308,6 +332,22 @@ def pil2opencv(img: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
 
     img = cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
     return img
+
+
+def process_image(filename: str) -> torch.Tensor:
+    """Read the image in tensor format.
+
+    Args:
+        filename (str): Image address.
+
+    Returns:
+        torch.Tensor format image.
+    """
+
+    img = Image.open(filename)
+    tensor_img = transforms.ToTensor()(img).unsqueeze(0)
+
+    return tensor_img
 
 
 def select_device(device: str = None, batch_size: int = 1) -> torch.device:

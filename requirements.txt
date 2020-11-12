@@ -5,10 +5,12 @@ tqdm
 opencv-python
 sewar
 numpy
-lpips
 ptflops
 scipy
 matplotlib
 tensorflow
 tensorboardx
 setuptools
+werkzeug
+flask
+strutil
