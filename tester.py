@@ -33,9 +33,7 @@ from ssrgan.utils import process_image
 class Test(object):
     def __init__(self, args):
         self.args = args
-        print(f"[*]({get_time()})Loading model architecture[{args.arch}]...")
         self.model, self.device = configure(args)
-        print(f"[*]({get_time()})Loaded [{args.arch}] model done!")
 
         print(f"[*]({get_time()})Loading dataset...")
         self.dataloader = torch.utils.data.DataLoader(
@@ -87,9 +85,7 @@ class Test(object):
 class Estimate(object):
     def __init__(self, args):
         self.args = args
-        print(f"[*]({get_time()})Loading model architecture[{args.arch}]...")
         self.model, self.device = configure(args)
-        print(f"[*]({get_time()})Loaded [{args.arch}] model done!")
 
     def run(self):
         args = self.args
@@ -114,11 +110,7 @@ class Estimate(object):
 class Video(object):
     def __init__(self, args):
         self.args = args
-
-        print(f"[*]({get_time()})Loading model architecture[{args.arch}]...")
         self.model, self.device = configure(args)
-        print(f"[*]({get_time()})Loaded [{args.arch}] model done!")
-
         # Image preprocessing operation
         self.tensor2pil = transforms.ToPILImage()
 

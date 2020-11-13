@@ -32,9 +32,15 @@ def configure(args):
     # Selection of appropriate treatment equipment
     device = select_device(args.device, batch_size=1)
 
-    # Construct GAN model.
-    model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-    model.load_state_dict(torch.load(args.model_path, map_location=device))
+    # Create model
+    if args.pretrained:
+        print(f"[*]({get_time()})Using pre-trained model '{args.arch}'.")
+        model = models.__dict__[args.arch](pretrained=True, upscale_factor=args.upscale_factor).to(device)
+    else:
+        print(f"[*]({get_time()})Creating model '{args.arch}'.")
+        model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
+        model.load_state_dict(torch.load(args.model_path, map_location=device))
+
     return model, device
 
 
@@ -42,7 +48,7 @@ def create_folder(folder):
     try:
         os.makedirs(folder)
     except OSError:
-        print(f"[!]`{os.path.join(os.getcwd(), folder)}` already exists!")
+        print(f"[!]({get_time()})Dir `{os.path.join(os.getcwd(), folder)}` already exists!")
         pass
 
 

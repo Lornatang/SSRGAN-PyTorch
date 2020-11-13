@@ -79,25 +79,26 @@ Using pre training model to generate pictures.
 #### Basic test
 
 ```text
-usage: test.py [-h] [--dataroot DATAROOT] [-j N] [--image-size IMAGE_SIZE]
-               [--scale-factor SCALE_FACTOR] [--cuda] [--weights WEIGHTS]
-               [--outf OUTF] [--manualSeed MANUALSEED]
+usage: test_image.py [-h] [-a ARCH] [--upscale_factor {4}] [--model_path PATH]
+                     [--lr LR] [--hr HR] [--outf PATH] [--device DEVICE]
 
-PyTorch Super Resolution GAN.
+Research and application of GAN based super resolution technology for
+pathological microscopic images.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --dataroot DATAROOT   Path to dataset. (default:`./data/Set5`)
-  -j N, --workers N     Number of data loading workers. (default:0)
-  --image-size IMAGE_SIZE
-                        Size of the data crop (squared assumed). (default:96)
-  --scale-factor SCALE_FACTOR
-                        Low to high resolution scaling factor. (default:4).
-  --cuda                Enables cuda
-  --weights WEIGHTS     Path to weights (default:`./weights/SSRGAN_X4.pth`).
-  --outf OUTF           folder to output images. (default:`./result`).
-  --manualSeed MANUALSEED
-                        Seed for initializing training. (default:0)
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
+                        mobilenetv1 | mobilenetv2 | rfb_esrgan | squeezenet |
+                        srgan | unet (default: bionet)
+  --upscale_factor {4}  Low to high resolution scaling factor. (default:4).
+  --model_path PATH     Path to latest checkpoint for model. (default:
+                        ``./weights/GAN_4x.pth``).
+  --lr LR               Test low resolution image name.
+  --hr HR               Raw high resolution image name.
+  --outf PATH           The location of the image in the evaluation process.
+                        (default: ``output``).
+  --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default:
+                        ``cpu``).
 
 # Example
 $ python test.py --dataroot ./data/Set5 --cuda --weights ./weights/SSRGAN_X4.pth

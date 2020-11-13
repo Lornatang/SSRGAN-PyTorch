@@ -34,7 +34,7 @@ parser.add_argument("--device", default="",
                     help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
 
 # log parameters
-parser.add_argument("--save_freq", type=int, default=5000,
+parser.add_argument("--save-freq", type=int, default=5000,
                     help="frequency of evaluating and save the model.")
 
 # model parameters
@@ -45,7 +45,7 @@ parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
                          " (default: bionet)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default:4).")
-parser.add_argument("--resume_PSNR", action="store_true",
+parser.add_argument("--resume-PSNR", action="store_true",
                     help="Path to latest checkpoint for PSNR model.")
 parser.add_argument("--resume", action="store_true",
                     help="Path to latest checkpoint for Generator.")

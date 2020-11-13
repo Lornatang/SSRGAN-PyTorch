@@ -24,6 +24,7 @@ import ssrgan.models as models
 from ssrgan import BaseDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
+from ssrgan.utils import configure
 from ssrgan.utils import init_torch_seeds
 from ssrgan.utils import load_checkpoint
 from ssrgan.utils import select_device
@@ -47,8 +48,8 @@ class Trainer(object):
                                                  pin_memory=True,
                                                  num_workers=int(args.workers))
         # Construct network architecture model of generator and discriminator.
+        generator, device = configure(args)
         discriminator = DiscriminatorForVGG().to(device)
-        generator = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
 
         # Parameters of pre training model.
         psnr_epochs = int(args.psnr_iters // len(dataloader))
