@@ -12,3 +12,7 @@ sewar==0.4.4
 tensorboardx==2.1
 ptflops==0.6.2
 setuptools==50.3.0
+cos-python-sdk-v5==1.9.0
+requests==2.24.0
+flask==1.1.2
+gevent==20.9.0
