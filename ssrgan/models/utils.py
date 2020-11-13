@@ -28,5 +28,8 @@ def conv3x3(i, o, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias
                      bias=bias)
 
 
-def conv5x5(i, o, kernel_size=5, stride=1, padding=2, dilation=1, bias=False):
-    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias)
+def conv5x5(i, o, kernel_size=5, stride=1, padding=2, dilation=1, groups=1, bias=False):
+    if i == o and groups != 1:
+        groups = i
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups,
+                     bias=bias)

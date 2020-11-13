@@ -114,8 +114,7 @@ class ESRGAN(nn.Module):
     r""" It is mainly based on the SRGAN network as the backbone network generator"""
 
     def __init__(self, upscale_factor: int = 4) -> None:
-        r""" This is made up of SRGAN network structure.
-                """
+        r""" This is made up of SRGAN network structure."""
         super(ESRGAN, self).__init__()
         num_upsample_block = int(math.log(upscale_factor, 2))
 
@@ -130,7 +129,7 @@ class ESRGAN(nn.Module):
 
         self.conv2 = conv3x3(64, 64, groups=1)
 
-        # Upsampling layers
+        # Upsampling layers.
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
@@ -142,17 +141,17 @@ class ESRGAN(nn.Module):
 
         self.conv3 = conv3x3(64, 64, groups=1)
 
-        # Final output layer
+        # Final output layer.
         self.conv4 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)
         trunk = self.trunk(conv1)
-        conv2 = self.esrgan(trunk)
+        conv2 = self.conv2(trunk)
         out = torch.add(conv1, conv2)
         out = self.upsampling(out)
-        out = self.conv2(out)
         out = self.conv3(out)
+        out = self.conv4(out)
         return torch.tanh(out)
 
 

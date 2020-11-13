@@ -35,16 +35,15 @@ class DepthwiseSeparableConvolution(nn.Module):
     r""" Depthwise separable convolution implemented in mobilenet version 1.
 
     `"MobileNets: Efficient Convolutional Neural Networks for
-    Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_ paper
+    Mobile Vision Applications" <https://arxiv.org/abs/1704.04861>`_ paper.
 
     """
 
     def __init__(self, in_channels: int = 64, out_channels: int = 64) -> None:
         r""" Modules introduced in MobileNetV1 paper.
-
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
+            in_channels (int): Number of channels in the input image. (Default: 64).
+            out_channels (int): Number of channels produced by the convolution. (Default: 64).
         """
         super(DepthwiseSeparableConvolution, self).__init__()
 
@@ -60,91 +59,57 @@ class DepthwiseSeparableConvolution(nn.Module):
             FReLU(out_channels)
         )
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
-
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # DepthWise convolution
         out = self.depthwise(input)
         # Projection convolution
         out = self.pointwise(out)
 
-        return out + input
+        return out
 
 
 class MobileNetV1(nn.Module):
-    r""" It is mainly based on the mobilenet-v1 network as the backbone network generator"""
+    r""" It is mainly based on the MobileNetV1 network as the backbone network generator"""
 
     def __init__(self, upscale_factor: int = 4) -> None:
+        r""" This is made up of SRGAN network structure."""
         super(MobileNetV1, self).__init__()
-        num_upsample_block = int(math.log(upscale_factor, 4))
+        num_upsample_block = int(math.log(upscale_factor, 2))
 
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Sixteen structures similar to MobileNetV1 network.
+        # Twenty-three structures similar to MobileNetV1 network.
         trunk = []
-        for _ in range(16):
+        for _ in range(23):
             trunk.append(DepthwiseSeparableConvolution(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
-        self.mobilenet = DepthwiseSeparableConvolution(64, 64)
+        self.conv2 = conv3x3(64, 64, groups=1)
 
-        # Upsampling layers
+        # Upsampling layers.
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                nn.Upsample(scale_factor=2, mode="nearest"),
-                DepthwiseSeparableConvolution(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                conv3x3(64, 256),
                 nn.PixelShuffle(upscale_factor=2),
-                DepthwiseSeparableConvolution(64, 64)
+                nn.PReLU()
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv3 = conv3x3(64, 64, groups=1)
 
-        # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        # Final output layer.
+        self.conv4 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # First conv layer.
         conv1 = self.conv1(input)
-
-        # MobileNetV1 trunk.
         trunk = self.trunk(conv1)
-        # Concat conv1 and trunk.
-        out = torch.add(conv1, trunk)
-
-        out = self.mobilenet(out)
-        # Upsampling layers.
+        conv2 = self.conv2(trunk)
+        out = torch.add(conv1, conv2)
         out = self.upsampling(out)
-        # Next conv layer.
-        out = self.conv2(out)
-        # Final output layer.
         out = self.conv3(out)
-
+        out = self.conv4(out)
         return torch.tanh(out)
 
 

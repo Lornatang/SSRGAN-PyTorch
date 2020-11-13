@@ -65,7 +65,7 @@ class InceptionA(nn.Module):
         self.branch3 = nn.Sequential(
             conv1x1(in_channels, branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv5x5(branch_features, branch_features),
+            conv5x5(branch_features, branch_features, groups=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
