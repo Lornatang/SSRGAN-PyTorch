@@ -14,20 +14,16 @@
 import csv
 import os
 
-import cv2
 import lpips
 import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
-from sewar.full_ref import psnr
-from sewar.full_ref import ssim
 from tqdm import tqdm
 
 import ssrgan.models as models
 from ssrgan import DatasetFromFolder
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
-from ssrgan.utils import Logger
 from ssrgan.utils import init_torch_seeds
 from ssrgan.utils import load_checkpoint
 from ssrgan.utils import select_device
@@ -41,8 +37,6 @@ class Trainer(object):
     def __init__(self, args):
         # Set random initialization seed, easy to reproduce.
         init_torch_seeds(args.manualSeed)
-        logger = Logger(args)
-
         # Selection of appropriate treatment equipment
         device = select_device(args.device, batch_size=args.batch_size)
 
@@ -107,9 +101,6 @@ class Trainer(object):
         # Reference sources from `https://github.com/richzhang/PerceptualSimilarity`
         self.lpips_loss = lpips.LPIPS(net="vgg").to(device)
 
-        # Print log.
-        self.logger = logger
-
     # Loading PSNR pre training model
     def resume_resnet(self):
         args = self.args
@@ -127,61 +118,8 @@ class Trainer(object):
         optimizerG = self.optimizerG
         args.start_epoch = load_checkpoint(discriminator, optimizerD,
                                            f"./weights/netD_{args.upscale_factor}x_checkpoint.pth")
-        _ = load_checkpoint(generator, optimizerG,
-                            f"./weights/netG_{args.upscale_factor}x_checkpoint.pth")
-
-    def evaluate(self):
-        device = self.device
-        dataloader = self.dataloader
-        generator = self.generator
-        lpips_loss = self.lpips_loss
-        logger = self.logger
-
-        # Set the model to eval mode
-        generator.eval()
-
-        # Evaluate algorithm performance
-        total_psnr_value = 0.0
-        total_ssim_value = 0.0
-        total_lpips_value = 0.0
-
-        # Start evaluate model performance
-        progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-        for i, (input, target) in progress_bar:
-            # Set model gradients to zero
-            lr = input.to(device)
-            hr = target.to(device)
-
-            with torch.no_grad():
-                sr = generator(lr)
-
-            vutils.save_image(sr, f"./benchmark/sr_{i}.bmp")
-            vutils.save_image(hr, f"./benchmark/hr_{i}.bmp")
-
-            # Evaluate performance
-            src_img = cv2.imread(f"./benchmark/sr_{i}.bmp")
-            dst_img = cv2.imread(f"./benchmark/hr_{i}.bmp")
-
-            psnr_value = psnr(src_img, dst_img)
-            ssim_value = ssim(src_img, dst_img)
-            lpips_value = lpips_loss(sr, hr)
-
-            total_psnr_value += psnr_value
-            total_ssim_value += ssim_value[0]
-            total_lpips_value += lpips_value
-
-            progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
-                                         f"PSNR: {psnr_value:.2f}dB "
-                                         f"SSIM: {ssim_value[0]:.4f} "
-                                         f"LPIPS: {lpips_value.item():.4f}")
-
-        logger.print_info("\n")
-        logger.print_info("====================== Performance summary ======================")
-        logger.print_info(f"Avg PSNR: {total_psnr_value / len(dataloader):.2f}\n"
-                          f"Avg SSIM: {total_ssim_value / len(dataloader):.4f}\n"
-                          f"Avg SSIM: {total_lpips_value / len(dataloader):.4f}\n")
-        logger.print_info("============================== End ==============================")
-        logger.print_info("\n")
+        args.start_epoch = load_checkpoint(generator, optimizerG,
+                                           f"./weights/netG_{args.upscale_factor}x_checkpoint.pth")
 
     def run(self):
         args = self.args
@@ -208,9 +146,6 @@ class Trainer(object):
         pix_criterion = self.pix_criterion
         adversarial_criterion = self.adversarial_criterion
 
-        # Print log.
-        logger = self.logger
-
         # Set the all model to training mode
         discriminator.train()
         generator.train()
@@ -220,10 +155,10 @@ class Trainer(object):
             self.resume_resnet()
 
         # Pre-train generator using raw l1 loss
-        logger.print_info("[*] Start training PSNR model based on L1 loss.")
+        print("[*] Start training PSNR model based on L1 loss.")
         # Save the generator model based on MSE pre training to speed up the training time
         if os.path.exists(f"./weights/ResNet_{args.upscale_factor}x.pth"):
-            logger.print_info("[*] Found PSNR pretrained model weights. Skip pre-train.")
+            print("[*] Found PSNR pretrained model weights. Skip pre-train.")
             generator.load_state_dict(torch.load(f"./weights/ResNet_{args.upscale_factor}x.pth", map_location=device))
         else:
             # Writer train PSNR model log.
@@ -232,7 +167,7 @@ class Trainer(object):
                     writer = csv.writer(f)
                     writer.writerow(["Epoch", "Loss"])
 
-            logger.print_info("[!] Not found pretrained weights. Start training PSNR model.")
+            print("[!] Not found pretrained weights. Start training PSNR model.")
             for epoch in range(args.start_epoch, psnr_epochs):
                 progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
                 avg_loss = 0.
@@ -388,5 +323,5 @@ class Trainer(object):
                                      g_avg_loss / len(dataloader)])
 
             torch.save(generator.state_dict(), f"./weights/GAN_{args.upscale_factor}x.pth")
-            logger.print_info(f"[*] Training GAN model done! Saving GAN model weight "
-                              f"to `./weights/GAN_{args.upscale_factor}x.pth`.")
+            print(f"[*] Training GAN model done! Saving GAN model weight "
+                  f"to `./weights/GAN_{args.upscale_factor}x.pth`.")

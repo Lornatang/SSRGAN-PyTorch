@@ -36,12 +36,13 @@ class FReLU(nn.Module):
 
     def __init__(self, channels):
         super().__init__()
-        self.conv = nn.Conv2d(channels, channels, 3, stride=1, padding=1, groups=channels, bias=False)
-        self.bn = nn.BatchNorm2d(channels)
+        self.FReLU = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
+            nn.BatchNorm2d(channels)
+        )
 
     def forward(self, input: Tensor):
-        out = self.conv(input)
-        out = self.bn(out)
+        out = self.FReLU(input)
         return torch.max(input, out)
 
 
@@ -55,6 +56,7 @@ class HSigmoid(nn.Module):
         >>> input = torch.randn(2)
         >>> output = m(input)
     """
+
     @staticmethod
     def forward(input: Tensor) -> Tensor:
         return F.relu6(input + 3, inplace=True) / 6.
@@ -70,6 +72,7 @@ class HSwish(nn.Module):
         >>> input = torch.randn(2)
         >>> output = m(input)
     """
+
     @staticmethod
     def forward(input: Tensor) -> Tensor:
         return input * F.relu6(input + 3, inplace=True) / 6.
@@ -112,7 +115,7 @@ class Sine(nn.Module):
 
     @staticmethod
     def forward(input: Tensor) -> Tensor:
-        # See paper sec. 3.2, final paragraph, and supplement Sec. 1.5 for discussion of factor 30
+        # See paper sec. 3.2, final paragraph, and supplement Sec. 1.5 for discussion of factor 30.
         return torch.sin(30 * input)
 
 

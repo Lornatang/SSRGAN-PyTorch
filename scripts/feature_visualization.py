@@ -13,7 +13,7 @@
 # ==============================================================================
 import matplotlib.pyplot as plt
 import torch.nn as nn
-import torchvision.transforms as transforms
+import torchvision.transforms
 from PIL import Image
 
 from ssrgan.models import UNet
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # feature = FeatureVisualization("data/4x/train/input/1_1_1.bmp", 0)
     # 插入维度
     img = Image.open("lr.bmp")
-    input = transforms.ToTensor()(img)
+    input = torchvision.transforms.ToTensor()(img)
     input = input.unsqueeze(0)
     # Convert to define device.
     input = input.to(device)

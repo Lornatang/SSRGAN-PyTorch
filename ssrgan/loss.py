@@ -14,21 +14,16 @@
 """It mainly implements all the losses used in the model."""
 import lpips
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional
+import torchvision
 from torch import Tensor
-from torchvision.models import vgg19
 
 __all__ = [
-    "FeatureLoss", "LPIPSLoss", "TVLoss", "VGGLoss"
+    "LPIPSLoss", "TVLoss", "VGGLoss"
 ]
 
 
-class FeatureLoss(nn.Module):
-    pass
-
-
-class LPIPSLoss(nn.Module):
+class LPIPSLoss(torch.nn.Module):
     r"""The loss value between two images is calculated based on LPIPS.
 
     `"The Unreasonable Effectiveness of Deep Features as a Perceptual Metric" <https://arxiv.org/pdf/1801.03924.pdf>`_
@@ -110,7 +105,7 @@ class LPIPSLoss(nn.Module):
 
 
 # Source from `https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py`
-class TVLoss(nn.Module):
+class TVLoss(torch.nn.Module):
     r"""Regularization loss based on Li FeiFei."""
 
     def __init__(self, weight: Tensor) -> None:
@@ -139,7 +134,7 @@ class TVLoss(nn.Module):
         return t.size()[1] * t.size()[2] * t.size()[3]
 
 
-class VGGLoss(nn.Module):
+class VGGLoss(torch.nn.Module):
     r""" Where VGG19 represents the feature map of 7/8/35/36th layer in pretrained VGG19 model.
 
     `"Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network" <https://arxiv.org/pdf/1609.04802.pdf>`_
@@ -199,13 +194,13 @@ class VGGLoss(nn.Module):
             )
         """
         super(VGGLoss, self).__init__()
-        model = vgg19(pretrained=True)
-        self.features = nn.Sequential(*list(model.features.children())[:feature_layer]).eval()
+        model = torchvision.models.vgg19(pretrained=True)
+        self.features = torch.nn.Sequential(*list(model.features.children())[:feature_layer]).eval()
         # Freeze parameters. Don't train.
         for name, param in self.features.named_parameters():
             param.requires_grad = False
 
     def forward(self, input: Tensor, target: Tensor) -> Tensor:
-        vgg_loss = F.mse_loss(self.features(input), self.features(target))
+        vgg_loss = torch.nn.functional.mse_loss(self.features(input), self.features(target))
 
         return vgg_loss

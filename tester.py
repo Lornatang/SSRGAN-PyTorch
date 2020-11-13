@@ -103,7 +103,7 @@ class Estimate(object):
 
         # Read img to tensor and transfer to the specified device for processing.
         img = Image.open(args.lr)
-        lr = process_image(img).to(device)
+        lr = process_image(img, device)
 
         sr, use_time = inference(model, lr, statistical_time=True)
         vutils.save_image(sr, f"./{args.outf}/{args.lr}")  # Save super resolution image.
@@ -165,7 +165,7 @@ class Video(object):
             if success:
                 # Read img to tensor and transfer to the specified device for processing.
                 img = Image.open(args.lr)
-                lr = process_image(img).to(device)
+                lr = process_image(img, device)
 
                 sr = inference(model, lr)
 

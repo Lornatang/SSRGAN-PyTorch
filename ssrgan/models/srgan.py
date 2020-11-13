@@ -20,7 +20,9 @@ from torch.hub import load_state_dict_from_url
 
 from .utils import conv3x3
 
-__all__ = ["ResidualBlock", "SRGAN", "srgan"]
+__all__ = [
+    "ResidualBlock", "SRGAN", "srgan"
+]
 
 model_urls = {
     "srgan": ""
@@ -32,7 +34,6 @@ class ResidualBlock(nn.Module):
 
     def __init__(self, in_channels: int = 64) -> None:
         r"""Initializes internal Module state, shared by both nn.Module and ScriptModule.
-
         Args:
             in_channels (int): Number of channels in the input image.
         """
@@ -44,21 +45,6 @@ class ResidualBlock(nn.Module):
             conv3x3(in_channels, in_channels, groups=1),
             nn.BatchNorm2d(in_channels)
         )
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         out = self.main(input)

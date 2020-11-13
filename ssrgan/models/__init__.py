@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 from .bionet import *
+from .esrgan import *
 from .inception import *
 from .mobilenetv1 import *
 from .mobilenetv2 import *

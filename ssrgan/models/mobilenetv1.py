@@ -22,7 +22,9 @@ from ssrgan.activation import FReLU
 from .utils import conv1x1
 from .utils import conv3x3
 
-__all__ = ["FReLU", "DepthwiseSeparableConvolution", "MobileNetV1", "mobilenetv1"]
+__all__ = [
+    "FReLU", "DepthwiseSeparableConvolution", "MobileNetV1", "mobilenetv1"
+]
 
 model_urls = {
     "mobilenetv1": ""

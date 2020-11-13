@@ -69,7 +69,10 @@ args = parser.parse_args()
 print(args)
 
 if __name__ == "__main__":
-    create_folder()
+    create_folder("./output")
+    create_folder("./output/lr")
+    create_folder("./output/sr")
+    create_folder("./weights")
     trainer = Trainer(args)
     trainer.run()
     print("All training has been completed!")

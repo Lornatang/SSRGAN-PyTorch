@@ -16,6 +16,12 @@ import time
 
 import torch
 
+import ssrgan.models as models
+
+model_names = sorted(name for name in models.__dict__
+                     if name.islower() and not name.startswith("__")
+                     and callable(models.__dict__[name]))
+
 __all__ = [
     "inference", "load_checkpoint"
 ]
