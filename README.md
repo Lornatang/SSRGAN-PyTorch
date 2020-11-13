@@ -1,10 +1,10 @@
 # SSRGAN-PyTorch
 
 ### Overview
-This repository contains an op-for-op PyTorch reimplementation of [Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network](https://arxiv.org/abs/1609.04802).
+This repository contains an op-for-op PyTorch reimplementation of [Research and application of GAN based super resolution technology for pathological microscopic images](https://arxiv.org/abs/2020.10086).
 
 ### Table of contents
-1. [About Super Resolution Generative Adversarial Networks](#about-super-resolution-generative-adversarial-networks)
+1. [About Research and application of GAN based super resolution technology for pathological microscopic images](#about-research-and-application-of-gan-based-super-resolution-technology-for-pathological-microscopic-images)
 2. [Model Description](#model-description)
 3. [Installation](#installation)
     * [Clone and install requirements](#clone-and-install-requirements)
@@ -18,7 +18,7 @@ This repository contains an op-for-op PyTorch reimplementation of [Photo-Realist
 5. [Contributing](#contributing) 
 6. [Credit](#credit)
 
-### About Super Resolution Generative Adversarial Networks
+### About Research and application of GAN based super resolution technology for pathological microscopic images
 
 If you're new to SSRGAN, here's an abstract straight from the paper:
 
@@ -53,16 +53,16 @@ and if it's 0, it's not real.
 #### Clone and install requirements
 
 ```bash
-$ git clone https://github.com/Lornatang/SSRGAN-PyTorch.git
-$ cd SSRGAN-PyTorch/
+$ git clone https://github.com/Lornatang/SSRGAN.git
+$ cd SSRGAN/
 $ pip3 install -r requirements.txt
 ```
 
-#### Download pretrained weights
+#### Download pretrained weights (e.g bionet)
 
 ```bash
 $ cd weights/
-$ bash download_weights.sh
+$ python3 download_weights.py
 ```
 
 #### Download dataset

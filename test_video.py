@@ -36,7 +36,7 @@ parser.add_argument("--file", type=str, required=True,
 parser.add_argument("--model-path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
                     help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
 parser.add_argument("--device", default="0",
-                    help="device id i.e. `0` or `0,1` or `cpu`. (default: ``CUDA:0``).")
+                    help="device id i.e. `0` or `0,1` or `cpu`. (default: ``0``).")
 parser.add_argument("--view", action="store_true",
                     help="Super resolution real time to show.")
 

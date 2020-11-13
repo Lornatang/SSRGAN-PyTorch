@@ -54,7 +54,6 @@ class Test(object):
         # Evaluate algorithm performance
         total_psnr_value = 0.0
         total_ssim_value = 0.0
-        total_lpips_value = 0.0
 
         # Start evaluate model performance
         progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
@@ -68,23 +67,20 @@ class Test(object):
             vutils.save_image(hr, f"./{args.outf}/hr_{i}.bmp")  # Save high resolution image.
 
             # Evaluate performance
-            psnr_value, ssim_value, lpips_value = image_quality_evaluation(f"./{args.outf}/sr_{i}.bmp",
-                                                                           f"./{args.outf}/hr_{i}.bmp",
-                                                                           device)
+            psnr_value, ssim_value = image_quality_evaluation(f"./{args.outf}/sr_{i}.bmp",
+                                                              f"./{args.outf}/hr_{i}.bmp",
+                                                              device)
 
             total_psnr_value += psnr_value
             total_ssim_value += ssim_value[0]
-            total_lpips_value += lpips_value.item()
 
             progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
                                          f"PSNR: {psnr_value:.2f}dB "
-                                         f"SSIM: {ssim_value[0]:.4f} "
-                                         f"LPIPS: {lpips_value.item():.4f}")
+                                         f"SSIM: {ssim_value[0]:.4f}")
 
         print("====================== Performance summary ======================")
         print(f"Avg PSNR: {total_psnr_value / len(dataloader):.2f}\n"
-              f"Avg SSIM: {total_ssim_value / len(dataloader):.4f}\n"
-              f"Avg SSIM: {total_lpips_value / len(dataloader):.4f}\n")
+              f"Avg SSIM: {total_ssim_value / len(dataloader):.4f}\n")
         print("============================== End ==============================")
 
 
@@ -107,12 +103,11 @@ class Estimate(object):
         sr, use_time = inference(model, lr, statistical_time=True)
         vutils.save_image(sr, f"./{args.outf}/{args.lr}")  # Save super resolution image.
 
-        psnr_value, ssim_value, lpips_value = image_quality_evaluation(f"./{args.outf}/{args.lr}", args.hr, device)
+        psnr_value, ssim_value = image_quality_evaluation(f"./{args.outf}/{args.lr}", args.hr, device)
         print("====================== Performance summary ======================")
         print(f"PSNR: {psnr_value:.2f}dB\n"
               f"SSIM: {ssim_value[0]:.4f}\n"
-              f"LPIPS: {lpips_value.item():.4f}."
-              "Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
+              f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
         print("============================== End ==============================")
 
 
