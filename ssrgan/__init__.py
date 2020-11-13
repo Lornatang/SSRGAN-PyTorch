@@ -17,7 +17,7 @@ from .activation import HSwish
 from .activation import Mish
 from .activation import Sine
 from .dataset import BaseDataset
-from .dataset import DatasetFromFolder
+from .dataset import CustomDataset
 from .dataset import check_image_file
 from .loss import LPIPSLoss
 from .loss import TVLoss
@@ -52,7 +52,7 @@ __all__ = [
     "Mish",
     "Sine",
     "BaseDataset",
-    "DatasetFromFolder",
+    "CustomDataset",
     "check_image_file",
     "TVLoss",
     "VGGLoss",

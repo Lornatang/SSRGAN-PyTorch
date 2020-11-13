@@ -18,7 +18,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 __all__ = [
-    "BaseDataset", "DatasetFromFolder", "check_image_file"
+    "BaseDataset", "CustomDataset", "check_image_file"
 ]
 
 
@@ -61,7 +61,7 @@ class BaseDataset(torch.utils.data.dataset.Dataset):
         return len(self.filenames)
 
 
-class DatasetFromFolder(torch.utils.data.dataset.Dataset):
+class CustomDataset(torch.utils.data.dataset.Dataset):
     r"""An abstract class representing a :class:`Dataset`."""
 
     def __init__(self, input_dir, target_dir):
@@ -71,7 +71,7 @@ class DatasetFromFolder(torch.utils.data.dataset.Dataset):
             input_dir (str): The directory address where the data image is stored.
             target_dir (str): The directory address where the target image is stored.
         """
-        super(DatasetFromFolder, self).__init__()
+        super(CustomDataset, self).__init__()
         self.input_filenames = [os.path.join(input_dir, x) for x in os.listdir(input_dir) if check_image_file(x)]
         self.target_filenames = [os.path.join(target_dir, x) for x in os.listdir(target_dir) if check_image_file(x)]
         self.transforms = transforms.ToTensor()
