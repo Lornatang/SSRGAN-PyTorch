@@ -26,8 +26,8 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data
 NAME = "ssrgan"
-DESCRIPTION = "Super resolution technology implemented by Dakewe Biotech Corporation."
-URL = "https://github.com/Lornatang/SSRGAN-PyTorch"
+DESCRIPTION = "Research and application of GAN based super resolution technology for pathological microscopic images."
+URL = "https://github.com/Lornatang/SSRGAN"
 EMAIL = "liu_changyu@dakewe.com"
 AUTHOR = "Liu Changyu"
 REQUIRES_PYTHON = ">=3.6.5"
