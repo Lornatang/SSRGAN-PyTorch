@@ -25,7 +25,7 @@ from .utils import conv3x3
 from .utils import conv5x5
 
 __all__ = [
-    "SEModule", "MobileNetV3Bottleneck", "MobileNetV3"
+    "SEModule", "MobileNetV3Bottleneck", "MobileNetV3", "mobilenetv3"
 ]
 
 model_urls = {
