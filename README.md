@@ -79,8 +79,9 @@ Using pre training model to generate pictures.
 #### Basic test
 
 ```text
-usage: test_image.py [-h] [-a ARCH] [--upscale_factor {4}] [--model_path PATH]
-                     [--lr LR] [--hr HR] [--outf PATH] [--device DEVICE]
+usage: test_image.py [-h] [-a ARCH] [--upscale-factor {4}] [--model-path PATH]
+                     [--pretrained] [--lr LR] [--hr HR] [--outf PATH]
+                     [--device DEVICE]
 
 Research and application of GAN based super resolution technology for
 pathological microscopic images.
@@ -88,11 +89,11 @@ pathological microscopic images.
 optional arguments:
   -h, --help            show this help message and exit
   -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
-                        mobilenetv1 | mobilenetv2 | rfb_esrgan | squeezenet |
-                        srgan | unet (default: bionet)
-  --upscale_factor {4}  Low to high resolution scaling factor. (default:4).
-  --model_path PATH     Path to latest checkpoint for model. (default:
-                        ``./weights/GAN_4x.pth``).
+                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        squeezenet | srgan | unet (default: bionet)
+  --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
+  --model-path PATH     Path to latest checkpoint for model. (default: ````).
+  --pretrained          Use pre-trained model.
   --lr LR               Test low resolution image name.
   --hr HR               Raw high resolution image name.
   --outf PATH           The location of the image in the evaluation process.
@@ -101,108 +102,121 @@ optional arguments:
                         ``cpu``).
 
 # Example
-$ python test.py --dataroot ./data/Set5 --cuda --weights ./weights/SSRGAN_X4.pth
+$ python3 test_image.py --pretrained --lr <path>/<to>/lr.png --hr <path>/<to>/hr.png 
 ```
 
 #### Test benchmark
 
 ```text
-usage: test_benchmark.py [-h] [--dataroot DATAROOT] [-j N]
-                         [--image-size IMAGE_SIZE] [--scale-factor {4,8,16}]
-                         [--cuda] --weights WEIGHTS [--outf OUTF]
-                         [--manualSeed MANUALSEED]
+usage: test_benchmark.py [-h] [--dataroot DATAROOT] [-j N] [--outf PATH]
+                         [--device DEVICE] [-a ARCH] [--upscale-factor {4}]
+                         [--model-path PATH] [--pretrained] [-b N]
 
-PyTorch Super Resolution GAN.
+Research and application of GAN based super resolution technology for
+pathological microscopic images.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --dataroot DATAROOT   Path to datasets. (default:`./data/DIV2K`)
-  -j N, --workers N     Number of data loading workers. (default:0)
-  --image-size IMAGE_SIZE
-                        Size of the data crop (squared assumed). (default:96)
-  --scale-factor {4,8,16}
-                        Low to high resolution scaling factor. (default:4).
-  --cuda                Enables cuda
-  --weights WEIGHTS     Path to weights. (default:`./weights/SSRGAN_X4.pth`).
-  --outf OUTF           folder to output images. (default:`./result`).
-  --manualSeed MANUALSEED
-                        Seed for initializing training. (default:0)
+  --dataroot DATAROOT   Path to datasets. (default:`./data`)
+  -j N, --workers N     Number of data loading workers. (default:4)
+  --outf PATH           The location of the image in the evaluation process.
+                        (default: ``test``).
+  --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default: ````).
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
+                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        squeezenet | srgan | unet (default: bionet)
+  --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
+  --model-path PATH     Path to latest checkpoint for model. (default: ````).
+  --pretrained          Use pre-trained model.
+  -b N, --batch-size N  mini-batch size (default: 16), this is the total batch
+                        size of all GPUs on the current node when using Data
+                        Parallel or Distributed Data Parallel.
 
 # Example
-$ python test_benchmark.py --dataroot ./data/DIV2K --cuda --weights ./weights/SSRGAN_X4.pth
+$ python3 test_benchmark.py --pretrained
 ```
 
-#### Test image
+#### Test video
 
 ```text
-usage: test_image.py [-h] [--file FILE] [--weights WEIGHTS] [--cuda]
-                     [--image-size IMAGE_SIZE] [--scale-factor SCALE_FACTOR]
+usage: test_video.py [-h] --file FILE [--outf PATH] [--device DEVICE] [--view]
+                     [-a ARCH] [--upscale-factor {4}] [--model-path PATH]
+                     [--pretrained]
 
-PyTorch Super Resolution GAN.
+Research and application of GAN based super resolution technology for
+pathological microscopic images.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --file FILE           Test low resolution image name.
-                        (default:`./assets/baby.png`)
-  --weights WEIGHTS     Generator model name. (default:`weights/SSRGAN_X4.pth`)
-  --cuda                Enables cuda
-  --image-size IMAGE_SIZE
-                        size of the data crop (squared assumed). (default:96)
-  --scale-factor SCALE_FACTOR
-                        Super resolution upscale factor
+  --file FILE           Test low resolution video name.
+  --outf PATH           The location of the image in the evaluation process.
+                        (default: ``video``).
+  --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default:
+                        ``0``).
+  --view                Super resolution real time to show.
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
+                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        squeezenet | srgan | unet (default: bionet)
+  --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
+  --model-path PATH     Path to latest checkpoint for model. (default: ````).
+  --pretrained          Use pre-trained model.
 
 # Example
-$ python test_image.py --file ./assets/baby.png --cuda --weights ./weights/SSRGAN_X4.pth
+$ python3 test_video.py --pretrained --file <path>/<to>/video.mp4
 ```
 
 Low resolution / Recovered High Resolution / Ground Truth
-
 <span align="center"><img src="assets/result.png" alt="">
 </span>
 
 ### Train (e.g DIV2K)
 
 ```text
-usage: train.py [-h] [--dataroot DATAROOT] [-j N] [--epochs N]
-                [--image-size IMAGE_SIZE] [-b N] [--lr LR]
-                [--scale-factor {4,8,16}] [-p N] [--cuda] [--netG NETG]
-                [--netD NETD] [--outf OUTF] [--manualSeed MANUALSEED]
+usage: train.py [-h] [--dataroot DATAROOT] [-j N] [--manualSeed MANUALSEED]
+                [--device DEVICE] [--save-freq SAVE_FREQ] [-a ARCH]
+                [--upscale-factor {4}] [--model-path PATH] [--pretrained]
+                [--resume-PSNR] [--resume] [--start-epoch N] [--psnr-iters N]
+                [--iters N] [-b N] [--psnr-lr PSNR_LR] [--lr LR]
 
-PyTorch Super Resolution GAN.
+Research and application of GAN based super resolution technology for
+pathological microscopic images.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --dataroot DATAROOT   Path to datasets. (default:`./data/DIV2K`)
-  -j N, --workers N     Number of data loading workers. (default:0)
-  --epochs N            Number of total epochs to run. (default:2000)
-  --image-size IMAGE_SIZE
-                        Size of the data crop (squared assumed). (default:96)
-  -b N, --batch-size N  mini-batch size (default: 16), this is the total batch
+  --dataroot DATAROOT   Path to datasets. (default:`./data`)
+  -j N, --workers N     Number of data loading workers. (default:4)
+  --manualSeed MANUALSEED
+                        Seed for initializing training. (default:1111)
+  --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default: ``).
+  --save-freq SAVE_FREQ
+                        frequency of evaluating and save the model.
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
+                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        squeezenet | srgan | unet (default: bionet)
+  --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
+  --model-path PATH     Path to latest checkpoint for model. (default: ````).
+  --pretrained          Use pre-trained model.
+  --resume-PSNR         Path to latest checkpoint for PSNR model.
+  --resume              Path to latest checkpoint for Generator.
+  --start-epoch N       manual epoch number (useful on restarts)
+  --psnr-iters N        The number of iterations is needed in the training of
+                        PSNR model. (default:1e6)
+  --iters N             The training of srgan model requires the number of
+                        iterations. (default:2e5)
+  -b N, --batch-size N  mini-batch size (default: 8), this is the total batch
                         size of all GPUs on the current node when using Data
                         Parallel or Distributed Data Parallel.
-  --lr LR               Learning rate. (default:0.0001)
-  --scale-factor {4,8,16}
-                        Low to high resolution scaling factor. (default:4).
-  -p N, --print-freq N  Print frequency. (default:5)
-  --cuda                Enables cuda
-  --netG NETG           Path to netG (to continue training).
-  --netD NETD           Path to netD (to continue training).
-  --outf OUTF           folder to output images. (default:`./output`).
-  --manualSeed MANUALSEED
-                        Seed for initializing training. (default:0)
+  --psnr-lr PSNR_LR     Learning rate for PSNR model. (default:2e-4)
+  --lr LR               Learning rate. (default:1e-4)
 
 # Example (e.g DIV2K)
-$ python train.py --dataroot ./data/DIV2K --cuda --scale-factor 4
+$ python3 train.py --pretrained
 ```
 
 If you want to load weights that you've trained before, run the following command.
 
 ```bash
-$ python train.py --dataroot ./data/DIV2K \
-                  --cuda                  \
-                  --scale-factor 4        \
-                  --netG ./weights/SSRGAN_G_epoch_50.pth \
-                  --netD ./weights/SSRGAN_D_epoch_50.pth 
+$ python3 train.py --resume-PSNR
 ```
 
 ### Contributing
@@ -213,8 +227,8 @@ I look forward to seeing what the community does with these models!
 
 ### Credit
 
-#### Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network
-_Christian Ledig, Lucas Theis, Ferenc Huszar, Jose Caballero, Andrew Cunningham, Alejandro Acosta, Andrew Aitken, Alykhan Tejani, Johannes Totz, Zehan Wang, Wenzhe Shi_ <br>
+#### Research and application of GAN based super resolution technology for pathological microscopic images
+_Changyu Liu, Qiyue Yu, Bo Wang, Yang Wang, Riliang Wu, Yahong Liu, Rundong Chen, Lanjing Xiao_ <br>
 
 **Abstract** <br>
 Despite the breakthroughs in accuracy and speed of single image super-resolution using faster and 
@@ -235,13 +249,13 @@ An extensive mean-opinion-score (MOS) test shows hugely significant gains in per
 The MOS scores obtained with SSRGAN are closer to those of the original high-resolution images than to those obtained 
 with any state-of-the-art method.
 
-[[Paper]](https://arxiv.org/pdf/1609.04802)
+[[Paper]](https://arxiv.org/pdf/2020.10086)
 
 ```
-@InProceedings{Ssrgan,
-    author = {Christian Ledig, Lucas Theis, Ferenc Huszar, Jose Caballero, Andrew Cunningham, Alejandro Acosta, Andrew Aitken, Alykhan Tejani, Johannes Totz, Zehan Wang, Wenzhe Shi},
-    title = {Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network},
+@InProceedings{ssrgan,
+    author = {Changyu Liu, Qiyue Yu, Bo Wang, Yang Wang, Riliang Wu, Yahong Liu, Rundong Chen, Lanjing Xiao},
+    title = {Research and application of GAN based super resolution technology for pathological microscopic images},
     booktitle = {arXiv},
-    year = {2016}
+    year = {2020}
 }
 ```
