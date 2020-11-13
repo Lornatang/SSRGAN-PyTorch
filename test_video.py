@@ -14,36 +14,46 @@
 import argparse
 
 import ssrgan.models as models
+from ssrgan.utils import create_folder
+from ssrgan.utils import get_time
 from tester import Video
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
-parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
-                                             "technology for pathological microscopic images.")
-# model parameters
-parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
-                    choices=model_names,
-                    help="model architecture: " +
-                         " | ".join(model_names) +
-                         " (default: bionet)")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
-                    help="Low to high resolution scaling factor. (default:4).")
-
-parser.add_argument("--file", type=str, required=True,
-                    help="Test low resolution video name.")
-parser.add_argument("--model-path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
-parser.add_argument("--device", default="0",
-                    help="device id i.e. `0` or `0,1` or `cpu`. (default: ``0``).")
-parser.add_argument("--view", action="store_true",
-                    help="Super resolution real time to show.")
-
-args = parser.parse_args()
-print(args)
-
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
+                                                 "technology for pathological microscopic images.")
+
+    # basic parameters
+    parser.add_argument("--file", type=str, required=True,
+                        help="Test low resolution video name.")
+    parser.add_argument("--outf", default="video", type=str, metavar="PATH",
+                        help="The location of the image in the evaluation process. (default: ``video``).")
+    parser.add_argument("--device", default="0",
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``0``).")
+    parser.add_argument("--view", action="store_true",
+                        help="Super resolution real time to show.")
+
+    # model parameters
+    parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
+                        choices=model_names,
+                        help="model architecture: " +
+                             " | ".join(model_names) +
+                             " (default: bionet)")
+    parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
+                        help="Low to high resolution scaling factor. (default:4).")
+    parser.add_argument("--model-path", default="", type=str, metavar="PATH",
+                        help="Path to latest checkpoint for model. (default: ````).")
+    parser.add_argument("--pretrained", dest="pretrained", action="store_true",
+                        help="Use pre-trained model.")
+
+    args = parser.parse_args()
+    print(args)
+
+    print(f"[*]({get_time()})Start video super-resolution...")
+    create_folder("video")
     video = Video(args)
     video.run()
-    print("Video super resolution complete!")
+    print(f"[*]({get_time()})Video super-resolution completed!")

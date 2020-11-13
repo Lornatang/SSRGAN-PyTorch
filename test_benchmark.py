@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--outf", default="test", type=str, metavar="PATH",
                         help="The location of the image in the evaluation process. (default: ``test``).")
     parser.add_argument("--device", default="",
-                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
 
     # model parameters
     parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
@@ -42,8 +42,10 @@ if __name__ == "__main__":
                              " (default: bionet)")
     parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                         help="Low to high resolution scaling factor. (default:4).")
-    parser.add_argument("--model-path", default="./weights/GAN_4x.pth", type=str, metavar="PATH",
-                        help="Path to latest checkpoint for model. (default: ``./weights/GAN_4x.pth``).")
+    parser.add_argument("--model-path", default="", type=str, metavar="PATH",
+                        help="Path to latest checkpoint for model. (default: ````).")
+    parser.add_argument("--pretrained", dest="pretrained", action="store_true",
+                        help="Use pre-trained model.")
 
     # test parameters
     parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",

@@ -24,6 +24,16 @@ model_names = sorted(name for name in models.__dict__
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                                  "technology for pathological microscopic images.")
+    # basic parameters
+    parser.add_argument("--lr", type=str,
+                        help="Test low resolution image name.")
+    parser.add_argument("--hr", type=str,
+                        help="Raw high resolution image name.")
+    parser.add_argument("--outf", default="output", type=str, metavar="PATH",
+                        help="The location of the image in the evaluation process. (default: ``output``).")
+    parser.add_argument("--device", default="cpu",
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``cpu``).")
+
     # model parameters
     parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
                         choices=model_names,
@@ -36,16 +46,6 @@ if __name__ == "__main__":
                         help="Path to latest checkpoint for model. (default: ````).")
     parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                         help="Use pre-trained model.")
-
-    # test parameters
-    parser.add_argument("--lr", type=str,
-                        help="Test low resolution image name.")
-    parser.add_argument("--hr", type=str,
-                        help="Raw high resolution image name.")
-    parser.add_argument("--outf", default="output", type=str, metavar="PATH",
-                        help="The location of the image in the evaluation process. (default: ``output``).")
-    parser.add_argument("--device", default="cpu",
-                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``cpu``).")
 
     args = parser.parse_args()
     print(args)
