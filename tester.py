@@ -124,9 +124,9 @@ class Video(object):
         self.sr_size = (self.size[0] * args.upscale_factor, self.size[1] * args.upscale_factor)
         self.pare_size = (self.sr_size[0] * 2 + 10, self.sr_size[1] + 10 + self.sr_size[0] // 5 - 9)
         # Video write loader.
-        self.sr_writer = cv2.VideoWriter(f"sr_{args.scale_factor}x_{os.path.basename(args.file)}",
+        self.sr_writer = cv2.VideoWriter(f"./video/sr_{args.scale_factor}x_{os.path.basename(args.file)}",
                                          cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.sr_size)
-        self.compare_writer = cv2.VideoWriter(f"compare_{args.scale_factor}x_{os.path.basename(args.file)}",
+        self.compare_writer = cv2.VideoWriter(f"./video/compare_{args.scale_factor}x_{os.path.basename(args.file)}",
                                               cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.pare_size)
 
     def run(self):
