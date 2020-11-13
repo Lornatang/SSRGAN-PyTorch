@@ -63,9 +63,8 @@ def check_image_file(filename):
 
     Returns:
         Return True if bool(x) is True for any x in the iterable.
-
     """
-    return any(filename.endswith(extension) for extension in ["bmp", ".png",
-                                                              ".jpg", ".jpeg",
+    return any(filename.endswith(extension) for extension in [".jpg", ".JPG",
+                                                              ".jpeg", ".jpeg",
                                                               ".png", ".PNG",
-                                                              ".jpeg", ".JPEG"])
+                                                              ".bmp", ".BMP"])
