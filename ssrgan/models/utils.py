@@ -12,25 +12,21 @@
 # limitations under the License.
 # ==============================================================================
 """General convolution layer"""
-import torch
-import time
 import torch.nn as nn
 
 __all__ = ["conv1x1", "conv3x3", "conv5x5"]
 
 
-def conv1x1(i, o, kernel_size=1, stride=1, padding=0, bias=False):
-    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+def conv1x1(i, o, kernel_size=1, stride=1, padding=0, dilation=1, bias=False):
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias)
 
 
-def conv3x3(i, o, kernel_size=3, stride=1, padding=1, groups=1, bias=False):
+def conv3x3(i, o, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=False):
     if i == o and groups != 1:
         groups = i
-    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, groups=groups, bias=bias)
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups,
+                     bias=bias)
 
 
-def conv5x5(i, o, kernel_size=5, stride=1, padding=2, bias=False):
-    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
-
-
-
+def conv5x5(i, o, kernel_size=5, stride=1, padding=2, dilation=1, bias=False):
+    return nn.Conv2d(i, o, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, bias=bias)

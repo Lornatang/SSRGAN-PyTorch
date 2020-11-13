@@ -36,8 +36,8 @@ def image_quality_evaluation(sr_filename: str, hr_filename: str, simple: bool = 
     Args:
         sr_filename (str): Image file name after super resolution.
         hr_filename (str): Original high resolution image file name.
-        simple (optional, bool): Quick estimate, only PSNR and SSIM were evaluated. (default: ``True``)
-        device (optional, torch.device): Selection of data processing equipment in PyTorch. (default: ``cpu``).
+        simple (optional, bool): Quick estimate, only PSNR and SSIM were evaluated. (Default: ``True``)
+        device (optional, torch.device): Selection of data processing equipment in PyTorch. (Default: ``cpu``).
 
     Returns:
         If the `simple` variable is set to ``False`` return `mse, rmse, psnr, ssim, msssim, niqe, sam, vifp, lpips`,

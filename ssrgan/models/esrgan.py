@@ -30,7 +30,7 @@ model_urls = {
 
 
 class ResidualDenseBlock(nn.Module):
-    r"""The residual block structure of traditional SRGAN and Dense model is defined"""
+    r"""The residual block structure of traditional ESRGAN and Dense model is defined"""
 
     def __init__(self, in_channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2) -> None:
         """
@@ -143,7 +143,7 @@ class ESRGAN(nn.Module):
         self.conv3 = conv3x3(64, 64, groups=1)
 
         # Final output layer
-        self.conv4 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv4 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)

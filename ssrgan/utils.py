@@ -27,7 +27,7 @@ def inference(model, lr, statistical_time=False):
     Args:
         model (nn.Module): Neural network model.
         lr (Torch.Tensor): Picture in pytorch format (N*C*H*W).
-        statistical_time (optional, bool): Is reasoning time counted. (default: ``False``).
+        statistical_time (optional, bool): Is reasoning time counted. (Default: ``False``).
 
     Returns:
         super resolution image, time consumption of super resolution image (if `statistical_time` set to `True`).
@@ -53,7 +53,7 @@ def load_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Adam = torch.
     Args:
         model (nn.Module): Neural network model.
         optimizer (torch.optim): Model optimizer. (Default: torch.optim.Adam).
-        file (str): Model file. (default: None).
+        file (str): Model file. (Default: None).
 
     Returns:
         How much epoch to start training from.

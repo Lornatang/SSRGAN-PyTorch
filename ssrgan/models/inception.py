@@ -41,7 +41,7 @@ class InceptionA(nn.Module):
         r""" Modules introduced in InceptionV4 paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
+            in_channels (int): Number of channels in the input image. (Default: 64).
         """
         super(InceptionA, self).__init__()
 
