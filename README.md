@@ -1,19 +1,19 @@
 # SSRGAN-PyTorch
 
 ### Overview
-This repository contains an op-for-op PyTorch reimplementation of [Research and application of GAN based super resolution technology for pathological microscopic images](https://arxiv.org/abs/2020.10086).
+This repository contains an op-for-op PyTorch reimplementation of [Research and application of GAN based super resolution technology for pathological microscopic images](http://www.dakewe.com/).
 
 ### Table of contents
 1. [About Research and application of GAN based super resolution technology for pathological microscopic images](#about-research-and-application-of-gan-based-super-resolution-technology-for-pathological-microscopic-images)
 2. [Model Description](#model-description)
 3. [Installation](#installation)
     * [Clone and install requirements](#clone-and-install-requirements)
-    * [Download pretrained weights](#download-pretrained-weights)
+    * [Download pretrained weights](#download-pretrained-weights-eg-bionet)
     * [Download dataset](#download-dataset)
 4. [Test](#test)
     * [Basic test](#basic-test)
     * [Test benchmark](#test-benchmark)
-    * [Test image](#test-image)
+    * [Test video](#test-video)
 4. [Train](#train-eg-div2k)
 5. [Contributing](#contributing) 
 6. [Credit](#credit)
@@ -249,13 +249,13 @@ An extensive mean-opinion-score (MOS) test shows hugely significant gains in per
 The MOS scores obtained with SSRGAN are closer to those of the original high-resolution images than to those obtained 
 with any state-of-the-art method.
 
-[[Paper]](https://arxiv.org/pdf/2020.10086)
+[[Paper]](http://www.dakewe.com/)
 
 ```
 @InProceedings{ssrgan,
     author = {Changyu Liu, Qiyue Yu, Bo Wang, Yang Wang, Riliang Wu, Yahong Liu, Rundong Chen, Lanjing Xiao},
     title = {Research and application of GAN based super resolution technology for pathological microscopic images},
-    booktitle = {arXiv},
+    booktitle = {-},
     year = {2020}
 }
 ```
