@@ -18,17 +18,99 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from .esrgan import ResidualInResidualDenseBlock
 from .utils import conv1x1
 from .utils import conv3x3
 
 __all__ = [
-    "ReceptiveFieldBlock", "ReceptiveFieldDenseBlock", "ResidualOfReceptiveFieldDenseBlock", "RFBESRGAN", "rfb_esrgan"
+    "ResidualDenseBlock", "ResidualInResidualDenseBlock",
+    "ReceptiveFieldBlock", "ReceptiveFieldDenseBlock",
+    "ResidualOfReceptiveFieldDenseBlock", "RFBESRGAN", "rfb_esrgan"
 ]
 
 model_urls = {
     "rfb_esrgan": ""
 }
+
+
+class ResidualDenseBlock(nn.Module):
+    r"""The residual block structure of traditional ESRGAN and Dense model is defined"""
+
+    def __init__(self, in_channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2) -> None:
+        """
+        Args:
+            in_channels (int): Number of channels in the input image. (Default: 64).
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+        """
+        super(ResidualDenseBlock, self).__init__()
+        self.conv1 = nn.Sequential(
+            conv3x3(in_channels + 0 * growth_channels, growth_channels),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+        self.conv2 = nn.Sequential(
+            conv3x3(in_channels + 1 * growth_channels, growth_channels),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+        self.conv3 = nn.Sequential(
+            conv3x3(in_channels + 2 * growth_channels, growth_channels),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+        self.conv4 = nn.Sequential(
+            conv3x3(in_channels + 3 * growth_channels, growth_channels),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+        self.conv5 = conv3x3(in_channels + 4 * growth_channels, in_channels)
+
+        self.scale_ratio = scale_ratio
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias.data, 0.0)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        conv1 = self.conv1(input)
+        conv2 = self.conv2(torch.cat([input, conv1], dim=1))
+        conv3 = self.conv3(torch.cat([input, conv1, conv2], dim=1))
+        conv4 = self.conv4(torch.cat([input, conv1, conv2, conv3], dim=1))
+        conv5 = self.conv5(torch.cat([input, conv1, conv2, conv3, conv4], dim=1))
+
+        return conv5.mul(self.scale_ratio) + input
+
+
+class ResidualInResidualDenseBlock(nn.Module):
+    r"""The residual block structure of traditional ESRGAN and Dense model is defined"""
+
+    def __init__(self, in_channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2) -> None:
+        """
+        Args:
+            in_channels (int): Number of channels in the input image. (Default: 64).
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+        """
+        super(ResidualInResidualDenseBlock, self).__init__()
+        self.RDB1 = ResidualDenseBlock(in_channels, growth_channels, scale_ratio)
+        self.RDB2 = ResidualDenseBlock(in_channels, growth_channels, scale_ratio)
+        self.RDB3 = ResidualDenseBlock(in_channels, growth_channels, scale_ratio)
+
+        self.scale_ratio = scale_ratio
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        out = self.RDB1(input)
+        out = self.RDB2(out)
+        out = self.RDB3(out)
+
+        return out.mul(self.scale_ratio) + input
 
 
 class ReceptiveFieldBlock(nn.Module):
@@ -222,7 +304,7 @@ class RFBESRGAN(nn.Module):
         trunk_a = self.trunk_a(conv1)
         trunk_rfb = self.trunk_rfb(trunk_a)
         out = torch.add(conv1, trunk_rfb)
-        out = self.esrgan(out)
+        out = self.rfbesrgan(out)
         out = self.upsampling(out)
         out = self.conv2(out)
         out = self.conv3(out)

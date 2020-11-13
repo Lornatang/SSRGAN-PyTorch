@@ -36,15 +36,15 @@ class Fire(nn.Module):
     <https://arxiv.org/abs/1602.07360>`_ paper.
     """
 
-    def __init__(self, in_channels: int = 64, squeeze_channels: int = 8, expand1x1_channels: int = 16,
-                 expand3x3_channels: int = 16):
+    def __init__(self, in_channels: int = 64, squeeze_channels: int = 8, expand1x1_channels: int = 32,
+                 expand3x3_channels: int = 32):
         r""" Modules introduced in SqueezeNet paper.
 
         Args:
             in_channels (int): Number of channels in the input image. (Default: 64).
             squeeze_channels (int): Number of channels produced by the squeeze layer. (Default: 8).
-            expand1x1_channels (int): Number of channels produced by the expand 1x1 layer. (Default: 16).
-            expand3x3_channels (int): Number of channels produced by the expand 3x3 layer. (Default: 16).
+            expand1x1_channels (int): Number of channels produced by the expand 1x1 layer. (Default: 32).
+            expand3x3_channels (int): Number of channels produced by the expand 3x3 layer. (Default: 32).
         """
         super(Fire, self).__init__()
 
@@ -89,7 +89,7 @@ class SqueezeNet(nn.Module):
         # Twenty-three structures similar to SqueezeNet network.
         trunk = []
         for _ in range(23):
-            trunk.append(Fire(64))
+            trunk.append(Fire(64, 8, 32, 32))
         self.trunk = nn.Sequential(*trunk)
 
         self.conv2 = conv3x3(64, 64, groups=1)

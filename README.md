@@ -10,6 +10,8 @@ This repository contains an op-for-op PyTorch reimplementation of [Research and 
     * [Clone and install requirements](#clone-and-install-requirements)
     * [Download pretrained weights](#download-pretrained-weights-eg-bionet)
     * [Download dataset](#download-dataset)
+4. [Script](#script)
+    * [Computational model complexity](#computational-model-complexity)
 4. [Test](#test)
     * [Basic test](#basic-test)
     * [Test benchmark](#test-benchmark)
@@ -71,6 +73,29 @@ $ python3 download_weights.py
 $ cd data/
 $ bash download_dataset.sh
 ```
+
+### Script
+
+```text
+$ python3 scripts/cal_model_complexity.py
+                   Summary                     
+-----------------------------------------------
+|       Model       |    Params   |   FLOPs   |
+-----------------------------------------------
+|       BioNet      |   559.9 k   | 5.17 GMac |
+|       ESRGAN      |   16.91 M   | 52.3 GMac |
+|     Inception     |   631.17 k  | 5.84 GMac |
+|    MobileNetV1    |   511.94 k  | 4.47 GMac |
+|    MobileNetV2    |   32.03 M   | 96.42 GMac|
+|    MobileNetV3    |   88.08 M   |254.93 GMac|
+|     RFBESRGAN     |   21.25 M   | 66.28 GMac|
+|     SqueezeNet    |   442.75 k  | 4.28 GMac |
+|       SRGAN       |    1.53 M   | 6.45 GMac |
+|        UNet       |    2.89 M   | 10.93 GMac|
+-----------------------------------------------
+```
+
+#### Computational model complexity
 
 ### Test
 

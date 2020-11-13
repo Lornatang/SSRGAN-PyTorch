@@ -56,7 +56,7 @@ class ResidualDenseBlock(nn.Module):
             conv3x3(in_channels + 3 * growth_channels, growth_channels),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
-        self.conv5 = conv3x3(in_channels + 4 * growth_channels, growth_channels)
+        self.conv5 = conv3x3(in_channels + 4 * growth_channels, in_channels)
 
         self.scale_ratio = scale_ratio
 
@@ -77,10 +77,10 @@ class ResidualDenseBlock(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)
-        conv2 = self.conv2(torch.cat([input, conv1], 1))
-        conv3 = self.conv3(torch.cat([input, conv1, conv2], 1))
-        conv4 = self.conv4(torch.cat([input, conv1, conv2, conv3], 1))
-        conv5 = self.conv5(torch.cat([input, conv1, conv2, conv3, conv4], 1))
+        conv2 = self.conv2(torch.cat([input, conv1], dim=1))
+        conv3 = self.conv3(torch.cat([input, conv1, conv2], dim=1))
+        conv4 = self.conv4(torch.cat([input, conv1, conv2, conv3], dim=1))
+        conv5 = self.conv5(torch.cat([input, conv1, conv2, conv3, conv4], dim=1))
 
         return conv5.mul(self.scale_ratio) + input
 
