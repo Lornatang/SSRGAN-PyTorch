@@ -18,15 +18,54 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 __all__ = [
-    "DatasetFromFolder", "check_image_file"
+    "BaseDataset", "DatasetFromFolder", "check_image_file"
 ]
+
+
+class BaseDataset(torch.utils.data.dataset.Dataset):
+    """An abstract class representing a :class:`Dataset`."""
+
+    def __init__(self, dir_path):
+        """
+        Args:
+            dir_path (str): The directory address where the data image is stored.
+        """
+        super(BaseDataset, self).__init__()
+        self.filenames = [os.path.join(dir_path, x) for x in os.listdir(dir_path) if check_image_file(x)]
+
+        self.input_transforms = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize(96, interpolation=Image.BICUBIC),
+            transforms.ToTensor()
+        ])
+        self.target_transforms = transforms.Compose([
+            transforms.RandomCrop(384),
+            transforms.ToTensor()
+        ])
+
+    def __getitem__(self, index):
+        r""" Get image source file.
+
+        Args:
+            index (int): Index position in image list.
+
+        Returns:
+            Low resolution image, high resolution image.
+        """
+        target = self.target_transforms(Image.open(self.filenames[index]))
+        input = self.input_transforms(target)
+
+        return input, target
+
+    def __len__(self):
+        return len(self.filenames)
 
 
 class DatasetFromFolder(torch.utils.data.dataset.Dataset):
     r"""An abstract class representing a :class:`Dataset`."""
 
     def __init__(self, input_dir, target_dir):
-        r"""
+        """
 
         Args:
             input_dir (str): The directory address where the data image is stored.

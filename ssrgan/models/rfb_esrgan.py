@@ -229,7 +229,7 @@ class RFBESRGAN(nn.Module):
         return torch.tanh(out)
 
 
-def esrgan(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> RFBESRGAN:
+def rfb_esrgan(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> RFBESRGAN:
     r"""RFB-ESRGAN model architecture from the
     `"One weird trick..." <https://arxiv.org/abs/2005.12597>`_ paper.
     Args:

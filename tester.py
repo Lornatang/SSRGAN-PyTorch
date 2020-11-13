@@ -22,7 +22,7 @@ import torchvision.utils as vutils
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan.dataset import DatasetFromFolder
+from ssrgan.dataset import BaseDataset
 from ssrgan.utils import configure
 from ssrgan.utils import get_time
 from ssrgan.utils import image_quality_evaluation
@@ -39,8 +39,7 @@ class Test(object):
 
         print(f"[*]({get_time()})Loading dataset...")
         self.dataloader = torch.utils.data.DataLoader(
-            DatasetFromFolder(input_dir=f"./data/{args.upscale_factor}x/train/input",
-                              target_dir=f"./data/{args.upscale_factor}x/train/target"),
+            dataset=BaseDataset(dir_path=f"{args.dataroot}/test"),
             batch_size=args.batch_size,
             pin_memory=True,
             num_workers=int(args.workers))

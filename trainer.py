@@ -21,7 +21,7 @@ import torchvision.utils as vutils
 from tqdm import tqdm
 
 import ssrgan.models as models
-from ssrgan import DatasetFromFolder
+from ssrgan import BaseDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import init_torch_seeds
@@ -41,8 +41,7 @@ class Trainer(object):
         device = select_device(args.device, batch_size=args.batch_size)
 
         # Selection of appropriate treatment equipment
-        dataset = DatasetFromFolder(input_dir=f"{args.dataroot}/{args.upscale_factor}x/train/input",
-                                    target_dir=f"{args.dataroot}/{args.upscale_factor}x/train/target")
+        dataset = BaseDataset(dir_path=f"{args.dataroot}/train")
         dataloader = torch.utils.data.DataLoader(dataset,
                                                  batch_size=args.batch_size,
                                                  pin_memory=True,

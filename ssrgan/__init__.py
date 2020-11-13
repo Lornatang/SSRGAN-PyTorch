@@ -16,7 +16,7 @@ from .activation import HSigmoid
 from .activation import HSwish
 from .activation import Mish
 from .activation import Sine
-from ssrgan.utils.calculate_niqe import niqe
+from .dataset import BaseDataset
 from .dataset import DatasetFromFolder
 from .dataset import check_image_file
 from .loss import LPIPSLoss
@@ -51,7 +51,7 @@ __all__ = [
     "HSwish",
     "Mish",
     "Sine",
-    "niqe",
+    "BaseDataset",
     "DatasetFromFolder",
     "check_image_file",
     "TVLoss",
