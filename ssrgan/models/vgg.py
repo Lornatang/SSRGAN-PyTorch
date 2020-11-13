@@ -13,9 +13,10 @@
 # ==============================================================================
 import torch
 import torch.nn as nn
-from torch import Tensor
 
-__all__ = ["DiscriminatorForVGG"]
+__all__ = [
+    "DiscriminatorForVGG"
+]
 
 
 class DiscriminatorForVGG(nn.Module):
@@ -72,7 +73,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.Linear(1024, 1),
         )
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         out = self.features(input)
         out = self.avgpool(out)
         out = torch.flatten(out, 1)
