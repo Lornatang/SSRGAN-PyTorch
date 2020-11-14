@@ -44,41 +44,36 @@ class Test(object):
         print(f"[*]({get_time()})Loaded dataset done!")
 
     def run(self):
-        args = self.args
-        model = self.model
-        device = self.device
-        dataloader = self.dataloader
-
         # Evaluate algorithm performance
         total_psnr_value = 0.0
         total_ssim_value = 0.0
 
         # Start evaluate model performance
-        progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
+        progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
         for i, (input, target) in progress_bar:
             # Set model gradients to zero
-            lr = input.to(device)
-            hr = target.to(device)
+            lr = input.to(self.device)
+            hr = target.to(self.device)
 
-            sr = inference(model, lr)
-            vutils.save_image(sr, f"./{args.outf}/sr_{i}.bmp")  # Save super resolution image.
-            vutils.save_image(hr, f"./{args.outf}/hr_{i}.bmp")  # Save high resolution image.
+            sr = inference(self.model, lr)
+            vutils.save_image(sr, f"./{self.args.outf}/sr_{i}.bmp")  # Save super resolution image.
+            vutils.save_image(hr, f"./{self.args.outf}/hr_{i}.bmp")  # Save high resolution image.
 
             # Evaluate performance
-            psnr_value, ssim_value = image_quality_evaluation(f"./{args.outf}/sr_{i}.bmp",
-                                                              f"./{args.outf}/hr_{i}.bmp",
-                                                              device)
+            psnr_value, ssim_value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp",
+                                                              f"./{self.args.outf}/hr_{i}.bmp",
+                                                              self.device)
 
             total_psnr_value += psnr_value
             total_ssim_value += ssim_value[0]
 
-            progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
+            progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
                                          f"PSNR: {psnr_value:.2f}dB "
                                          f"SSIM: {ssim_value[0]:.4f}")
 
         print("====================== Performance summary ======================")
-        print(f"Avg PSNR: {total_psnr_value / len(dataloader):.2f}\n"
-              f"Avg SSIM: {total_ssim_value / len(dataloader):.4f}\n")
+        print(f"Avg PSNR: {total_psnr_value / len(self.dataloader):.2f}\n"
+              f"Avg SSIM: {total_ssim_value / len(self.dataloader):.4f}\n")
         print("============================== End ==============================")
 
 
@@ -88,18 +83,15 @@ class Estimate(object):
         self.model, self.device = configure(args)
 
     def run(self):
-        args = self.args
-        model = self.model
-        device = self.device
-
         # Read img to tensor and transfer to the specified device for processing.
-        img = Image.open(args.lr)
-        lr = process_image(img, device)
+        img = Image.open(self.args.lr)
+        lr = process_image(img, self.device)
 
-        sr, use_time = inference(model, lr, statistical_time=True)
-        vutils.save_image(sr, f"./{args.outf}/{args.lr}")  # Save super resolution image.
+        sr, use_time = inference(self.model, lr, statistical_time=True)
+        vutils.save_image(sr, f"./{self.args.outf}/{self.args.lr}")  # Save super resolution image.
 
-        psnr_value, ssim_value = image_quality_evaluation(f"./{args.outf}/{args.lr}", args.hr, device)
+        psnr_value, ssim_value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}",
+                                                          self.args.hr, self.device)
         print("====================== Performance summary ======================")
         print(f"PSNR: {psnr_value:.2f}dB\n"
               f"SSIM: {ssim_value[0]:.4f}\n"
@@ -130,47 +122,36 @@ class Video(object):
                                               cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.pare_size)
 
     def run(self):
-        args = self.args
-        model = self.model
-        device = self.device
-
-        tensor2pil = self.tensor2pil
-        video_capture = self.video_capture
-        total_frames = self.total_frames
-        sr_size = self.sr_size
-        sr_writer = self.sr_writer
-        compare_writer = self.compare_writer
-
         # Set eval model.
-        model.eval()
+        self.model.eval()
 
         # read frame
-        success, raw_frame = video_capture.read()
-        progress_bar = tqdm(range(total_frames), desc="[processing video and saving/view result videos]")
+        success, raw_frame = self.video_capture.read()
+        progress_bar = tqdm(range(self.total_frames), desc="[processing video and saving/view result videos]")
         for _ in progress_bar:
             if success:
                 # Read img to tensor and transfer to the specified device for processing.
-                img = Image.open(args.lr)
-                lr = process_image(img, device)
+                img = Image.open(self.args.lr)
+                lr = process_image(img, self.device)
 
-                sr = inference(model, lr)
+                sr = inference(self.model, lr)
 
                 sr = sr.cpu()
                 sr = sr.data[0].numpy()
                 sr *= 255.0
                 sr = (np.uint8(sr)).transpose((1, 2, 0))
                 # save sr video
-                sr_writer.write(sr)
+                self.sr_writer.write(sr)
 
                 # make compared video and crop shot of left top\right top\center\left bottom\right bottom
-                sr = tensor2pil(sr)
+                sr = self.tensor2pil(sr)
                 # Five areas are selected as the bottom contrast map.
                 crop_sr_imgs = transforms.FiveCrop(size=sr.width // 5 - 9)(sr)
                 crop_sr_imgs = [np.asarray(transforms.Pad(padding=(10, 5, 0, 0))(img)) for img in crop_sr_imgs]
                 sr = transforms.Pad(padding=(5, 0, 0, 5))(sr)
                 # Five areas in the contrast map are selected as the bottom contrast map
-                compare_img = transforms.Resize((sr_size[1], sr_size[0]),
-                                                interpolation=Image.BICUBIC)(tensor2pil(raw_frame))
+                compare_img = transforms.Resize((self.sr_size[1], self.sr_size[0]),
+                                                interpolation=Image.BICUBIC)(self.tensor2pil(raw_frame))
                 crop_compare_imgs = transforms.FiveCrop(size=compare_img.width // 5 - 9)(compare_img)
                 crop_compare_imgs = [np.asarray(transforms.Pad(padding=(0, 5, 10, 0))(img)) for img in
                                      crop_compare_imgs]
@@ -184,18 +165,18 @@ class Video(object):
                 bottom_img_width = top_img.shape[1]
                 # 3. Adjust to the right size.
                 bottom_img = np.asarray(
-                    transforms.Resize((bottom_img_height, bottom_img_width))(tensor2pil(bottom_img)))
+                    transforms.Resize((bottom_img_height, bottom_img_width))(self.tensor2pil(bottom_img)))
                 # 4. Combine the bottom zone with the upper zone.
                 final_image = np.concatenate((top_img, bottom_img))
 
                 # save compare video
-                compare_writer.write(final_image)
+                self.compare_writer.write(final_image)
 
-                if args.view:
+                if self.args.view:
                     # display video
                     cv2.imshow("LR video convert HR video ", final_image)
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
 
                 # next frame
-                success, raw_frame = video_capture.read()
+                success, raw_frame = self.video_capture.read()
