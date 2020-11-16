@@ -18,6 +18,8 @@ from .mobilenetv1 import *
 from .mobilenetv2 import *
 from .mobilenetv3 import *
 from .rfb_esrgan import *
+from .shufflenetv1 import *
+from .shufflenetv2 import *
 from .squeezenet import *
 from .srgan import *
 from .u_net import *

@@ -89,6 +89,8 @@ $ python3 scripts/cal_model_complexity.py
 |    MobileNetV2    |   32.03 M   | 96.42 GMac|
 |    MobileNetV3    |   88.08 M   |254.93 GMac|
 |     RFBESRGAN     |   21.25 M   | 66.28 GMac|
+|    ShuffleNetV1   |   449.38 k  | 4.29 GMac |
+|    ShuffleNetV2   |   430.24 k  | 4.24 GMac |
 |     SqueezeNet    |   442.75 k  | 4.28 GMac |
 |       SRGAN       |    1.53 M   | 6.45 GMac |
 |        UNet       |    2.89 M   | 10.93 GMac|
