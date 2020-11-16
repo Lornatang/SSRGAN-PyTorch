@@ -17,6 +17,7 @@ from .inception import *
 from .mobilenetv1 import *
 from .mobilenetv2 import *
 from .mobilenetv3 import *
+from .lapsrn import *
 from .rfb_esrgan import *
 from .shufflenetv1 import *
 from .shufflenetv2 import *
