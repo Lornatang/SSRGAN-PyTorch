@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--manualSeed", type=int, default=1111,
                         help="Seed for initializing training. (default:1111)")
     parser.add_argument("--device", default="",
-                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``).")
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
 
     # log parameters
     parser.add_argument("--save-freq", type=int, default=5000,
