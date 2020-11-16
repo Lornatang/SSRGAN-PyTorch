@@ -21,7 +21,7 @@ import torchvision.utils as vutils
 from tqdm import tqdm
 
 import ssrgan.models as models
-from ssrgan import BaseDataset
+from ssrgan import CustomDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import configure
@@ -40,10 +40,12 @@ class Trainer(object):
         init_torch_seeds(args.manualSeed)
 
         # Selection of appropriate treatment equipment
-        self.dataloader = torch.utils.data.DataLoader(BaseDataset(dir_path=f"{args.dataroot}/train"),
-                                                      batch_size=args.batch_size,
-                                                      pin_memory=True,
-                                                      num_workers=int(args.workers))
+        self.dataloader = torch.utils.data.DataLoader(
+            CustomDataset(input_dir=f"{args.dataroot}/{args.upscale_factor}x/train/input",
+                          target_dir=f"{args.dataroot}/{args.upscale_factor}x/train/target"),
+            batch_size=args.batch_size,
+            pin_memory=True,
+            num_workers=int(args.workers))
         # Construct network architecture model of generator and discriminator.
         self.generator, self.device = configure(args)
         self.discriminator = DiscriminatorForVGG().to(self.device)

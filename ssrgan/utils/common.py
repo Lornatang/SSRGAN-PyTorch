@@ -39,7 +39,8 @@ def configure(args):
     else:
         print(f"[*]({get_time()})Creating model '{args.arch}'.")
         model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
-        model.load_state_dict(torch.load(args.model_path, map_location=device))
+        if args.model_path:
+            model.load_state_dict(torch.load(args.model_path, map_location=device))
 
     return model, device
 
