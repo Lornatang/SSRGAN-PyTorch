@@ -10,3 +10,8 @@ ptflops
 setuptools
 requests
 cos-python-sdk-v5
+matplotlib
+tensorflow
+opencv-python
+flask
+gevent
