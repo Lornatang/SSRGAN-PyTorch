@@ -18,7 +18,7 @@ import time
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-import torchvision.models as models
+import ssrgan.models as models
 
 from .device import select_device
 
