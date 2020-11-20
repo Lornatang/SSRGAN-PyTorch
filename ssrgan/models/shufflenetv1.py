@@ -98,9 +98,9 @@ class ShuffleNetV1(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Twenty-three structures similar to ShuffleNetV1 network.
+        # Eight structures similar to ShuffleNetV1 network.
         trunk = []
-        for _ in range(23):
+        for _ in range(8):
             trunk.append(BottleNeck(64, 64))
         self.trunk = nn.Sequential(*trunk)
 

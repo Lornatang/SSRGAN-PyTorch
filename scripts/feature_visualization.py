@@ -48,7 +48,7 @@ if __name__ == "__main__":
     input = input.to(device)
 
     net = UNet().to(device)
-    exact_list = ['conv3']
+    exact_list = ["conv3"]
     myexactor = FeatureExtractor(net, exact_list)
     x = myexactor(input)
 

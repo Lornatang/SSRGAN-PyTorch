@@ -223,9 +223,9 @@ class Inception(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Sixteen structures similar to Inception network.
+        # Eight structures similar to Inception network.
         trunk = []
-        for _ in range(16):
+        for _ in range(8):
             trunk.append(InceptionX(64, 64))
         self.trunk = nn.Sequential(*trunk)
 

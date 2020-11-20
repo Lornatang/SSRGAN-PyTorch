@@ -121,9 +121,9 @@ class UNet(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Sixteen structures similar to U-Net network.
+        # Eight structures similar to U-Net network.
         trunk = []
-        for _ in range(16):
+        for _ in range(8):
             trunk.append(SymmetricBlock(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
