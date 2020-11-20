@@ -60,8 +60,8 @@ if __name__ == "__main__":
                         help="manual epoch number (useful on restarts)")
     parser.add_argument("--psnr-iters", default=1e6, type=int, metavar="N",
                         help="The number of iterations is needed in the training of PSNR model. (default:1e6)")
-    parser.add_argument("--iters", default=2e5, type=int, metavar="N",
-                        help="The training of srgan model requires the number of iterations. (default:2e5)")
+    parser.add_argument("--iters", default=4e5, type=int, metavar="N",
+                        help="The training of srgan model requires the number of iterations. (default:4e5)")
     parser.add_argument("-b", "--batch-size", default=8, type=int, metavar="N",
                         help="mini-batch size (default: 8), this is the total "
                              "batch size of all GPUs on the current node when "
