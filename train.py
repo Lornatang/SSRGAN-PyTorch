@@ -74,7 +74,7 @@ if __name__ == "__main__":
     print(args)
 
     create_folder("./output")
-    create_folder("./output/lr")
+    create_folder("./output/hr")
     create_folder("./output/sr")
     create_folder("./weights")
     trainer = Trainer(args)
