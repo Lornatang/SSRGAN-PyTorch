@@ -35,11 +35,11 @@ class BaseDataset(torch.utils.data.dataset.Dataset):
 
         self.input_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(96, interpolation=Image.BICUBIC),
+            transforms.Resize(54, interpolation=Image.BICUBIC),
             transforms.ToTensor()
         ])
         self.target_transforms = transforms.Compose([
-            transforms.RandomCrop(384),
+            transforms.RandomCrop(216),
             transforms.ToTensor()
         ])
 
