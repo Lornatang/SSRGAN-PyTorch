@@ -123,7 +123,6 @@ def bionet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> Bi
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     model = BioNet(**kwargs)
-    print(model)
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls["bionet"], progress=progress)
         model.load_state_dict(state_dict)
