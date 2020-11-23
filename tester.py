@@ -79,9 +79,10 @@ class Test(object):
 
 
 class Estimate(object):
-    def __init__(self, args):
+    def __init__(self, args, detail=False):
         self.args = args
         self.model, self.device = configure(args)
+        self.detail = detail
 
     def run(self):
         # Read img to tensor and transfer to the specified device for processing.
@@ -91,13 +92,27 @@ class Estimate(object):
         sr, use_time = inference(self.model, lr, statistical_time=True)
         vutils.save_image(sr, f"./{self.args.outf}/{self.args.lr}")  # Save super resolution image.
 
-        psnr_value, ssim_value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}",
-                                                          self.args.hr, self.device)
-        print("====================== Performance summary ======================")
-        print(f"PSNR: {psnr_value:.2f}dB\n"
-              f"SSIM: {ssim_value[0]:.4f}\n"
-              f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
-        print("============================== End ==============================")
+        value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}", self.args.hr, self.detail, self.device)
+
+        if self.detail:
+            print("====================== Performance summary ======================")
+            print(f"MSE: {value[0]:.2f}\n"
+                  f"RMSE: {value[1]:.2f}\n"
+                  f"PSNR: {value[2]:.2f}dB\n"
+                  f"SSIM: {value[3][0]:.4f}\n"
+                  f"MS-SSIM: {value[4]:.4f}\n"
+                  f"NIQE: {value[5]:.2f}\n"
+                  f"SAM: {value[6]:.4f}\n"
+                  f"VIF: {value[7]:.4f}\n"
+                  f"LPIPS: {value[8]:.4f}\n"
+                  f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
+            print("============================== End ==============================")
+        else:
+            print("====================== Performance summary ======================")
+            print(f"PSNR: {value[0]:.2f}dB\n"
+                  f"SSIM: {value[1][0]:.4f}\n"
+                  f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
+            print("============================== End ==============================")
 
 
 class Video(object):
