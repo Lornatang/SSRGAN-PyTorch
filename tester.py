@@ -37,8 +37,8 @@ class Test(object):
 
         print(f"[*]({get_time()})Loading dataset...")
         self.dataloader = torch.utils.data.DataLoader(
-            CustomDataset(input_dir=f"{args.dataroot}/{args.upscale_factor}x/train/input",
-                          target_dir=f"{args.dataroot}/{args.upscale_factor}x/train/target"),
+            CustomDataset(input_dir=f"{args.dataroot}/{args.upscale_factor}x/test/input",
+                          target_dir=f"{args.dataroot}/{args.upscale_factor}x/test/target"),
             batch_size=args.batch_size,
             pin_memory=True,
             num_workers=int(args.workers))
