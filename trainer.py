@@ -190,7 +190,7 @@ class Trainer(object):
                     fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype, device=self.device)
 
                     ##############################################
-                    # (1) Update D network: maximize - E(lr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
+                    # (1) Update D network: maximize - E(hr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
                     ##############################################
                     # Set discriminator gradients to zero.
                     self.discriminator.zero_grad()
@@ -211,7 +211,7 @@ class Trainer(object):
                     self.optimizerD.step()
 
                     ##############################################
-                    # (2) Update G network: maximize - E(lr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
+                    # (2) Update G network: maximize - E(hr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
                     ##############################################
                     # Set generator gradients to zero
                     self.generator.zero_grad()

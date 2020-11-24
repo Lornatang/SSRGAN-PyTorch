@@ -16,6 +16,7 @@ import argparse
 import ssrgan.models as models
 from ssrgan.utils import create_folder
 from tester import Test
+from ssrgan.utils import get_time
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -33,6 +34,8 @@ if __name__ == "__main__":
                         help="The location of the image in the evaluation process. (default: ``test``).")
     parser.add_argument("--device", default="",
                         help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
+    parser.add_argument("--detail", dest="detail", action="store_true",
+                        help="Use comprehensive assessment.")
 
     # model parameters
     parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
@@ -55,8 +58,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-    print("[*]Start evaluating test dataset performance...")
+    print(f"[*]({get_time()})Start evaluating test dataset performance...")
     create_folder(args.outf)  # create evaluation directory.
+    detail = True if args.detail else False
     test = Test(args)
     test.run()
-    print("[*]Test dataset performance evaluation completed!")
+    print(f"[*]({get_time()})Test dataset performance evaluation completed!")

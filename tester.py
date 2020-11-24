@@ -46,8 +46,15 @@ class Test(object):
 
     def run(self):
         # Evaluate algorithm performance
+        total_mse_value = 0.0
+        total_rmse_value = 0.0
         total_psnr_value = 0.0
         total_ssim_value = 0.0
+        total_mssim_value = 0.0
+        total_niqe_value = 0.0
+        total_sam_value = 0.0
+        total_vif_value = 0.0
+        total_lpips_value = 0.0
 
         # Start evaluate model performance
         progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
@@ -61,21 +68,46 @@ class Test(object):
             vutils.save_image(hr, f"./{self.args.outf}/hr_{i}.bmp")  # Save high resolution image.
 
             # Evaluate performance
-            psnr_value, ssim_value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp",
-                                                              f"./{self.args.outf}/hr_{i}.bmp",
-                                                              self.device)
+            value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
+                                             self.args.detail, self.device)
 
-            total_psnr_value += psnr_value
-            total_ssim_value += ssim_value[0]
+            if self.args.detail:
+                total_mse_value += value[0]
+                total_rmse_value += value[1]
+                total_psnr_value += value[2]
+                total_ssim_value += value[3][0]
+                total_mssim_value += value[4].real
+                total_niqe_value += value[5]
+                total_sam_value += value[6]
+                total_vif_value += value[7]
+                total_lpips_value += value[8].item()
+                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
+                                             f"PSNR: {value[2]:.2f}dB "
+                                             f"SSIM: {value[3][0]:.4f}")
+            else:
+                total_psnr_value += value[0]
+                total_ssim_value += value[1][0]
+                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
+                                             f"PSNR: {value[0]:.2f}dB "
+                                             f"SSIM: {value[1][0]:.4f}")
 
-            progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
-                                         f"PSNR: {psnr_value:.2f}dB "
-                                         f"SSIM: {ssim_value[0]:.4f}")
-
-        print("====================== Performance summary ======================")
-        print(f"Avg PSNR: {total_psnr_value / len(self.dataloader):.2f}\n"
-              f"Avg SSIM: {total_ssim_value / len(self.dataloader):.4f}\n")
-        print("============================== End ==============================")
+        if self.args.detail:
+            print("====================== Performance summary ======================")
+            print(f"Avg MSE: {total_mse_value / len(self.dataloader):.2f}\n"
+                  f"Avg RMSE: {total_rmse_value / len(self.dataloader):.2f}\n"
+                  f"Avg PSNR: {total_psnr_value / len(self.dataloader):.2f}\n"
+                  f"Avg SSIM: {total_ssim_value / len(self.dataloader):.4f}\n"
+                  f"Avg MS-SIM: {total_mssim_value / len(self.dataloader):.4f}\n"
+                  f"Avg NIQE: {total_niqe_value / len(self.dataloader):.2f}\n"
+                  f"Avg SAM: {total_sam_value / len(self.dataloader):.4f}\n"
+                  f"Avg VIF: {total_vif_value / len(self.dataloader):.4f}\n"
+                  f"Avg LPIPS: {total_lpips_value / len(self.dataloader):.4f}")
+            print("============================== End ==============================")
+        else:
+            print("====================== Performance summary ======================")
+            print(f"Avg PSNR: {total_psnr_value / len(self.dataloader):.2f}\n"
+                  f"Avg SSIM: {total_ssim_value / len(self.dataloader):.4f}\n")
+            print("============================== End ==============================")
 
 
 class Estimate(object):

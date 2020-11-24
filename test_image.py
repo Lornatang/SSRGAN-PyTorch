@@ -33,6 +33,8 @@ if __name__ == "__main__":
                         help="The location of the image in the evaluation process. (default: ``output``).")
     parser.add_argument("--device", default="cpu",
                         help="device id i.e. `0` or `0,1` or `cpu`. (default: ``cpu``).")
+    parser.add_argument("--detail", dest="detail", action="store_true",
+                        help="Use comprehensive assessment.")
 
     # model parameters
     parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
