@@ -127,9 +127,9 @@ class MobileNetV3(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to MobileNetV3 network.
+        # Twenty-three structures similar to MobileNetV3Bottleneck network.
         trunk = []
-        for _ in range(8):
+        for _ in range(23):
             trunk.append(MobileNetV3Bottleneck(64, 64))
         self.trunk = nn.Sequential(*trunk)
 

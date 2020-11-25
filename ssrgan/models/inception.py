@@ -223,57 +223,37 @@ class Inception(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to Inception network.
+        # Twenty-three structures similar to InceptionX network.
         trunk = []
-        for _ in range(8):
+        for _ in range(23):
             trunk.append(InceptionX(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
-        self.inception = InceptionX(64, 64)
+        self.conv2 = conv3x3(64, 64, groups=1)
 
-        # Upsampling layers
+        # Upsampling layers.
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                nn.Upsample(scale_factor=2, mode="nearest"),
-                InceptionX(64, 64),
-                conv3x3(64, 64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                conv3x3(64, 256),
                 nn.PixelShuffle(upscale_factor=2),
-                InceptionX(64, 64)
+                nn.PReLU()
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv3 = conv3x3(64, 64, groups=1)
 
-        # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        # Final output layer.
+        self.conv4 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # First conv layer.
         conv1 = self.conv1(input)
-
-        # InceptionX trunk.
         trunk = self.trunk(conv1)
-        # Concat conv1 and trunk.
-        out = torch.add(conv1, trunk)
-
-        out = self.inception(out)
-        # Upsampling layers.
+        conv2 = self.conv2(trunk)
+        out = torch.add(conv1, conv2)
         out = self.upsampling(out)
-        # Next conv layer.
-        out = self.conv2(out)
-        # Final output layer.
         out = self.conv3(out)
-
+        out = self.conv4(out)
         return torch.tanh(out)
 
 

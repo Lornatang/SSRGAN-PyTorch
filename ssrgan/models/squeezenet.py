@@ -86,10 +86,10 @@ class SqueezeNet(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to SqueezeNet network.
+        # Twenty-three structures similar to Fire network.
         trunk = []
-        for _ in range(8):
-            trunk.append(Fire(64, 8, 32, 32))
+        for _ in range(23):
+            trunk.append(Fire(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
         self.conv2 = conv3x3(64, 64, groups=1)

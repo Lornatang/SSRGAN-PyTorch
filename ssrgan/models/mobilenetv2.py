@@ -83,9 +83,9 @@ class MobileNetV2(nn.Module):
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Eight structures similar to MobileNetV1 network.
+        # Twenty-three structures similar to InvertedResidual network.
         trunk = []
-        for _ in range(8):
+        for _ in range(23):
             trunk.append(InvertedResidual(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
