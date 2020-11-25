@@ -65,7 +65,7 @@ class BioNet(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 InceptionX(64, 64),
-                conv3x3(64, 64),
+                conv3x3(64, 64, groups=64),
                 FReLU(64),
                 conv1x1(64, 256),
                 FReLU(256),
@@ -76,7 +76,7 @@ class BioNet(nn.Module):
 
         # Next conv layer
         self.conv2 = nn.Sequential(
-            conv3x3(64, 64),
+            conv3x3(64, 64, groups=64),
             FReLU(64),
             conv1x1(64, 64),
             FReLU(64)
