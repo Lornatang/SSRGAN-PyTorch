@@ -229,28 +229,39 @@ class Inception(nn.Module):
             trunk.append(InceptionX(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
-        self.conv2 = conv3x3(64, 64, groups=1)
+        self.inception = InceptionX(64, 64)
 
-        # Upsampling layers.
+        # Upsampling layers
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                conv3x3(64, 256),
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                InceptionX(64, 64),
+                conv3x3(64, 64, groups=64),
+                FReLU(64),
+                conv1x1(64, 256),
+                FReLU(256),
                 nn.PixelShuffle(upscale_factor=2),
-                nn.PReLU()
+                InceptionX(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        self.conv3 = conv3x3(64, 64, groups=1)
+        # Next conv layer
+        self.conv2 = nn.Sequential(
+            conv3x3(64, 64, groups=64),
+            FReLU(64),
+            conv1x1(64, 64),
+            FReLU(64)
+        )
 
-        # Final output layer.
-        self.conv4 = conv3x3(64, 3)
+        # Final output layer
+        self.conv3 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)
         trunk = self.trunk(conv1)
-        conv2 = self.conv2(trunk)
-        out = torch.add(conv1, conv2)
+        inception = self.inception(trunk)
+        out = torch.add(conv1, inception)
         out = self.upsampling(out)
         out = self.conv3(out)
         out = self.conv4(out)

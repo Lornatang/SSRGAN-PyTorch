@@ -18,6 +18,7 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
+from ssrgan.activation import FReLU
 from ssrgan.activation import HSigmoid
 from ssrgan.activation import HSwish
 from .utils import conv1x1
@@ -82,13 +83,13 @@ class MobileNetV3Bottleneck(nn.Module):
 
         self.shortcut = nn.Sequential(
             conv1x1(in_channels, out_channels),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            FReLU(out_channels)
         )
 
         # pw
         self.pointwise = nn.Sequential(
             conv1x1(in_channels, hidden_channels),
-            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+            FReLU(hidden_channels)
         )
 
         # dw

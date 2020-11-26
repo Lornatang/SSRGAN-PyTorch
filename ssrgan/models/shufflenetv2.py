@@ -20,6 +20,7 @@ from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
 from .utils import channel_shuffle
+from .utils import conv1x1
 from .utils import conv3x3
 
 __all__ = [
@@ -62,6 +63,21 @@ class BottleNeck(nn.Module):
             nn.ReLU(inplace=True)
         )
 
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias.data, 0.0)
+
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         x1, x2 = input.chunk(2, dim=1)
         out = torch.cat((x1, self.branch2(x2)), dim=1)
@@ -76,42 +92,66 @@ class ShuffleNetV2(nn.Module):
     def __init__(self, upscale_factor: int = 4) -> None:
         r""" This is made up of SRGAN network structure."""
         super(ShuffleNetV2, self).__init__()
-        num_upsample_block = int(math.log(upscale_factor, 2))
+        num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
         self.conv1 = conv3x3(3, 64)
 
-        # Twenty-three structures similar to BottleNeck network.
+        # Twenty-three structures similar to ShuffleNetV2 network.
         trunk = []
         for _ in range(23):
             trunk.append(BottleNeck(64))
         self.trunk = nn.Sequential(*trunk)
 
-        self.conv2 = conv3x3(64, 64, groups=1)
+        self.bottleneck = BottleNeck(64)
 
-        # Upsampling layers.
+        # Upsampling layers
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                conv3x3(64, 256),
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                BottleNeck(64),
+                conv3x3(64, 64, groups=64),
+                FReLU(64),
+                conv1x1(64, 256),
+                FReLU(256),
                 nn.PixelShuffle(upscale_factor=2),
-                nn.PReLU()
+                BottleNeck(64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        self.conv3 = conv3x3(64, 64, groups=1)
+        # Next conv layer
+        self.conv2 = nn.Sequential(
+            conv3x3(64, 64, groups=64),
+            FReLU(64),
+            conv1x1(64, 64),
+            FReLU(64)
+        )
 
-        # Final output layer.
-        self.conv4 = conv3x3(64, 3)
+        # Final output layer
+        self.conv3 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # Bottleneck trunk.
         trunk = self.trunk(conv1)
-        conv2 = self.conv2(trunk)
-        out = torch.add(conv1, conv2)
+        # Concat conv1 and bottleneck trunk.
+        out = torch.add(conv1, trunk)
+
+        # Bottleneck layer.
+        bottleneck = self.bottleneck(out)
+        # Concat conv1 and bottleneck layer.
+        out = torch.add(conv1, bottleneck)
+
+        # Upsampling layers.
         out = self.upsampling(out)
+        # Next conv layer.
+        out = self.conv2(out)
+        # Final output layer.
         out = self.conv3(out)
-        out = self.conv4(out)
+
         return torch.tanh(out)
 
 
