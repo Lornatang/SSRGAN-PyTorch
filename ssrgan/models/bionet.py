@@ -104,7 +104,11 @@ class BioNet(nn.Module):
         # Concat conv1 and trunk-c.
         out = torch.add(conv1, trunk_c)
 
-        out = self.bionet(out)
+        # InceptionX layer.
+        bionet = self.bionet(out)
+        # Concat conv1 and bionet layer.
+        out = torch.add(conv1, bionet)
+
         # Upsampling layers.
         out = self.upsampling(out)
         # Next conv layer.
