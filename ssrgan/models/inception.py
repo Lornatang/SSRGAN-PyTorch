@@ -258,13 +258,26 @@ class Inception(nn.Module):
         self.conv3 = conv3x3(64, 3)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # InceptionX trunk.
         trunk = self.trunk(conv1)
-        inception = self.inception(trunk)
+        # Concat conv1 and inceptionX trunk.
+        out = torch.add(conv1, trunk)
+
+        # InceptionX layer.
+        inception = self.inception(out)
+        # Concat conv1 and inceptionX layer.
         out = torch.add(conv1, inception)
+
+        # Upsampling layers.
         out = self.upsampling(out)
+        # Next conv layer.
+        out = self.conv2(out)
+        # Final output layer.
         out = self.conv3(out)
-        out = self.conv4(out)
+
         return torch.tanh(out)
 
 
