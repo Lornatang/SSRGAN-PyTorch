@@ -37,14 +37,16 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int = 64, out_channels: int = 64) -> None:
+    def __init__(self, in_channels: int = 64, out_channels: int = 64, expand_factor=0.5) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.5).
         """
         super(SymmetricBlock, self).__init__()
+        hidden_channels = int(out_channels * expand_factor)
 
         # Down sampling.
         self.down = nn.Sequential(
@@ -56,12 +58,12 @@ class SymmetricBlock(nn.Module):
             # Residual block.
             conv3x3(in_channels, in_channels),
             FReLU(in_channels),
-            conv1x1(in_channels, in_channels // 2),
-            FReLU(in_channels // 2),
+            conv1x1(in_channels, hidden_channels),
+            FReLU(hidden_channels),
 
-            conv3x3(in_channels // 2, in_channels // 2),
-            FReLU(in_channels // 2),
-            conv1x1(in_channels // 2, out_channels),
+            conv3x3(hidden_channels, hidden_channels),
+            FReLU(hidden_channels),
+            conv1x1(hidden_channels, out_channels),
             FReLU(out_channels)
         )
 
@@ -72,12 +74,12 @@ class SymmetricBlock(nn.Module):
             # Residual block.
             conv3x3(out_channels, out_channels),
             FReLU(out_channels),
-            conv1x1(out_channels, in_channels // 2),
-            FReLU(in_channels // 2),
+            conv1x1(out_channels, hidden_channels),
+            FReLU(hidden_channels),
 
-            conv3x3(in_channels // 2, in_channels // 2),
-            FReLU(in_channels // 2),
-            conv1x1(in_channels // 2, in_channels),
+            conv3x3(hidden_channels, hidden_channels),
+            FReLU(hidden_channels),
+            conv1x1(hidden_channels, in_channels),
             FReLU(in_channels)
         )
 

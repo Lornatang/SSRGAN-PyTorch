@@ -86,7 +86,7 @@ if __name__ == "__main__":
     create_folder("./weights")
 
     logger.info("TrainingEngine:")
-    print("\tAPI version .......... 0.1")
+    print("\tAPI version .......... 0.1.1")
     print("\tBuild ................ 2020.11.24-1601-5df67820")
 
     logger.info("Creating Training Engine")

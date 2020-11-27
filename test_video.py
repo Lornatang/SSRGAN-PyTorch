@@ -12,15 +12,18 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import logging
 
 import ssrgan.models as models
 from ssrgan.utils import create_folder
-from ssrgan.utils import get_time
 from tester import Video
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
@@ -50,10 +53,22 @@ if __name__ == "__main__":
                         help="Use pre-trained model.")
 
     args = parser.parse_args()
+
+    print("##################################################\n")
+    print("Run Testing Engine.\n")
     print(args)
 
-    print(f"[*]({get_time()})Start video super-resolution...")
-    create_folder("video")
+    create_folder(args.outf)
+
+    logger.info("TestEngine:")
+    print("\tAPI version .......... 0.1.1")
+    print("\tBuild ................ 2020.11.24-1601-5df67820")
+
+    logger.info("Creating SR Engine")
     video = Video(args)
+
+    logger.info("Start video super-resolution")
     video.run()
-    print(f"[*]({get_time()})Video super-resolution completed!")
+    print("##################################################\n")
+
+    logger.info("Super-resolution video completed successfully.\n")

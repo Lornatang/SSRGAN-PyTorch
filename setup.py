@@ -31,7 +31,7 @@ URL = "https://github.com/Lornatang/SSRGAN"
 EMAIL = "liu_changyu@dakewe.com"
 AUTHOR = "Liu Changyu"
 REQUIRES_PYTHON = ">=3.6.5"
-VERSION = "0.0.1"
+VERSION = "0.1.1"
 
 # What packages are required for this module to be executed?
 REQUIRED = [

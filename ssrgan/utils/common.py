@@ -24,7 +24,7 @@ import ssrgan.models as models
 from .device import select_device
 
 __all__ = [
-    "configure", "create_folder", "get_time", "inference", "init_torch_seeds", "load_checkpoint"
+    "configure", "create_folder", "inference", "init_torch_seeds", "load_checkpoint"
 ]
 
 logger = logging.getLogger(__name__)
@@ -61,10 +61,6 @@ def create_folder(folder):
     except OSError:
         logger.warning(f"Directory `{os.path.join(os.getcwd(), folder)}` already exists!")
         pass
-
-
-def get_time():
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
 
 
 def inference(model, lr, statistical_time=False):

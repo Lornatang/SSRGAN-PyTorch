@@ -68,7 +68,7 @@ if __name__ == "__main__":
     detail = True if args.detail else False
 
     logger.info("TestEngine:")
-    print("\tAPI version .......... 0.1")
+    print("\tAPI version .......... 0.1.1")
     print("\tBuild ................ 2020.11.24-1601-5df67820")
 
     logger.info("Creating Testing Engine")
