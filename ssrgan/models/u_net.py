@@ -48,13 +48,13 @@ class SymmetricBlock(nn.Module):
 
         # Down sampling.
         self.down = nn.Sequential(
-            conv3x3(in_channels, in_channels, stride=2, groups=in_channels),
+            conv3x3(in_channels, in_channels, stride=2),
             FReLU(in_channels),
             conv1x1(in_channels, in_channels),
             FReLU(in_channels),
 
             # Residual block.
-            conv3x3(in_channels, in_channels, groups=in_channels),
+            conv3x3(in_channels, in_channels),
             FReLU(in_channels),
             conv1x1(in_channels, in_channels // 2),
             FReLU(in_channels // 2),
@@ -70,12 +70,12 @@ class SymmetricBlock(nn.Module):
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
 
             # Residual block.
-            conv3x3(out_channels, out_channels, groups=out_channels),
+            conv3x3(out_channels, out_channels),
             FReLU(out_channels),
             conv1x1(out_channels, in_channels // 2),
             FReLU(in_channels // 2),
 
-            conv3x3(in_channels // 2, in_channels // 2, groups=in_channels // 2),
+            conv3x3(in_channels // 2, in_channels // 2),
             FReLU(in_channels // 2),
             conv1x1(in_channels // 2, in_channels),
             FReLU(in_channels)

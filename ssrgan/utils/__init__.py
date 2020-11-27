@@ -15,14 +15,14 @@ from .calculate_niqe import niqe
 from .common import configure
 from .common import create_folder
 from .common import get_time
+from .common import inference
 from .common import init_torch_seeds
+from .common import load_checkpoint
 from .device import select_device
 from .estimate import image_quality_evaluation
 from .kernelgan import calculate_weights_indices
 from .kernelgan import cubic
 from .kernelgan import imresize
-from .model import inference
-from .model import load_checkpoint
 from .transform import opencv2pil
 from .transform import opencv2tensor
 from .transform import pil2opencv
@@ -33,13 +33,13 @@ __all__ = [
     "configure",
     "create_folder",
     "get_time",
+    "inference",
     "init_torch_seeds",
+    "load_checkpoint",
     "select_device",
     "calculate_weights_indices",
     "cubic",
     "imresize",
-    "inference",
-    "load_checkpoint",
     "image_quality_evaluation",
     "opencv2pil",
     "pil2opencv",

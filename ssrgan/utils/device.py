@@ -12,9 +12,13 @@
 # limitations under the License.
 # ==============================================================================
 """Select the specified device for processing"""
+import logging
 import os
 
 import torch
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 
 def select_device(device: str = "", batch_size: int = 1) -> torch.device:
@@ -44,9 +48,9 @@ def select_device(device: str = "", batch_size: int = 1) -> torch.device:
         for i in range(0, gpu_count):
             if i == 1:
                 s = " " * len(s)
-            print(f"{s}\n\t+ device:{i} (name=`{x[i].name}`, total_memory={int(x[i].total_memory / c)}MB)")
+            logger.info(f"{s}\n\t+ device:{i} (name=`{x[i].name}`, total_memory={int(x[i].total_memory / c)}MB)")
     else:
-        print("Using CPU")
+        logger.info("Using CPU.")
 
     print("")  # skip a line
     return torch.device("cuda:0" if cuda else "cpu")

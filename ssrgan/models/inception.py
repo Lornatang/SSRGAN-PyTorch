@@ -57,7 +57,7 @@ class InceptionA(nn.Module):
             conv1x1(in_channels, branch_features),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(branch_features, branch_features, groups=1),
+            conv3x3(branch_features, branch_features),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
@@ -65,7 +65,7 @@ class InceptionA(nn.Module):
         self.branch3 = nn.Sequential(
             conv1x1(in_channels, branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv5x5(branch_features, branch_features, groups=1),
+            conv5x5(branch_features, branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
@@ -127,7 +127,7 @@ class InceptionX(nn.Module):
             FReLU(branch_features // 2)
         )
         self.branch1_3 = nn.Sequential(
-            conv3x3(branch_features // 4, branch_features // 2, groups=1),
+            conv3x3(branch_features // 4, branch_features // 2),
             FReLU(branch_features // 2)
         )
 

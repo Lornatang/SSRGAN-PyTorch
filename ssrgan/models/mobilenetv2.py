@@ -55,7 +55,7 @@ class InvertedResidual(nn.Module):
 
         # dw
         self.depthwise = nn.Sequential(
-            conv3x3(hidden_channels, hidden_channels),
+            conv3x3(hidden_channels, hidden_channels, groups=hidden_channels),
             FReLU(hidden_channels)
         )
 

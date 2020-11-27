@@ -93,7 +93,7 @@ class MobileNetV3Bottleneck(nn.Module):
         )
 
         # dw
-        self.depthwise = conv5x5(hidden_channels, hidden_channels)
+        self.depthwise = conv5x5(hidden_channels, hidden_channels, groups=hidden_channels)
 
         # squeeze and excitation module.
         self.SEModule = nn.Sequential(
@@ -123,7 +123,7 @@ class MobileNetV3(nn.Module):
     def __init__(self, upscale_factor: int = 4) -> None:
         r""" This is made up of SRGAN network structure."""
         super(MobileNetV3, self).__init__()
-        num_upsample_block = int(math.log(upscale_factor, 2))
+        num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
         self.conv1 = conv3x3(3, 64)
