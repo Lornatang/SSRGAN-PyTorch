@@ -44,7 +44,7 @@ def image_quality_evaluation(sr_filename: str, hr_filename: str, detail: bool = 
         else return `psnr, ssim`.
     """
     # Reference sources from `https://github.com/richzhang/PerceptualSimilarity`
-    lpips_loss = lpips.LPIPS(net="vgg").to(device)
+    lpips_loss = lpips.LPIPS(net="vgg", verbose=False).to(device)
     # Evaluate performance
     sr = cv2.imread(sr_filename)
     hr = cv2.imread(hr_filename)

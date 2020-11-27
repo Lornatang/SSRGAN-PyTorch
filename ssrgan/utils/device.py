@@ -52,5 +52,4 @@ def select_device(device: str = "", batch_size: int = 1) -> torch.device:
     else:
         logger.info("Using CPU.")
 
-    print("")  # skip a line
     return torch.device("cuda:0" if cuda else "cpu")
