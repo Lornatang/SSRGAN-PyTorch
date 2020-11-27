@@ -354,20 +354,16 @@ class InceptionBlock(nn.Module):
         # Concat Squeeze and InvertedResidual layer.
         branch_concat1_2 = torch.cat([squeeze_out, mobile_out], dim=1)
         branch_out1 = self.branch_concat(branch_concat1_2)
-        print(branch_out1.shape)
 
         # Inception layer
         branch3 = self.branch3(input)
         branch4 = self.branch4(input)
         branch_concat3_4 = torch.cat([branch3, branch4], dim=1)
         branch_out2 = self.branch_concat(branch_concat3_4)
-        print(branch_out2.shape)
 
         # Concat layer
         out = torch.cat([branch_out1, branch_out2], dim=1)
-        print(out.shape)
         out = self.conv1x1(out)
-        print(out.shape)
 
         # Out and input fusion.
         out = out + shortcut.mul(self.scale_ratio)
