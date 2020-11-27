@@ -12,15 +12,18 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import logging
 
 import ssrgan.models as models
 from ssrgan.utils import create_folder
 from tester import Test
-from ssrgan.utils import get_time
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
@@ -56,11 +59,23 @@ if __name__ == "__main__":
                              "batch size of all GPUs on the current node when "
                              "using Data Parallel or Distributed Data Parallel.")
     args = parser.parse_args()
+
+    print("##################################################\n")
+    print("Run Testing Engine.\n")
     print(args)
 
-    print(f"[*]({get_time()})Start evaluating test dataset performance...")
-    create_folder(args.outf)  # create evaluation directory.
+    create_folder(args.outf)
     detail = True if args.detail else False
+
+    logger.info("TestEngine:")
+    print("\tAPI version .......... 0.1")
+    print("\tBuild ................ 2020.11.24-1601-5df67820")
+
+    logger.info("Creating Testing Engine")
     test = Test(args)
+
+    logger.info("Staring testing model")
     test.run()
-    print(f"[*]({get_time()})Test dataset performance evaluation completed!")
+    print("##################################################\n")
+
+    logger.info("Test dataset performance evaluation completed successfully.\n")

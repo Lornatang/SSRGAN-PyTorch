@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import logging
 import os
 
 import cv2
@@ -24,10 +25,12 @@ from tqdm import tqdm
 
 from ssrgan.dataset import CustomDataset
 from ssrgan.utils import configure
-from ssrgan.utils import get_time
 from ssrgan.utils import image_quality_evaluation
 from ssrgan.utils import inference
 from ssrgan.utils import process_image
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 
 class Test(object):
@@ -35,14 +38,18 @@ class Test(object):
         self.args = args
         self.model, self.device = configure(args)
 
-        print(f"[*]({get_time()})Loading dataset...")
+        logger.info("Load testing dataset")
         self.dataloader = torch.utils.data.DataLoader(
             CustomDataset(input_dir=f"{args.dataroot}/{args.upscale_factor}x/test/input",
                           target_dir=f"{args.dataroot}/{args.upscale_factor}x/test/target"),
             batch_size=args.batch_size,
             pin_memory=True,
             num_workers=int(args.workers))
-        print(f"[*]({get_time()})Loaded dataset done!")
+        logger.info(f"Dataset information\n"
+                    f"\tDataset dir is `{args.dataroot}/{args.upscale_factor}x/test`\n"
+                    f"\tBatch size is {args.batch_size}\n"
+                    f"\tWorkers is {int(args.workers)}\n"
+                    f"\tLoad dataset to CUDA")
 
     def run(self):
         # Evaluate algorithm performance
@@ -91,30 +98,28 @@ class Test(object):
                                              f"PSNR: {value[0]:.2f}dB "
                                              f"SSIM: {value[1][0]:.4f}")
 
+        print(f"Performance avg results:\n")
+        print(f"indicator Score\n")
+        print(f"--------- -----\n")
         if self.args.detail:
-            print("====================== Performance summary ======================")
-            print(f"Avg MSE: {total_mse_value / len(self.dataloader):.2f}\n"
-                  f"Avg RMSE: {total_rmse_value / len(self.dataloader):.2f}\n"
-                  f"Avg PSNR: {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"Avg SSIM: {total_ssim_value / len(self.dataloader):.4f}\n"
-                  f"Avg MS-SIM: {total_mssim_value / len(self.dataloader):.4f}\n"
-                  f"Avg NIQE: {total_niqe_value / len(self.dataloader):.2f}\n"
-                  f"Avg SAM: {total_sam_value / len(self.dataloader):.4f}\n"
-                  f"Avg VIF: {total_vif_value / len(self.dataloader):.4f}\n"
-                  f"Avg LPIPS: {total_lpips_value / len(self.dataloader):.4f}")
-            print("============================== End ==============================")
+            print(f"MSE       {total_mse_value / len(self.dataloader):.2f}\n"
+                  f"RMSE      {total_rmse_value / len(self.dataloader):.2f}\n"
+                  f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.2f}\n"
+                  f"MS-SSIM   {total_mssim_value / len(self.dataloader):.4f}\n"
+                  f"NIQE      {total_niqe_value / len(self.dataloader):.2f}\n"
+                  f"SAM       {total_sam_value / len(self.dataloader):.4f}\n"
+                  f"VIF       {total_vif_value / len(self.dataloader):.4f}\n"
+                  f"LPIPS     {total_lpips_value / len(self.dataloader):.4f}\n")
         else:
-            print("====================== Performance summary ======================")
-            print(f"Avg PSNR: {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"Avg SSIM: {total_ssim_value / len(self.dataloader):.4f}\n")
-            print("============================== End ==============================")
+            print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.2f}\n")
 
 
 class Estimate(object):
-    def __init__(self, args, detail=False):
+    def __init__(self, args):
         self.args = args
         self.model, self.device = configure(args)
-        self.detail = detail
 
     def run(self):
         # Read img to tensor and transfer to the specified device for processing.
@@ -124,27 +129,27 @@ class Estimate(object):
         sr, use_time = inference(self.model, lr, statistical_time=True)
         vutils.save_image(sr, f"./{self.args.outf}/{self.args.lr}")  # Save super resolution image.
 
-        value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}", self.args.hr, self.detail, self.device)
+        value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}", self.args.hr, self.args.detail,
+                                         self.device)
 
-        if self.detail:
-            print("====================== Performance summary ======================")
-            print(f"MSE: {value[0]:.2f}\n"
-                  f"RMSE: {value[1]:.2f}\n"
-                  f"PSNR: {value[2]:.2f}dB\n"
-                  f"SSIM: {value[3][0]:.4f}\n"
-                  f"MS-SSIM: {value[4]:.4f}\n"
-                  f"NIQE: {value[5]:.2f}\n"
-                  f"SAM: {value[6]:.4f}\n"
-                  f"VIF: {value[7]:.4f}\n"
-                  f"LPIPS: {value[8]:.4f}\n"
-                  f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
-            print("============================== End ==============================")
+        print(f"Performance avg results:\n")
+        print(f"indicator Score\n")
+        print(f"--------- -----\n")
+        if self.args.detail:
+            print(f"MSE       {value[0]:.2f}\n"
+                  f"RMSE      {value[1]:.2f}\n"
+                  f"PSNR      {value[2]:.2f}\n"
+                  f"SSIM      {value[3][0]:.4f}\n"
+                  f"MS-SSIM   {value[4].real:.4f}\n"
+                  f"NIQE      {value[5]:.2f}\n"
+                  f"SAM       {value[6]:.4f}\n"
+                  f"VIF       {value[7]:.4f}\n"
+                  f"LPIPS     {value[8].item():.4f}\n"
+                  f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
         else:
-            print("====================== Performance summary ======================")
-            print(f"PSNR: {value[0]:.2f}dB\n"
-                  f"SSIM: {value[1][0]:.4f}\n"
-                  f"Use time: {use_time * 1000:.2f}ms/{use_time:.4f}s.")
-            print("============================== End ==============================")
+            print(f"PSNR      {value[0]:.2f}\n"
+                  f"SSIM      {value[1][0]:.2f}\n"
+                  f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
 
 
 class Video(object):

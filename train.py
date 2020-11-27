@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import logging
 
 import ssrgan.models as models
 from ssrgan.utils import create_folder
@@ -21,14 +22,17 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                                  "technology for pathological microscopic images.")
     # basic parameters
     parser.add_argument("--dataroot", type=str, default="./data",
                         help="Path to datasets. (default:`./data`)")
-    parser.add_argument("-j", "--workers", default=8, type=int, metavar="N",
-                        help="Number of data loading workers. (default:8)")
+    parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
+                        help="Number of data loading workers. (default:4)")
     parser.add_argument("--manualSeed", type=int, default=1111,
                         help="Seed for initializing training. (default:1111)")
     parser.add_argument("--device", default="",
@@ -71,12 +75,25 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-4,
                         help="Learning rate. (default:1e-4)")
     args = parser.parse_args()
+
+    print("##################################################\n")
+    print("Run Training Engine.\n")
     print(args)
 
     create_folder("./output")
     create_folder("./output/hr")
     create_folder("./output/sr")
     create_folder("./weights")
+
+    logger.info("TrainingEngine:")
+    print("\tAPI version .......... 0.1")
+    print("\tBuild ................ 2020.11.24-1601-5df67820")
+
+    logger.info("Creating Training Engine")
     trainer = Trainer(args)
+
+    logger.info("Staring training model")
     trainer.run()
-    print("All training has been completed!")
+    print("##################################################\n")
+
+    logger.info("All training has been completed successfully.\n")

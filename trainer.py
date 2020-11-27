@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 import csv
+import logging
 import os
 
 import torch.nn as nn
@@ -31,6 +32,9 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
+
 
 class Trainer(object):
     def __init__(self, args):
@@ -38,24 +42,39 @@ class Trainer(object):
         # Set random initialization seed, easy to reproduce.
         init_torch_seeds(args.manualSeed)
 
-        # Selection of appropriate treatment equipment
+        logger.info("Load training dataset")
+        # Selection of appropriate treatment equipment.
         self.dataloader = torch.utils.data.DataLoader(
             BaseDataset(dir_path=f"{args.dataroot}/train"),
             batch_size=args.batch_size,
             pin_memory=True,
             num_workers=int(args.workers))
+        logger.info(f"Dataset information:\n"
+                    f"\tDataset dir is `{args.dataroot}/train`\n"
+                    f"\tBatch size is {args.batch_size}\n"
+                    f"\tWorkers is {int(args.workers)}\n"
+                    f"\tLoad dataset to CUDA")
+
         # Construct network architecture model of generator and discriminator.
         self.generator, self.device = configure(args)
+        logger.info(f"Creating discriminator model")
         self.discriminator = DiscriminatorForVGG().to(self.device)
 
         # Parameters of pre training model.
         self.psnr_epochs = int(args.psnr_iters // len(self.dataloader))
         self.psnr_epoch_indices = int(self.psnr_epochs // 4)
-        self.psnr_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.999))
+        self.psnr_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.99))
         self.psnr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.psnr_optimizer,
                                                                                    T_0=self.psnr_epoch_indices,
                                                                                    T_mult=1,
                                                                                    eta_min=1e-7)
+        logger.info(f"Pre-training model training parameters:\n"
+                    f"\tIters is {args.psnr_iters}\n"
+                    f"\tEpoch is {self.psnr_epochs}\n"
+                    f"\tOptimizer Adam\n"
+                    f"\tLearning rate {args.psnr_lr}\n"
+                    f"\tBetas (0.9, 0.99)\n"
+                    f"\tScheduler CosineAnnealingWarmRestarts")
 
         # Parameters of GAN training model.
         self.epochs = int(args.iters // len(self.dataloader))
@@ -65,12 +84,23 @@ class Trainer(object):
         self.optimizerG = torch.optim.Adam(self.generator.parameters(), lr=args.lr)
         self.schedulerD = torch.optim.lr_scheduler.MultiStepLR(self.optimizerD, milestones=self.indices, gamma=0.5)
         self.schedulerG = torch.optim.lr_scheduler.MultiStepLR(self.optimizerG, milestones=self.indices, gamma=0.5)
+        logger.info(f"All model training parameters:\n"
+                    f"\tIters is {args.iters}\n"
+                    f"\tEpoch is {self.epochs}\n"
+                    f"\tOptimizer is Adam\n"
+                    f"\tLearning rate is {args.lr}\n"
+                    f"\tBetas is (0.9, 0.999)\n"
+                    f"\tScheduler is MultiStepLR")
 
         # We use VGG5.4 as our feature extraction method by default.
         self.vgg_criterion = VGGLoss().to(self.device)
         # Loss = 10 * l1 loss + vgg loss + 5e-3 * adversarial loss
         self.pix_criterion = nn.L1Loss().to(self.device)
         self.adversarial_criterion = nn.BCEWithLogitsLoss().to(self.device)
+        logger.info(f"Loss function:\n"
+                    f"\tVGG loss is VGGLoss\n"
+                    f"\tPixel loss is L1\n"
+                    f"\tAdversarial loss is BCEWithLogitsLoss")
 
     # Loading PSNR pre training model
     def resume_resnet(self):
@@ -86,18 +116,21 @@ class Trainer(object):
 
     def run(self):
         # Set the all model to training mode
+        logger.info("Switch discriminator model to train mode")
         self.discriminator.train()
+        logger.info("Switch generator model to train mode")
         self.generator.train()
 
         # Loading PSNR pre training model
         if self.args.resume_PSNR:
+            logger.info("Load pre-training model parameters and weights")
             self.resume_resnet()
 
-        # Pre-train generator using raw l1 loss
-        print("[*] Start training PSNR model based on L1 loss.")
+        # Pre-train generator using raw l1 loss.
+        logger.info("Start training PSNR model based on L1 loss")
         # Save the generator model based on MSE pre training to speed up the training time
         if os.path.exists(f"./weights/ResNet_{self.args.upscale_factor}x.pth"):
-            print("[*] Found PSNR pretrained model weights. Skip pre-train.")
+            logger.info("Found PSNR pretrained model weights. Skip pre-train")
             self.generator.load_state_dict(torch.load(f"./weights/ResNet_{self.args.upscale_factor}x.pth",
                                                       map_location=self.device))
         else:
@@ -107,7 +140,7 @@ class Trainer(object):
                     writer = csv.writer(f)
                     writer.writerow(["Epoch", "Loss"])
 
-            print("[!] Not found pretrained weights. Start training PSNR model.")
+            logger.warning("Not found pretrained weights. Start training PSNR model")
             for epoch in range(self.args.start_epoch, self.psnr_epochs):
                 progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
                 avg_loss = 0.
@@ -155,19 +188,20 @@ class Trainer(object):
                     writer.writerow([epoch + 1, avg_loss / len(self.dataloader)])
 
             torch.save(self.generator.state_dict(), f"./weights/ResNet_{self.args.upscale_factor}x.pth")
-            print(f"[*] Training PSNR model done! Saving PSNR model weight to "
-                  f"`./weights/ResNet_{self.args.upscale_factor}x.pth`.")
+            logger.info(f"Training PSNR model done! Saving PSNR model weight to "
+                        f"`./weights/ResNet_{self.args.upscale_factor}x.pth`")
 
             # After training the PSNR model, set the initial iteration to 0.
             self.args.start_epoch = 0
 
             # Loading GAN checkpoint
             if self.args.resume:
+                logger.info("Load GAN model parameters and weights")
                 self.resume_gan()
 
             # Train GAN model.
-            print(f"[*] Staring training GAN model!")
-            print(f"[*] Training for {self.epochs} epochs.")
+            logger.info("Staring training GAN model")
+            logger.info(f"Training for {self.epochs} epochs")
             # Writer train GAN model log.
             if self.args.start_epoch == 0:
                 with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
@@ -263,5 +297,5 @@ class Trainer(object):
                                      g_avg_loss / len(self.dataloader)])
 
             torch.save(self.generator.state_dict(), f"./weights/GAN_{self.args.upscale_factor}x.pth")
-            print(f"[*] Training GAN model done! Saving GAN model weight "
-                  f"to `./weights/GAN_{self.args.upscale_factor}x.pth`.")
+            logger.info(f"Training GAN model done! Saving GAN model weight to "
+                        f"`./weights/GAN_{self.args.upscale_factor}x.pth`")

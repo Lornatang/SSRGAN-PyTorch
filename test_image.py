@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import logging
 
 import ssrgan.models as models
 from ssrgan.utils import create_folder
@@ -21,16 +22,19 @@ model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                                  "technology for pathological microscopic images.")
     # basic parameters
-    parser.add_argument("--lr", type=str,
+    parser.add_argument("--lr", type=str, required=True,
                         help="Test low resolution image name.")
-    parser.add_argument("--hr", type=str,
+    parser.add_argument("--hr", type=str, required=True,
                         help="Raw high resolution image name.")
-    parser.add_argument("--outf", default="output", type=str, metavar="PATH",
-                        help="The location of the image in the evaluation process. (default: ``output``).")
+    parser.add_argument("--outf", default="test", type=str, metavar="PATH",
+                        help="The location of the image in the evaluation process. (default: ``test``).")
     parser.add_argument("--device", default="cpu",
                         help="device id i.e. `0` or `0,1` or `cpu`. (default: ``cpu``).")
     parser.add_argument("--detail", dest="detail", action="store_true",
@@ -50,10 +54,23 @@ if __name__ == "__main__":
                         help="Use pre-trained model.")
 
     args = parser.parse_args()
+
+    print("##################################################\n")
+    print("Run Testing Engine.\n")
     print(args)
 
-    print("[*]Start test single image performance...")
-    create_folder(args.outf)  # create evaluation directory.
+    create_folder(args.outf)
+    detail = True if args.detail else False
+
+    logger.info("TestEngine:")
+    print("\tAPI version .......... 0.1")
+    print("\tBuild ................ 2020.11.24-1601-5df67820")
+
+    logger.info("Creating Testing Engine")
     estimate = Estimate(args)
+
+    logger.info("Staring testing model")
     estimate.run()
-    print("[*]Test single image performance evaluation completed!")
+    print("##################################################\n")
+
+    logger.info("Test single image performance evaluation completed successfully.\n")
