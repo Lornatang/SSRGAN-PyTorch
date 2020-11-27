@@ -133,13 +133,14 @@ data/4x
 data/train
 data/test
 data/val
-weights/*.pth
 KernelGAN
 
 benchmark
 output
 
 *.bmp
+*.png
 *.mp4
 *.zip
 *.csv
+*.pth
