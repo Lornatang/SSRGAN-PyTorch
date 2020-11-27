@@ -14,14 +14,13 @@
 import csv
 import os
 
-import lpips
 import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
 from tqdm import tqdm
 
 import ssrgan.models as models
-from ssrgan import CustomDataset
+from ssrgan import BaseDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import configure
@@ -41,8 +40,7 @@ class Trainer(object):
 
         # Selection of appropriate treatment equipment
         self.dataloader = torch.utils.data.DataLoader(
-            CustomDataset(input_dir=f"{args.dataroot}/{args.upscale_factor}x/train/input",
-                          target_dir=f"{args.dataroot}/{args.upscale_factor}x/train/target"),
+            BaseDataset(dir_path=f"{args.dataroot}/train"),
             batch_size=args.batch_size,
             pin_memory=True,
             num_workers=int(args.workers))
@@ -73,8 +71,6 @@ class Trainer(object):
         # Loss = 10 * l1 loss + vgg loss + 5e-3 * adversarial loss
         self.pix_criterion = nn.L1Loss().to(self.device)
         self.adversarial_criterion = nn.BCEWithLogitsLoss().to(self.device)
-        # Reference sources from `https://github.com/richzhang/PerceptualSimilarity`
-        self.lpips_loss = lpips.LPIPS(net="vgg").to(self.device)
 
     # Loading PSNR pre training model
     def resume_resnet(self):
