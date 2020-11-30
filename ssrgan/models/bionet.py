@@ -40,42 +40,39 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int, scale_ratio: float = 0.2) -> None:
+    def __init__(self, channels: int) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
+            channels (int): Number of channels in the input/output image.
         """
         super(SymmetricBlock, self).__init__()
+        hidden_channels = int(channels // 2)
         # shortcut layer
-        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # Down sampling.
         self.down = nn.Sequential(
-            dw_conv(in_channels, in_channels, kernel_size=3, stride=2, padding=1, dilation=1),
-            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0, act=False),
+            dw_conv(channels, hidden_channels, kernel_size=3, stride=2, padding=1, dilation=1),
+            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False),
 
             # Residual block.
-            dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=1, dilation=1),
-            Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False),
-            dw_conv(out_channels, out_channels, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(out_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
+            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, dilation=1),
+            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False),
+            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
-            nn.ConvTranspose2d(out_channels, out_channels, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(hidden_channels, hidden_channels, kernel_size=2, stride=2),
 
             # Residual block.
-            dw_conv(out_channels, out_channels, kernel_size=3, stride=1, padding=1, dilation=1),
-            Conv(out_channels, in_channels, kernel_size=1, stride=1, padding=0, act=False),
-            dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0, act=False)
+            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, dilation=1),
+            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False),
+            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(hidden_channels, channels, kernel_size=1, stride=1, padding=0, act=False)
         )
-
-        self.scale_ratio = scale_ratio
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -93,7 +90,7 @@ class SymmetricBlock(nn.Module):
         # Up sampling.
         out = self.up(out)
 
-        return out + shortcut.mul(self.scale_ratio)
+        return out + shortcut
 
 
 class DepthwiseBlock(nn.Module):
@@ -103,12 +100,11 @@ class DepthwiseBlock(nn.Module):
 
     """
 
-    def __init__(self, channels: int, scale_ratio: float = 0.2) -> None:
+    def __init__(self, channels: int) -> None:
         r""" Modules introduced in MobileNetV3 paper.
 
         Args:
-            channels (int): Number of channels in the input image.
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
+            channels (int): Number of channels in the input/output image.
         """
         super(DepthwiseBlock, self).__init__()
         self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
@@ -122,8 +118,6 @@ class DepthwiseBlock(nn.Module):
         # pw-linear
         self.pointwise_linear = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
-        self.scale_ratio = scale_ratio
-
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # 1x1 nonlinear characteristic output.
         shortcut = self.shortcut(input)
@@ -135,10 +129,7 @@ class DepthwiseBlock(nn.Module):
         # Projection convolution
         out = self.pointwise_linear(out)
 
-        # Out and input fusion.
-        out = out + shortcut
-
-        return out + shortcut.mul(self.scale_ratio)
+        return out + shortcut
 
 
 class InceptionBlock(nn.Module):
@@ -282,8 +273,8 @@ class BioNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         self.trunk_a = nn.Sequential(
-            SymmetricBlock(64, 64),
-            SymmetricBlock(64, 64)
+            SymmetricBlock(64),
+            SymmetricBlock(64)
         )
         self.trunk_b = nn.Sequential(
             DepthwiseBlock(64),
@@ -316,9 +307,8 @@ class BioNet(nn.Module):
             dw_conv(64, 64, kernel_size=3, stride=1, padding=1),
             Conv(64, 64, kernel_size=1, stride=1, padding=0)
         )
-
-        # Final output layer
-        self.conv3 = Conv(64, 3, kernel_size=3, stride=1, padding=1, act=False)
+        # Final output layer.
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
