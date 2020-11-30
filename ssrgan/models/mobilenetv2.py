@@ -18,7 +18,6 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import FReLU
 from ssrgan.models.utils import Conv
 from ssrgan.models.utils import dw_conv
 

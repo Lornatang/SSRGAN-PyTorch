@@ -18,7 +18,6 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import FReLU
 from .utils import Conv
 
 __all__ = [
@@ -50,24 +49,11 @@ class Fire(nn.Module):
         super(Fire, self).__init__()
 
         # squeeze
-        self.squeeze = nn.Sequential(
-            Conv(in_channels, squeeze_channels, 1, 1, 0, dilation=1, groups=1, act=True),
-            FReLU(squeeze_channels)
-        )
-
+        self.squeeze = Conv(in_channels, squeeze_channels, 1, 1, 0, dilation=1, groups=1, act=True)
         # expand 1x1
-        self.expand1x1 = nn.Sequential(
-            Conv(squeeze_channels, expand1x1_channels, 1, 1, 0, dilation=1, groups=1, act=True),
-            FReLU(expand1x1_channels)
-
-        )
-
+        self.expand1x1 = Conv(squeeze_channels, expand1x1_channels, 1, 1, 0, dilation=1, groups=1, act=True)
         # expand 3x3
-        self.expand3x3 = nn.Sequential(
-            Conv(squeeze_channels, expand3x3_channels, 3, 1, 1, dilation=1, groups=1, act=True),
-            FReLU(expand3x3_channels)
-
-        )
+        self.expand3x3 = Conv(squeeze_channels, expand3x3_channels, 3, 1, 1, dilation=1, groups=1, act=True)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
