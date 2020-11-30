@@ -117,7 +117,7 @@ class Test(object):
             print(f"MSE       {total_mse_value / len(self.dataloader):.2f}\n"
                   f"RMSE      {total_rmse_value / len(self.dataloader):.2f}\n"
                   f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"SSIM      {total_ssim_value / len(self.dataloader):.2f}\n"
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.4f}\n"
                   f"MS-SSIM   {total_mssim_value / len(self.dataloader):.4f}\n"
                   f"NIQE      {total_niqe_value / len(self.dataloader):.2f}\n"
                   f"SAM       {total_sam_value / len(self.dataloader):.4f}\n"
@@ -125,7 +125,7 @@ class Test(object):
                   f"LPIPS     {total_lpips_value / len(self.dataloader):.4f}\n")
         else:
             print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"SSIM      {total_ssim_value / len(self.dataloader):.2f}\n")
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.4f}\n")
 
 
 class Estimate(object):
