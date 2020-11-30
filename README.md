@@ -82,18 +82,18 @@ $ python3 scripts/cal_model_complexity.py
 -----------------------------------------------
 |       Model       |    Params   |   FLOPs   |
 -----------------------------------------------
-|       BioNet      |    1.16 M   | 5.98 GMac |
-|       ESRGAN      |   16.92 M   | 52.35 GMac |
-|     Inception     |   884.44 k  | 7.10 GMac |
-|    MobileNetV1    |   346.24 k  | 4.31 GMac |/
-|    MobileNetV2    |    1.62 M   | 8.44 GMac |
-|    MobileNetV3    |    3.48 M   | 5.57 GMac |
-|     RFBESRGAN     |   21.25 M   | 66.28 GMac|
-|    ShuffleNetV1   |   117.38 k  | 1.04 GMac |
-|    ShuffleNetV2   |    95.74 k  | 0.94 GMac |
-|     SqueezeNet    |   442.75 k  | 4.28 GMac |
-|       SRGAN       |    1.53 M   | 6.45 GMac |
-|        UNet       |    2.89 M   | 10.93 GMac|
+|       BioNet      |     0.27M   |  2.19GMac |
+|       ESRGAN      |    16.92M   | 52.35GMac |
+|     Inception     |     0.88M   |  7.10GMac |
+|    MobileNetV1    |     0.35M   |  4.31GMac |
+|    MobileNetV2    |     1.78M   | 11.37GMac |
+|    MobileNetV3    |     3.98M   | 12.82GMac |
+|     RFBESRGAN     |    21.31M   | 66.49GMac |
+|    ShuffleNetV1   |     0.22M   |  3.70GMac |
+|    ShuffleNetV2   |     0.25M   |  3.87GMac |
+|     SqueezeNet    |     0.87M   |  6.93GMac |
+|       SRGAN       |     1.54M   |  6.46GMac |
+|        UNet       |     4.01M   | 13.29GMac |
 -----------------------------------------------
 ```
 
@@ -106,38 +106,42 @@ Using pre training model to generate pictures.
 #### Basic test
 
 ```text
-usage: test_image.py [-h] [-a ARCH] [--upscale-factor {4}] [--model-path PATH]
-                     [--pretrained] [--lr LR] [--hr HR] [--outf PATH]
-                     [--device DEVICE]
+usage: test_image.py [-h] --lr LR --hr HR [--outf PATH] [--device DEVICE]
+                     [--detail] [-a ARCH] [--upscale-factor {4}]
+                     [--model-path PATH] [--pretrained]
 
 Research and application of GAN based super resolution technology for
 pathological microscopic images.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
-                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
-                        squeezenet | srgan | unet (default: bionet)
-  --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
-  --model-path PATH     Path to latest checkpoint for model. (default: ````).
-  --pretrained          Use pre-trained model.
   --lr LR               Test low resolution image name.
   --hr HR               Raw high resolution image name.
   --outf PATH           The location of the image in the evaluation process.
-                        (default: ``output``).
+                        (default: ``test``).
   --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default:
                         ``cpu``).
+  --detail              Use comprehensive assessment.
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan |
+                        get_upsample_filter | inception | lapsrn | mobilenetv1
+                        | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        shufflenetv1 | shufflenetv2 | squeezenet | srgan |
+                        unet (default: bionet)
+  --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
+  --model-path PATH     Path to latest checkpoint for model. (default: ````).
+  --pretrained          Use pre-trained model.
 
 # Example
-$ python3 test_image.py --pretrained --lr <path>/<to>/lr.png --hr <path>/<to>/hr.png 
+$ python3 test_image.py -a bionet --pretrained --lr <path>/<to>/lr.png --hr <path>/<to>/hr.png 
 ```
 
 #### Test benchmark
 
 ```text
 usage: test_benchmark.py [-h] [--dataroot DATAROOT] [-j N] [--outf PATH]
-                         [--device DEVICE] [-a ARCH] [--upscale-factor {4}]
-                         [--model-path PATH] [--pretrained] [-b N]
+                         [--device DEVICE] [--detail] [-a ARCH]
+                         [--upscale-factor {4}] [--model-path PATH]
+                         [--pretrained] [-b N]
 
 Research and application of GAN based super resolution technology for
 pathological microscopic images.
@@ -149,9 +153,12 @@ optional arguments:
   --outf PATH           The location of the image in the evaluation process.
                         (default: ``test``).
   --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default: ````).
-  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
-                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
-                        squeezenet | srgan | unet (default: bionet)
+  --detail              Use comprehensive assessment.
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan |
+                        get_upsample_filter | inception | lapsrn | mobilenetv1
+                        | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        shufflenetv1 | shufflenetv2 | squeezenet | srgan |
+                        unet (default: bionet)
   --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
   --model-path PATH     Path to latest checkpoint for model. (default: ````).
   --pretrained          Use pre-trained model.
@@ -160,7 +167,7 @@ optional arguments:
                         Parallel or Distributed Data Parallel.
 
 # Example
-$ python3 test_benchmark.py --pretrained
+$ python3 test_benchmark.py -a bionet --pretrained
 ```
 
 #### Test video
@@ -181,15 +188,17 @@ optional arguments:
   --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default:
                         ``0``).
   --view                Super resolution real time to show.
-  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
-                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
-                        squeezenet | srgan | unet (default: bionet)
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan |
+                        get_upsample_filter | inception | lapsrn | mobilenetv1
+                        | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        shufflenetv1 | shufflenetv2 | squeezenet | srgan |
+                        unet (default: bionet)
   --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
   --model-path PATH     Path to latest checkpoint for model. (default: ````).
   --pretrained          Use pre-trained model.
 
 # Example
-$ python3 test_video.py --pretrained --file <path>/<to>/video.mp4
+$ python3 test_video.py -a bionet --pretrained --file <path>/<to>/video.mp4
 ```
 
 Low resolution / Recovered High Resolution / Ground Truth
@@ -214,12 +223,14 @@ optional arguments:
   -j N, --workers N     Number of data loading workers. (default:4)
   --manualSeed MANUALSEED
                         Seed for initializing training. (default:1111)
-  --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default: ``).
+  --device DEVICE       device id i.e. `0` or `0,1` or `cpu`. (default: ````).
   --save-freq SAVE_FREQ
                         frequency of evaluating and save the model.
-  -a ARCH, --arch ARCH  model architecture: bionet | esrgan | inception |
-                        mobilenetv1 | mobilenetv2 | mobilenetv3 | rfb_esrgan |
-                        squeezenet | srgan | unet (default: bionet)
+  -a ARCH, --arch ARCH  model architecture: bionet | esrgan |
+                        get_upsample_filter | inception | lapsrn | mobilenetv1
+                        | mobilenetv2 | mobilenetv3 | rfb_esrgan |
+                        shufflenetv1 | shufflenetv2 | squeezenet | srgan |
+                        unet (default: bionet)
   --upscale-factor {4}  Low to high resolution scaling factor. (default:4).
   --model-path PATH     Path to latest checkpoint for model. (default: ````).
   --pretrained          Use pre-trained model.
@@ -229,7 +240,7 @@ optional arguments:
   --psnr-iters N        The number of iterations is needed in the training of
                         PSNR model. (default:1e6)
   --iters N             The training of srgan model requires the number of
-                        iterations. (default:2e5)
+                        iterations. (default:4e5)
   -b N, --batch-size N  mini-batch size (default: 8), this is the total batch
                         size of all GPUs on the current node when using Data
                         Parallel or Distributed Data Parallel.
@@ -237,7 +248,7 @@ optional arguments:
   --lr LR               Learning rate. (default:1e-4)
 
 # Example (e.g DIV2K)
-$ python3 train.py --pretrained
+$ python3 train.py -a bionet
 ```
 
 If you want to load weights that you've trained before, run the following command.
