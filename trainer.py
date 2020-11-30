@@ -21,7 +21,7 @@ import torchvision.utils as vutils
 from tqdm import tqdm
 
 import ssrgan.models as models
-from ssrgan import BaseDataset
+from ssrgan import BaseTrainDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import configure
@@ -44,13 +44,13 @@ class Trainer(object):
 
         logger.info("Load training dataset")
         # Selection of appropriate treatment equipment.
-        self.dataloader = torch.utils.data.DataLoader(
-            BaseDataset(dir_path=f"{args.dataroot}/train"),
-            batch_size=args.batch_size,
-            pin_memory=True,
-            num_workers=int(args.workers))
-        logger.info(f"Dataset information:\n"
-                    f"\tDataset dir is `{args.dataroot}/train`\n"
+        self.dataloader = torch.utils.data.DataLoader(BaseTrainDataset(args.dataroot, crop_size=216, upscale_factor=4),
+                                                      batch_size=args.batch_size,
+                                                      pin_memory=True,
+                                                      num_workers=int(args.workers))
+
+        logger.info(f"Train Dataset information:\n"
+                    f"\tTrain Dataset dir is `{os.getcwd()}/{args.dataroot}/train`\n"
                     f"\tBatch size is {args.batch_size}\n"
                     f"\tWorkers is {int(args.workers)}\n"
                     f"\tLoad dataset to CUDA")
@@ -115,12 +115,6 @@ class Trainer(object):
                                                 f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
 
     def run(self):
-        # Set the all model to training mode
-        logger.info("Switch discriminator model to train mode")
-        self.discriminator.train()
-        logger.info("Switch generator model to train mode")
-        self.generator.train()
-
         # Loading PSNR pre training model
         if self.args.resume_PSNR:
             logger.info("Load pre-training model parameters and weights")
@@ -209,6 +203,12 @@ class Trainer(object):
                     writer.writerow(["Epoch", "D Loss", "G Loss"])
 
             for epoch in range(self.args.start_epoch, self.epochs):
+                # Set the all model to training mode
+                logger.info("Switch discriminator model to train mode")
+                self.discriminator.train()
+                logger.info("Switch generator model to train mode")
+                self.generator.train()
+
                 progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
                 g_avg_loss = 0.
                 d_avg_loss = 0.
