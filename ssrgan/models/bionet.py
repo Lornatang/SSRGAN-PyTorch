@@ -290,10 +290,10 @@ class BioNet(nn.Module):
             DepthwiseBlock(64)
         )
         self.trunk_c = nn.Sequential(
-            InceptionDenseBlock(64, 32, 0.2),
-            InceptionDenseBlock(64, 32, 0.2),
-            InceptionDenseBlock(64, 32, 0.2),
-            InceptionDenseBlock(64, 32, 0.2)
+            InceptionBlock(64, 64),
+            InceptionBlock(64, 64),
+            InceptionBlock(64, 64),
+            InceptionBlock(64, 64)
         )
 
         self.bionet = InceptionBlock(64, 64)
