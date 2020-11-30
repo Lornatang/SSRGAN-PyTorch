@@ -35,7 +35,7 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int = 64, out_channels: int = 64, expand_factor=0.5) -> None:
+    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.5) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
@@ -48,25 +48,20 @@ class SymmetricBlock(nn.Module):
 
         # Down sampling.
         self.down = nn.Sequential(
-            Conv(in_channels, in_channels, kernel_size=3, stride=2, padding=1),
-            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0),
+            Conv(in_channels, hidden_channels, kernel_size=3, stride=2, padding=1),
 
             # Residual block.
-            Conv(in_channels, in_channels, kernel_size=3, stride=1, padding=1),
-            Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
             Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1),
-            Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0),
+            Conv(hidden_channels, out_channels, kernel_size=3, stride=1, padding=1)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
+            nn.ConvTranspose2d(out_channels, hidden_channels, kernel_size=2, stride=2),
 
             # Residual block.
-            Conv(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
-            Conv(out_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
-            Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1),
-            Conv(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0),
+            Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, act=False),
+            Conv(hidden_channels, in_channels, kernel_size=3, stride=1, padding=1, act=False),
         )
 
         for m in self.modules():

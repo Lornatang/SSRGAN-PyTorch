@@ -93,7 +93,7 @@ $ python3 scripts/cal_model_complexity.py
 |    ShuffleNetV2   |     0.25M   |  3.87GMac |
 |     SqueezeNet    |     0.87M   |  6.93GMac |
 |       SRGAN       |     1.54M   |  6.46GMac |
-|        UNet       |     4.01M   | 13.29GMac |
+|        UNet       |     2.36M   |  8.87GMac |
 -----------------------------------------------
 ```
 
