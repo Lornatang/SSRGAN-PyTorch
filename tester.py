@@ -23,7 +23,7 @@ import torchvision.utils as vutils
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan.dataset import CustomDataset
+from ssrgan.dataset import CustomTestDataset
 from ssrgan.utils import configure
 from ssrgan.utils import image_quality_evaluation
 from ssrgan.utils import inference
@@ -39,15 +39,13 @@ class Test(object):
         self.model, self.device = configure(args)
 
         logger.info("Load testing dataset")
-        self.dataloader = torch.utils.data.DataLoader(
-            CustomDataset(input_dir=f"{args.dataroot}/{args.upscale_factor}x/test/input",
-                          target_dir=f"{args.dataroot}/{args.upscale_factor}x/test/target"),
-            batch_size=args.batch_size,
-            pin_memory=True,
-            num_workers=int(args.workers))
+        self.dataloader = torch.utils.data.DataLoader(CustomTestDataset(args.dataroot, img_size=216),
+                                                      batch_size=1,
+                                                      pin_memory=True,
+                                                      num_workers=int(args.workers))
         logger.info(f"Dataset information\n"
-                    f"\tDataset dir is `{args.dataroot}/{args.upscale_factor}x/test`\n"
-                    f"\tBatch size is {args.batch_size}\n"
+                    f"\tDataset dir is `{os.getcwd()}/{args.dataroot}`\n"
+                    f"\tBatch size is 1\n"
                     f"\tWorkers is {int(args.workers)}\n"
                     f"\tLoad dataset to CUDA")
 
@@ -65,7 +63,10 @@ class Test(object):
 
         # Start evaluate model performance
         progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
-        for i, (input, target) in progress_bar:
+        # Concat image.
+        images = []
+
+        for i, (input, bicubic, target) in progress_bar:
             # Set model gradients to zero
             lr = input.to(self.device)
             hr = target.to(self.device)
@@ -97,6 +98,17 @@ class Test(object):
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
                                              f"PSNR: {value[0]:.2f}dB "
                                              f"SSIM: {value[1][0]:.4f}")
+
+            images.extend([hr.data.cpu().squeeze(0), bicubic.squeeze(0), sr.data.cpu().squeeze(0)])
+
+        images = torch.stack(images)
+        images = torch.chunk(images, len(self.dataloader) // 3)
+        bar = tqdm(images, desc="[saving testing results]")
+        index = 1
+        for image in bar:
+            image = vutils.make_grid(image, nrow=3, padding=5)
+            vutils.save_image(image, f"{self.args.outf}/{index}.bmp", padding=5)
+            index += 1
 
         print(f"Performance avg results:\n")
         print(f"indicator Score\n")

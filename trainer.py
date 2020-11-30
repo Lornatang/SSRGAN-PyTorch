@@ -21,7 +21,7 @@ import torchvision.utils as vutils
 from tqdm import tqdm
 
 import ssrgan.models as models
-from ssrgan import BaseTrainDataset
+from ssrgan import CustomTrainDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import configure
@@ -44,13 +44,13 @@ class Trainer(object):
 
         logger.info("Load training dataset")
         # Selection of appropriate treatment equipment.
-        self.dataloader = torch.utils.data.DataLoader(BaseTrainDataset(args.dataroot, crop_size=216, upscale_factor=4),
+        self.dataloader = torch.utils.data.DataLoader(CustomTrainDataset(args.dataroot),
                                                       batch_size=args.batch_size,
                                                       pin_memory=True,
                                                       num_workers=int(args.workers))
 
         logger.info(f"Train Dataset information:\n"
-                    f"\tTrain Dataset dir is `{os.getcwd()}/{args.dataroot}/train`\n"
+                    f"\tTrain Dataset dir is `{os.getcwd()}/{args.dataroot}`\n"
                     f"\tBatch size is {args.batch_size}\n"
                     f"\tWorkers is {int(args.workers)}\n"
                     f"\tLoad dataset to CUDA")
@@ -276,8 +276,8 @@ class Trainer(object):
 
                     # The image is saved every 5000 iterations.
                     if (total_iter + 1) % self.args.save_freq == 0:
-                        vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{total_iter + 1}.bmp"))
-                        vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{total_iter + 1}.bmp"))
+                        vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{total_iter + 1}.bmp"))
+                        vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{total_iter + 1}.bmp"))
 
                 # The model is saved every 1 epoch.
                 torch.save({"epoch": epoch + 1,

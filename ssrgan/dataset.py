@@ -139,8 +139,8 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         super(CustomTrainDataset, self).__init__()
         input_dir = os.path.join(dataset_dir, "input")
         target_dir = os.path.join(dataset_dir, "target")
-        self.input_filenames = [os.path.join(input_dir, x) for x in os.listdir(dataset_dir) if check_image_file(x)]
-        self.target_filenames = [os.path.join(target_dir, x) for x in os.listdir(dataset_dir) if check_image_file(x)]
+        self.input_filenames = [os.path.join(input_dir, x) for x in os.listdir(input_dir) if check_image_file(x)]
+        self.target_filenames = [os.path.join(target_dir, x) for x in os.listdir(input_dir) if check_image_file(x)]
         self.transforms = transforms.ToTensor()
 
     def __getitem__(self, index):
@@ -164,23 +164,23 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
 class CustomTestDataset(torch.utils.data.dataset.Dataset):
     r"""An abstract class representing a :class:`Dataset`."""
 
-    def __init__(self, dataset_dir: str, crop_size: int = 216):
+    def __init__(self, dataset_dir: str, img_size: int = 216):
         """
 
         Args:
             dataset_dir (str): The directory address where the data image is stored.
-            crop_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216).
+            img_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216).
         """
         super(CustomTestDataset, self).__init__()
         input_dir = os.path.join(dataset_dir, "input")
         target_dir = os.path.join(dataset_dir, "target")
-        self.input_filenames = [os.path.join(input_dir, x) for x in os.listdir(dataset_dir) if check_image_file(x)]
-        self.target_filenames = [os.path.join(target_dir, x) for x in os.listdir(dataset_dir) if check_image_file(x)]
+        self.input_filenames = [os.path.join(input_dir, x) for x in os.listdir(input_dir) if check_image_file(x)]
+        self.target_filenames = [os.path.join(target_dir, x) for x in os.listdir(input_dir) if check_image_file(x)]
 
         self.transforms = transforms.ToTensor()
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((crop_size, crop_size), interpolation=Image.BICUBIC),
+            transforms.Resize((img_size, img_size), interpolation=Image.BICUBIC),
             transforms.ToTensor()
         ])
 
