@@ -115,6 +115,12 @@ class Trainer(object):
                                                 f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
 
     def run(self):
+        # Set the all model to training mode
+        logger.info("Switch discriminator model to train mode")
+        self.discriminator.train()
+        logger.info("Switch generator model to train mode")
+        self.generator.train()
+
         # Loading PSNR pre training model
         if self.args.resume_PSNR:
             logger.info("Load pre-training model parameters and weights")
@@ -185,117 +191,111 @@ class Trainer(object):
             logger.info(f"Training PSNR model done! Saving PSNR model weight to "
                         f"`./weights/ResNet_{self.args.upscale_factor}x.pth`")
 
-            # After training the PSNR model, set the initial iteration to 0.
-            self.args.start_epoch = 0
+        # After training the PSNR model, set the initial iteration to 0.
+        self.args.start_epoch = 0
 
-            # Loading GAN checkpoint
-            if self.args.resume:
-                logger.info("Load GAN model parameters and weights")
-                self.resume_gan()
+        # Loading GAN checkpoint
+        if self.args.resume:
+            logger.info("Load GAN model parameters and weights")
+            self.resume_gan()
 
-            # Train GAN model.
-            logger.info("Staring training GAN model")
-            logger.info(f"Training for {self.epochs} epochs")
-            # Writer train GAN model log.
-            if self.args.start_epoch == 0:
-                with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["Epoch", "D Loss", "G Loss"])
+        # Train GAN model.
+        logger.info("Staring training GAN model")
+        logger.info(f"Training for {self.epochs} epochs")
+        # Writer train GAN model log.
+        if self.args.start_epoch == 0:
+            with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Epoch", "D Loss", "G Loss"])
 
-            for epoch in range(self.args.start_epoch, self.epochs):
-                # Set the all model to training mode
-                logger.info("Switch discriminator model to train mode")
-                self.discriminator.train()
-                logger.info("Switch generator model to train mode")
-                self.generator.train()
+        for epoch in range(self.args.start_epoch, self.epochs):
+            progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
+            g_avg_loss = 0.
+            d_avg_loss = 0.
+            for i, (input, target) in progress_bar:
+                lr = input.to(self.device)
+                hr = target.to(self.device)
+                batch_size = lr.size(0)
+                real_label = torch.full((batch_size, 1), 1, dtype=lr.dtype, device=self.device)
+                fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype, device=self.device)
 
-                progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
-                g_avg_loss = 0.
-                d_avg_loss = 0.
-                for i, (input, target) in progress_bar:
-                    lr = input.to(self.device)
-                    hr = target.to(self.device)
-                    batch_size = lr.size(0)
-                    real_label = torch.full((batch_size, 1), 1, dtype=lr.dtype, device=self.device)
-                    fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype, device=self.device)
+                ##############################################
+                # (1) Update D network: maximize - E(hr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
+                ##############################################
+                # Set discriminator gradients to zero.
+                self.discriminator.zero_grad()
 
-                    ##############################################
-                    # (1) Update D network: maximize - E(hr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
-                    ##############################################
-                    # Set discriminator gradients to zero.
-                    self.discriminator.zero_grad()
+                # Generate a super-resolution image
+                sr = self.generator(lr)
 
-                    # Generate a super-resolution image
-                    sr = self.generator(lr)
+                # Train with real high resolution image.
+                hr_output = self.discriminator(hr)  # Train real image.
+                sr_output = self.discriminator(sr.detach())  # No train fake image.
+                # Adversarial loss for real and fake images (relativistic average GAN)
+                errD_hr = self.adversarial_criterion(hr_output - torch.mean(sr_output), real_label)
+                errD_sr = self.adversarial_criterion(sr_output - torch.mean(hr_output), fake_label)
+                errD = (errD_sr + errD_hr) / 2
+                errD.backward()
+                D_x = hr_output.mean().item()
+                D_G_z1 = sr_output.mean().item()
+                self.optimizerD.step()
 
-                    # Train with real high resolution image.
-                    hr_output = self.discriminator(hr)  # Train real image.
-                    sr_output = self.discriminator(sr.detach())  # No train fake image.
-                    # Adversarial loss for real and fake images (relativistic average GAN)
-                    errD_hr = self.adversarial_criterion(hr_output - torch.mean(sr_output), real_label)
-                    errD_sr = self.adversarial_criterion(sr_output - torch.mean(hr_output), fake_label)
-                    errD = (errD_sr + errD_hr) / 2
-                    errD.backward()
-                    D_x = hr_output.mean().item()
-                    D_G_z1 = sr_output.mean().item()
-                    self.optimizerD.step()
+                ##############################################
+                # (2) Update G network: maximize - E(hr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
+                ##############################################
+                # Set generator gradients to zero
+                self.generator.zero_grad()
 
-                    ##############################################
-                    # (2) Update G network: maximize - E(hr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
-                    ##############################################
-                    # Set generator gradients to zero
-                    self.generator.zero_grad()
+                # According to the feature map, the root mean square error is regarded as the content loss.
+                vgg_loss = self.vgg_criterion(sr, hr)
+                # Train with fake high resolution image.
+                hr_output = self.discriminator(hr.detach())  # No train real fake image.
+                sr_output = self.discriminator(sr)  # Train fake image.
+                # Adversarial loss (relativistic average GAN)
+                adversarial_loss = self.adversarial_criterion(sr_output - torch.mean(hr_output), real_label)
+                # Pixel level loss between two images.
+                l1_loss = self.pix_criterion(sr, hr)
+                errG = 10 * l1_loss + vgg_loss + 5e-3 * adversarial_loss
+                errG.backward()
+                D_G_z2 = sr_output.mean().item()
+                self.optimizerG.step()
 
-                    # According to the feature map, the root mean square error is regarded as the content loss.
-                    vgg_loss = self.vgg_criterion(sr, hr)
-                    # Train with fake high resolution image.
-                    hr_output = self.discriminator(hr.detach())  # No train real fake image.
-                    sr_output = self.discriminator(sr)  # Train fake image.
-                    # Adversarial loss (relativistic average GAN)
-                    adversarial_loss = self.adversarial_criterion(sr_output - torch.mean(hr_output), real_label)
-                    # Pixel level loss between two images.
-                    l1_loss = self.pix_criterion(sr, hr)
-                    errG = 10 * l1_loss + vgg_loss + 5e-3 * adversarial_loss
-                    errG.backward()
-                    D_G_z2 = sr_output.mean().item()
-                    self.optimizerG.step()
+                # Dynamic adjustment of learning rate
+                self.schedulerD.step()
+                self.schedulerG.step()
 
-                    # Dynamic adjustment of learning rate
-                    self.schedulerD.step()
-                    self.schedulerG.step()
+                d_avg_loss += errD.item()
+                g_avg_loss += errG.item()
 
-                    d_avg_loss += errD.item()
-                    g_avg_loss += errG.item()
+                progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.dataloader)}] "
+                                             f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
+                                             f"D(HR): {D_x:.6f} D(G(LR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
 
-                    progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.dataloader)}] "
-                                                 f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
-                                                 f"D(HR): {D_x:.6f} D(G(LR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
+                # record iter.
+                total_iter = len(self.dataloader) * epoch + i
 
-                    # record iter.
-                    total_iter = len(self.dataloader) * epoch + i
+                # The image is saved every 5000 iterations.
+                if (total_iter + 1) % self.args.save_freq == 0:
+                    vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{total_iter + 1}.bmp"))
+                    vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{total_iter + 1}.bmp"))
 
-                    # The image is saved every 5000 iterations.
-                    if (total_iter + 1) % self.args.save_freq == 0:
-                        vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{total_iter + 1}.bmp"))
-                        vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{total_iter + 1}.bmp"))
+            # The model is saved every 1 epoch.
+            torch.save({"epoch": epoch + 1,
+                        "optimizer": self.optimizerD.state_dict(),
+                        "state_dict": self.discriminator.state_dict()
+                        }, f"./weights/netD_{self.args.upscale_factor}x_checkpoint.pth")
+            torch.save({"epoch": epoch + 1,
+                        "optimizer": self.optimizerG.state_dict(),
+                        "state_dict": self.generator.state_dict()
+                        }, f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
 
-                # The model is saved every 1 epoch.
-                torch.save({"epoch": epoch + 1,
-                            "optimizer": self.optimizerD.state_dict(),
-                            "state_dict": self.discriminator.state_dict()
-                            }, f"./weights/netD_{self.args.upscale_factor}x_checkpoint.pth")
-                torch.save({"epoch": epoch + 1,
-                            "optimizer": self.optimizerG.state_dict(),
-                            "state_dict": self.generator.state_dict()
-                            }, f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
+            # Writer training log
+            with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "a+") as f:
+                writer = csv.writer(f)
+                writer.writerow([epoch + 1,
+                                 d_avg_loss / len(self.dataloader),
+                                 g_avg_loss / len(self.dataloader)])
 
-                # Writer training log
-                with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "a+") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([epoch + 1,
-                                     d_avg_loss / len(self.dataloader),
-                                     g_avg_loss / len(self.dataloader)])
-
-            torch.save(self.generator.state_dict(), f"./weights/GAN_{self.args.upscale_factor}x.pth")
-            logger.info(f"Training GAN model done! Saving GAN model weight to "
-                        f"`./weights/GAN_{self.args.upscale_factor}x.pth`")
+        torch.save(self.generator.state_dict(), f"./weights/GAN_{self.args.upscale_factor}x.pth")
+        logger.info(f"Training GAN model done! Saving GAN model weight to "
+                    f"`./weights/GAN_{self.args.upscale_factor}x.pth`")
