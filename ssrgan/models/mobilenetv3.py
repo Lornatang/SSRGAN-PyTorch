@@ -148,13 +148,26 @@ class MobileNetV3(nn.Module):
         self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # First conv layer.
         conv1 = self.conv1(input)
+
+        # MobileNet trunk.
         trunk = self.trunk(conv1)
-        conv2 = self.conv2(trunk)
-        out = torch.add(conv1, conv2)
+        # Concat conv1 and mobilenet trunk.
+        out = torch.add(conv1, trunk)
+
+        # MobileNet layer.
+        mobilenet = self.mobilenet(out)
+        # Concat conv1 and mobilenet layer.
+        out = torch.add(conv1, mobilenet)
+
+        # Upsampling layers.
         out = self.upsampling(out)
+        # Next conv layer.
+        out = self.conv2(out)
+        # Final output layer.
         out = self.conv3(out)
-        out = self.conv4(out)
+
         return torch.tanh(out)
 
 
