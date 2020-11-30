@@ -18,15 +18,14 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import FReLU
 from ssrgan.activation import HSigmoid
 from ssrgan.activation import HSwish
-from .utils import conv1x1
-from .utils import conv3x3
-from .utils import conv5x5
+from ssrgan.models.utils import Conv
+from ssrgan.models.utils import dw_conv
 
 __all__ = [
-    "SEModule", "MobileNetV3Bottleneck", "MobileNetV3", "mobilenetv3"
+    "SEModule", "MobileNetV3Bottleneck",
+    "MobileNetV3", "mobilenetv3"
 ]
 
 model_urls = {
@@ -81,19 +80,13 @@ class MobileNetV3Bottleneck(nn.Module):
         super(MobileNetV3Bottleneck, self).__init__()
         hidden_channels = int(round(in_channels * expand_factor))
 
-        self.shortcut = nn.Sequential(
-            conv1x1(in_channels, out_channels),
-            FReLU(out_channels)
-        )
+        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
         # pw
-        self.pointwise = nn.Sequential(
-            conv1x1(in_channels, hidden_channels),
-            FReLU(hidden_channels)
-        )
+        self.pointwise = Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = conv5x5(hidden_channels, hidden_channels, groups=hidden_channels)
+        self.depthwise = dw_conv(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2)
 
         # squeeze and excitation module.
         self.SEModule = nn.Sequential(
@@ -102,7 +95,7 @@ class MobileNetV3Bottleneck(nn.Module):
         )
 
         # pw-linear
-        self.pointwise_linear = conv1x1(hidden_channels, out_channels)
+        self.pointwise_linear = Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Expansion convolution
@@ -126,30 +119,33 @@ class MobileNetV3(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
-        # Twenty-three structures similar to MobileNetV3Bottleneck network.
+        # Twenty-three structures similar to InvertedResidual network.
         trunk = []
         for _ in range(23):
             trunk.append(MobileNetV3Bottleneck(64, 64))
         self.trunk = nn.Sequential(*trunk)
 
-        self.conv2 = conv3x3(64, 64, groups=1)
+        self.mobilenet = MobileNetV3Bottleneck(64, 64)
 
-        # Upsampling layers.
+        # Upsampling layers
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                conv3x3(64, 256),
+                nn.Upsample(scale_factor=2, mode="nearest"),
+                MobileNetV3Bottleneck(64, 64),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
-                nn.PReLU()
+                MobileNetV3Bottleneck(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        self.conv3 = conv3x3(64, 64, groups=1)
+        # Next conv layer
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
-        # Final output layer.
-        self.conv4 = conv3x3(64, 3)
+        # Final output layer
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)

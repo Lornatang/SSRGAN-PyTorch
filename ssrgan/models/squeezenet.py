@@ -19,11 +19,11 @@ import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
-from .utils import conv1x1
-from .utils import conv3x3
+from .utils import Conv
 
 __all__ = [
-    "Fire", "SqueezeNet", "squeezenet"
+    "Fire",
+    "SqueezeNet", "squeezenet"
 ]
 
 model_urls = {
@@ -51,20 +51,20 @@ class Fire(nn.Module):
 
         # squeeze
         self.squeeze = nn.Sequential(
-            conv1x1(in_channels, squeeze_channels),
+            Conv(in_channels, squeeze_channels, 1, 1, 0, dilation=1, groups=1, act=True),
             FReLU(squeeze_channels)
         )
 
         # expand 1x1
         self.expand1x1 = nn.Sequential(
-            conv1x1(squeeze_channels, expand1x1_channels),
+            Conv(squeeze_channels, expand1x1_channels, 1, 1, 0, dilation=1, groups=1, act=True),
             FReLU(expand1x1_channels)
 
         )
 
         # expand 3x3
         self.expand3x3 = nn.Sequential(
-            conv3x3(squeeze_channels, expand3x3_channels),
+            Conv(squeeze_channels, expand3x3_channels, 3, 1, 1, dilation=1, groups=1, act=True),
             FReLU(expand3x3_channels)
 
         )
@@ -75,14 +75,6 @@ class Fire(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Squeeze convolution
@@ -102,7 +94,7 @@ class SqueezeNet(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = Conv(3, 64, 3, 1, 1, dilation=1, groups=1, act=True)
 
         # Twenty-three structures similar to Fire network.
         trunk = []
@@ -118,25 +110,17 @@ class SqueezeNet(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 Fire(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                Conv(64, 256, 3, 1, 1, dilation=1, groups=1, act=True),
                 nn.PixelShuffle(upscale_factor=2),
                 Fire(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = Conv(64, 64, 3, 1, 1, dilation=1, groups=1, act=True)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = Conv(64, 3, 3, 1, 1, dilation=1, groups=1, act=True)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.

@@ -18,9 +18,6 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from .utils import conv1x1
-from .utils import conv3x3
-
 __all__ = [
     "ResidualDenseBlock", "ResidualInResidualDenseBlock",
     "ReceptiveFieldBlock", "ReceptiveFieldDenseBlock",
@@ -44,22 +41,22 @@ class ResidualDenseBlock(nn.Module):
         """
         super(ResidualDenseBlock, self).__init__()
         self.conv1 = nn.Sequential(
-            conv3x3(in_channels + 0 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 0 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
         self.conv2 = nn.Sequential(
-            conv3x3(in_channels + 1 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 1 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
         self.conv3 = nn.Sequential(
-            conv3x3(in_channels + 2 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 2 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
         self.conv4 = nn.Sequential(
-            conv3x3(in_channels + 3 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 3 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
-        self.conv5 = conv3x3(in_channels + 4 * growth_channels, in_channels)
+        self.conv5 = nn.Conv2d(in_channels + 4 * growth_channels, in_channels, kernel_size=3, stride=1, padding=1)
 
         self.scale_ratio = scale_ratio
 
@@ -69,14 +66,6 @@ class ResidualDenseBlock(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)
@@ -127,41 +116,41 @@ class ReceptiveFieldBlock(nn.Module):
         super(ReceptiveFieldBlock, self).__init__()
         channels = in_channels // 4
         # shortcut layer
-        self.shortcut = conv1x1(in_channels, out_channels)
+        self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
         self.branch1 = nn.Sequential(
-            conv1x1(in_channels, channels),
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels, channels, padding=1, dilation=1, groups=1)
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1)
         )
 
         self.branch2 = nn.Sequential(
-            conv1x1(in_channels, channels),
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels, channels, kernel_size=(1, 3), stride=1, padding=(0, 1), groups=1),
+            nn.Conv2d(channels, channels, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels, channels, padding=3, dilation=3, groups=1)
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=3, dilation=3)
         )
 
         self.branch3 = nn.Sequential(
-            conv1x1(in_channels, channels),
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels, channels, kernel_size=(3, 1), stride=1, padding=(1, 0), groups=1),
+            nn.Conv2d(channels, channels, kernel_size=(3, 1), stride=1, padding=(1, 0)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels, channels, padding=3, dilation=3, groups=1)
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=3, dilation=3)
         )
 
         self.branch4 = nn.Sequential(
-            conv1x1(in_channels, channels // 2),
+            nn.Conv2d(in_channels, channels // 2, kernel_size=1, stride=1, padding=0),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels // 2, (channels // 4) * 3, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            nn.Conv2d(channels // 2, (channels // 4) * 3, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3((channels // 4) * 3, channels, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            nn.Conv2d((channels // 4) * 3, channels, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(channels, channels, padding=5, dilation=5, groups=1)
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=5, dilation=5, groups=1)
         )
 
-        self.conv1x1 = conv1x1(in_channels, out_channels)
+        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True) if non_linearity else None
 
         self.scale_ratio = scale_ratio
@@ -172,14 +161,6 @@ class ReceptiveFieldBlock(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         shortcut = self.shortcut(input)
@@ -266,7 +247,7 @@ class RFBESRGAN(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         trunk_a = []
         trunk_rfb = []
@@ -287,17 +268,17 @@ class RFBESRGAN(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 ReceptiveFieldBlock(64, 64),
-                conv3x3(64, 256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.PixelShuffle(upscale_factor=2),
                 ReceptiveFieldBlock(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        self.conv2 = conv3x3(64, 64, groups=1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)

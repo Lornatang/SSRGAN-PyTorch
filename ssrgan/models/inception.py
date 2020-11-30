@@ -16,14 +16,12 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+from ssrgan.models.utils import Conv
+from ssrgan.models.utils import dw_conv
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import FReLU
-from .utils import conv1x1
-from .utils import conv3x3
-from .utils import conv5x5
-
-__all__ = ["FReLU", "InceptionA", "InceptionX", "Inception", "inception"]
+__all__ = ["InceptionA", "InceptionX",
+           "Inception", "inception"]
 
 model_urls = {
     "inception": ""
@@ -48,30 +46,30 @@ class InceptionA(nn.Module):
         branch_features = int(in_channels // 4)
 
         self.branch1 = nn.Sequential(
-            conv1x1(in_channels, branch_features),
+            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.branch2 = nn.Sequential(
-            conv1x1(in_channels, branch_features),
+            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv3x3(branch_features, branch_features),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.branch3 = nn.Sequential(
-            conv1x1(in_channels, branch_features),
+            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            conv5x5(branch_features, branch_features),
+            nn.Conv2d(branch_features, branch_features, kernel_size=5, stride=1, padding=2),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.branch4 = nn.Sequential(
             nn.AvgPool2d(kernel_size=3, stride=1, padding=1),
-            conv1x1(in_channels, branch_features),
+            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             nn.BatchNorm2d(branch_features),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
         )
@@ -82,14 +80,6 @@ class InceptionA(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         branch1 = self.branch1(input)
@@ -106,68 +96,45 @@ class InceptionX(nn.Module):
     r""" It is improved by referring to the structure of the original paper.
     """
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels: int, out_channels: int, expand_factor: int = 0.25):
         r""" Modules introduced in InceptionX paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.25).
         """
         super(InceptionX, self).__init__()
 
-        branch_features = int(in_channels // 4)
+        branch_features = int(in_channels * expand_factor)
 
-        # Squeeze style layer
-        self.branch1_1 = nn.Sequential(
-            conv1x1(in_channels, branch_features // 4),
-            FReLU(branch_features // 4)
-        )
-        self.branch1_2 = nn.Sequential(
-            conv1x1(branch_features // 4, branch_features // 2),
-            FReLU(branch_features // 2)
-        )
-        self.branch1_3 = nn.Sequential(
-            conv3x3(branch_features // 4, branch_features // 2),
-            FReLU(branch_features // 2)
-        )
+        # Squeeze style layer.
+        self.branch1_1 = Conv(in_channels, branch_features // 4, kernel_size=1, stride=1, padding=0)
+        self.branch1_2 = Conv(branch_features // 4, branch_features // 2, kernel_size=1, stride=1, padding=0)
+        self.branch1_3 = Conv(branch_features // 4, branch_features // 2, kernel_size=3, stride=1, padding=1)
 
         # InvertedResidual style layer
-        self.branch2_1 = nn.Sequential(
-            conv1x1(in_channels, branch_features * 2),
-            FReLU(branch_features * 2)
-        )
-        self.branch2_2 = nn.Sequential(
-            conv3x3(branch_features * 2, branch_features * 2),
-            FReLU(branch_features * 2)
-        )
-        self.branch2_3 = nn.Sequential(
-            conv1x1(branch_features * 2, branch_features),
-            FReLU(branch_features)
-        )
+        self.branch2_1 = Conv(in_channels, branch_features * 2, kernel_size=1, stride=1, padding=0)
+        self.branch2_2 = Conv(branch_features * 2, branch_features * 2, kernel_size=3, stride=1, padding=1)
+        self.branch2_3 = Conv(branch_features * 2, branch_features, kernel_size=1, stride=1, padding=0, act=False)
 
         # Inception style layer 1
         self.branch3 = nn.Sequential(
-            conv3x3(in_channels, branch_features, kernel_size=(1, 3), padding=(0, 1)),
-            FReLU(branch_features),
-            conv3x3(branch_features, branch_features, kernel_size=(3, 1), padding=(1, 0)),
-            FReLU(branch_features),
-            conv1x1(branch_features, branch_features),
-            FReLU(branch_features)
+            nn.Conv2d(in_channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0)
         )
 
         # Inception style layer 2
         self.branch4 = nn.Sequential(
-            conv3x3(in_channels, branch_features, kernel_size=(3, 1), padding=(1, 0)),
-            FReLU(branch_features),
-            conv3x3(branch_features, branch_features, kernel_size=(1, 3), padding=(0, 1)),
-            FReLU(branch_features),
-            conv1x1(branch_features, branch_features),
-            FReLU(branch_features)
+            nn.Conv2d(in_channels, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0)
         )
 
-        self.branch_concat = conv1x1(branch_features * 2, branch_features * 2)
+        self.branch_concat = nn.Conv2d(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0)
 
-        self.conv1x1 = conv1x1(in_channels, out_channels)
+        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -175,14 +142,6 @@ class InceptionX(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Squeeze layer.
@@ -221,7 +180,7 @@ class Inception(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         # Twenty-three structures similar to InceptionX network.
         trunk = []
@@ -237,25 +196,17 @@ class Inception(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 InceptionX(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
                 InceptionX(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.

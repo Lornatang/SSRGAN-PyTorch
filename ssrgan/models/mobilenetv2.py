@@ -19,8 +19,8 @@ import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
-from .utils import conv1x1
-from .utils import conv3x3
+from ssrgan.models.utils import Conv
+from ssrgan.models.utils import dw_conv
 
 __all__ = [
     "InvertedResidual", "MobileNetV2", "mobilenetv2"
@@ -48,19 +48,13 @@ class InvertedResidual(nn.Module):
         hidden_channels = int(round(in_channels * expand_factor))
 
         # pw
-        self.pointwise = nn.Sequential(
-            conv1x1(in_channels, hidden_channels),
-            FReLU(hidden_channels)
-        )
+        self.pointwise = Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = nn.Sequential(
-            conv3x3(hidden_channels, hidden_channels, groups=hidden_channels),
-            FReLU(hidden_channels)
-        )
+        self.depthwise = dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1)
 
         # pw-linear
-        self.pointwise_linear = conv1x1(hidden_channels, out_channels)
+        self.pointwise_linear = Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -68,14 +62,6 @@ class InvertedResidual(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Expansion convolution
@@ -97,7 +83,7 @@ class MobileNetV2(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         # Twenty-three structures similar to InvertedResidual network.
         trunk = []
@@ -113,25 +99,17 @@ class MobileNetV2(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 InvertedResidual(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
                 InvertedResidual(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.

@@ -19,8 +19,8 @@ import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
-from .utils import conv1x1
-from .utils import conv3x3
+from ssrgan.models.utils import Conv
+from ssrgan.models.utils import dw_conv
 
 __all__ = [
     "FReLU", "DepthwiseSeparableConvolution", "MobileNetV1", "mobilenetv1"
@@ -48,16 +48,10 @@ class DepthwiseSeparableConvolution(nn.Module):
         super(DepthwiseSeparableConvolution, self).__init__()
 
         # dw
-        self.depthwise = nn.Sequential(
-            conv3x3(in_channels, in_channels, groups=in_channels),
-            FReLU(in_channels)
-        )
+        self.depthwise = dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
 
         # pw
-        self.pointwise = nn.Sequential(
-            conv1x1(in_channels, out_channels),
-            FReLU(out_channels)
-        )
+        self.pointwise = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -65,14 +59,6 @@ class DepthwiseSeparableConvolution(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # DepthWise convolution
@@ -92,7 +78,7 @@ class MobileNetV1(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         # Twenty-three structures similar to DepthwiseSeparableConvolution network.
         trunk = []
@@ -108,25 +94,17 @@ class MobileNetV1(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 DepthwiseSeparableConvolution(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
                 DepthwiseSeparableConvolution(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.

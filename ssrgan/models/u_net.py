@@ -18,9 +18,7 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import FReLU
-from .utils import conv1x1
-from .utils import conv3x3
+from ssrgan.models.utils import Conv
 
 __all__ = ["SymmetricBlock", "UNet", "unet"]
 
@@ -50,21 +48,14 @@ class SymmetricBlock(nn.Module):
 
         # Down sampling.
         self.down = nn.Sequential(
-            conv3x3(in_channels, in_channels, stride=2),
-            FReLU(in_channels),
-            conv1x1(in_channels, in_channels),
-            FReLU(in_channels),
+            Conv(in_channels, in_channels, kernel_size=3, stride=2, padding=1),
+            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0),
 
             # Residual block.
-            conv3x3(in_channels, in_channels),
-            FReLU(in_channels),
-            conv1x1(in_channels, hidden_channels),
-            FReLU(hidden_channels),
-
-            conv3x3(hidden_channels, hidden_channels),
-            FReLU(hidden_channels),
-            conv1x1(hidden_channels, out_channels),
-            FReLU(out_channels)
+            Conv(in_channels, in_channels, kernel_size=3, stride=1, padding=1),
+            Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
+            Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1),
+            Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0),
         )
 
         # Up sampling.
@@ -72,15 +63,10 @@ class SymmetricBlock(nn.Module):
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
 
             # Residual block.
-            conv3x3(out_channels, out_channels),
-            FReLU(out_channels),
-            conv1x1(out_channels, hidden_channels),
-            FReLU(hidden_channels),
-
-            conv3x3(hidden_channels, hidden_channels),
-            FReLU(hidden_channels),
-            conv1x1(hidden_channels, in_channels),
-            FReLU(in_channels)
+            Conv(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
+            Conv(out_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
+            Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1),
+            Conv(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0),
         )
 
         for m in self.modules():
@@ -89,14 +75,6 @@ class SymmetricBlock(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Down sampling.
@@ -115,7 +93,7 @@ class UNet(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         # Twenty-three structures similar to SymmetricBlock network.
         trunk = []
@@ -131,25 +109,17 @@ class UNet(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 SymmetricBlock(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
                 SymmetricBlock(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.

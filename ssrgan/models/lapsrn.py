@@ -14,12 +14,10 @@
 import math
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
-
-from .utils import conv3x3
-import numpy as np
 
 __all__ = [
     "get_upsample_filter", "ConvBlock", "LapSRN", "lapsrn"
@@ -55,7 +53,7 @@ class ConvBlock(nn.Module):
         block = []
         for _ in range(10):
             block += [
-                conv3x3(in_channels, out_channels, groups=1),
+                nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=0.2, inplace=True)
             ]
         block += [
@@ -77,21 +75,22 @@ class LapSRN(nn.Module):
         r""" This is made up of LapSRN network structure.
                 """
         super(LapSRN, self).__init__()
+        self.upscale_factor = upscale_factor
 
         # First layer
         self.conv1 = nn.Sequential(
-            conv3x3(1, 64),
+            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         # Extract the first layer features.
         self.conv2_1 = nn.ConvTranspose2d(1, 1, kernel_size=4, stride=2, padding=1, bias=False)
-        self.conv2_2 = conv3x3(64, 1)
+        self.conv2_2 = nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1)
         self.conv2_3 = ConvBlock(64, 64)
 
         # Extract the second layer features.
         self.conv3_1 = nn.ConvTranspose2d(1, 1, kernel_size=4, stride=2, padding=1, bias=False)
-        self.conv3_2 = conv3x3(64, 1)
+        self.conv3_2 = nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=1)
         self.conv3_3 = ConvBlock(64, 64)
 
         for m in self.modules():
@@ -120,7 +119,10 @@ class LapSRN(nn.Module):
         conv3_3 = self.conv3_3(conv3_1)
         conv3 = conv3_2 + conv3_3
 
-        return conv2, conv3
+        if self.upscale_factor == 4:
+            return conv3
+        else:
+            return conv2
 
 
 def lapsrn(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> LapSRN:

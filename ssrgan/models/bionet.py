@@ -20,9 +20,8 @@ from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
 from ssrgan.models.mobilenetv3 import SEModule
-from .utils import conv1x1
-from .utils import conv3x3
-from .utils import conv5x5
+from ssrgan.models.utils import Conv
+from ssrgan.models.utils import dw_conv
 
 __all__ = ["SymmetricBlock", "SymmetricDenseBlock",
            "DepthwiseBlock", "DepthwiseDenseBlock",
@@ -57,25 +56,18 @@ class SymmetricBlock(nn.Module):
         hidden_channels = int(out_channels * expand_factor)
 
         # shortcut layer
-        self.shortcut = conv1x1(in_channels, out_channels)
+        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # Down sampling.
         self.down = nn.Sequential(
-            conv3x3(in_channels, in_channels, stride=2, padding=1, dilation=1),
-            FReLU(in_channels),
-            conv1x1(in_channels, in_channels),
-            FReLU(in_channels),
+            dw_conv(in_channels, in_channels, kernel_size=3, stride=2, padding=1, dilation=1),
+            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0),
 
             # Residual block.
-            conv3x3(in_channels, in_channels, padding=3, dilation=3),
-            FReLU(in_channels),
-            conv1x1(in_channels, hidden_channels),
-            FReLU(hidden_channels),
-
-            conv3x3(hidden_channels, hidden_channels, padding=5, dilation=5),
-            FReLU(hidden_channels),
-            conv1x1(hidden_channels, in_channels),
-            FReLU(in_channels)
+            dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
+            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=5, dilation=5),
+            Conv(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0)
         )
 
         # Up sampling.
@@ -83,14 +75,10 @@ class SymmetricBlock(nn.Module):
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
 
             # Residual block.
-            conv3x3(in_channels, in_channels, padding=3, dilation=3),
-            FReLU(in_channels),
-            conv1x1(in_channels, hidden_channels),
-            FReLU(hidden_channels),
-
-            conv3x3(hidden_channels, hidden_channels, padding=5, dilation=5),
-            FReLU(hidden_channels),
-            conv1x1(hidden_channels, out_channels)
+            dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
+            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=5, dilation=5),
+            Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0)
         )
 
         self.frelu = FReLU(out_channels) if non_linearity else None
@@ -174,16 +162,13 @@ class DepthwiseBlock(nn.Module):
         super(DepthwiseBlock, self).__init__()
         hidden_channels = int(out_channels * expand_factor)
 
-        self.shortcut = conv1x1(in_channels, out_channels)
+        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
         # pw
-        self.pointwise = nn.Sequential(
-            conv1x1(in_channels, hidden_channels),
-            FReLU(hidden_channels)
-        )
+        self.pointwise = Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = conv5x5(hidden_channels, hidden_channels, groups=hidden_channels)
+        self.depthwise = dw_conv(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2)
 
         # squeeze and excitation module.
         self.SEModule = nn.Sequential(
@@ -192,7 +177,7 @@ class DepthwiseBlock(nn.Module):
         )
 
         # pw-linear
-        self.pointwise_linear = conv1x1(hidden_channels, out_channels)
+        self.pointwise_linear = Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
         self.frelu = FReLU(out_channels) if non_linearity else None
         self.scale_ratio = scale_ratio
@@ -259,7 +244,7 @@ class InceptionBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.25, scale_ratio: float = 0.5,
+    def __init__(self, in_channels: int, out_channels: int, expand_factor: int = 0.25, scale_ratio: float = 0.5,
                  non_linearity: bool = True) -> None:
         r""" Modules introduced in InceptionX paper.
 
@@ -273,59 +258,35 @@ class InceptionBlock(nn.Module):
         super(InceptionBlock, self).__init__()
         branch_features = int(in_channels * expand_factor)
 
-        self.shortcut = conv1x1(in_channels, out_channels)
+        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
-        # Squeeze style layer
-        self.branch1_1 = nn.Sequential(
-            conv1x1(in_channels, branch_features // 4),
-            FReLU(branch_features // 4)
-        )
-        self.branch1_2 = nn.Sequential(
-            conv1x1(branch_features // 4, branch_features // 2),
-            FReLU(branch_features // 2)
-        )
-        self.branch1_3 = nn.Sequential(
-            conv3x3(branch_features // 4, branch_features // 2),
-            FReLU(branch_features // 2)
-        )
+        # Squeeze style layer.
+        self.branch1_1 = Conv(in_channels, branch_features // 4, kernel_size=1, stride=1, padding=0)
+        self.branch1_2 = Conv(branch_features // 4, branch_features // 2, kernel_size=1, stride=1, padding=0)
+        self.branch1_3 = Conv(branch_features // 4, branch_features // 2, kernel_size=3, stride=1, padding=1)
 
         # InvertedResidual style layer
-        self.branch2_1 = nn.Sequential(
-            conv1x1(in_channels, branch_features * 2),
-            FReLU(branch_features * 2)
-        )
-        self.branch2_2 = nn.Sequential(
-            conv3x3(branch_features * 2, branch_features * 2),
-            FReLU(branch_features * 2)
-        )
-        self.branch2_3 = nn.Sequential(
-            conv1x1(branch_features * 2, branch_features),
-            FReLU(branch_features)
-        )
+        self.branch2_1 = Conv(in_channels, branch_features * 2, kernel_size=1, stride=1, padding=0)
+        self.branch2_2 = dw_conv(branch_features * 2, branch_features * 2, kernel_size=3, stride=1, padding=1)
+        self.branch2_3 = Conv(branch_features * 2, branch_features, kernel_size=1, stride=1, padding=0, act=False)
 
         # Inception style layer 1
         self.branch3 = nn.Sequential(
-            conv3x3(in_channels, branch_features, kernel_size=(1, 3), padding=(0, 1)),
-            FReLU(branch_features),
-            conv3x3(branch_features, branch_features, kernel_size=(3, 1), padding=(1, 0)),
-            FReLU(branch_features),
-            conv1x1(branch_features, branch_features),
-            FReLU(branch_features)
+            Conv(in_channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0)
         )
 
         # Inception style layer 2
         self.branch4 = nn.Sequential(
-            conv3x3(in_channels, branch_features, kernel_size=(3, 1), padding=(1, 0)),
-            FReLU(branch_features),
-            conv3x3(branch_features, branch_features, kernel_size=(1, 3), padding=(0, 1)),
-            FReLU(branch_features),
-            conv1x1(branch_features, branch_features),
-            FReLU(branch_features)
+            Conv(in_channels, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0)
         )
 
-        self.branch_concat = conv1x1(branch_features * 2, branch_features * 2)
+        self.branch_concat = Conv(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0)
 
-        self.conv1x1 = conv1x1(in_channels, out_channels)
+        self.conv1x1 = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
         self.frelu = FReLU(out_channels) if non_linearity else None
         self.scale_ratio = scale_ratio
@@ -414,7 +375,7 @@ class BioNet(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         self.trunk_a = nn.Sequential(
             SymmetricDenseBlock(64, 64),
@@ -441,25 +402,19 @@ class BioNet(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 InceptionBlock(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                dw_conv(64, 64, kernel_size=3, stride=1, padding=1),
+                Conv(64, 256, kernel_size=1, stride=1, padding=0),
+                nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.PixelShuffle(upscale_factor=2),
                 InceptionBlock(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.

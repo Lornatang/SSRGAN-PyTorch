@@ -18,10 +18,9 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from .utils import conv3x3
-
 __all__ = [
-    "ResidualDenseBlock", "ResidualInResidualDenseBlock", "ESRGAN", "esrgan"
+    "ResidualDenseBlock", "ResidualInResidualDenseBlock",
+    "ESRGAN", "esrgan"
 ]
 
 model_urls = {
@@ -41,22 +40,22 @@ class ResidualDenseBlock(nn.Module):
         """
         super(ResidualDenseBlock, self).__init__()
         self.conv1 = nn.Sequential(
-            conv3x3(in_channels + 0 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 0 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
         self.conv2 = nn.Sequential(
-            conv3x3(in_channels + 1 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 1 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
         self.conv3 = nn.Sequential(
-            conv3x3(in_channels + 2 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 2 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
         self.conv4 = nn.Sequential(
-            conv3x3(in_channels + 3 * growth_channels, growth_channels),
+            nn.Conv2d(in_channels + 3 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
-        self.conv5 = conv3x3(in_channels + 4 * growth_channels, in_channels)
+        self.conv5 = nn.Conv2d(in_channels + 4 * growth_channels, in_channels, kernel_size=3, stride=1, padding=1)
 
         self.scale_ratio = scale_ratio
 
@@ -66,14 +65,6 @@ class ResidualDenseBlock(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)
@@ -119,7 +110,7 @@ class ESRGAN(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 2))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         # Twenty-three structures similar to ESRGAN network.
         trunk = []
@@ -127,22 +118,22 @@ class ESRGAN(nn.Module):
             trunk.append(ResidualInResidualDenseBlock(64, 32, 0.2))
         self.trunk = nn.Sequential(*trunk)
 
-        self.conv2 = conv3x3(64, 64, groups=1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Upsampling layers.
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                conv3x3(64, 256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
                 nn.PReLU()
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
-        self.conv3 = conv3x3(64, 64, groups=1)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer.
-        self.conv4 = conv3x3(64, 3)
+        self.conv4 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(input)

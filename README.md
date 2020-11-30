@@ -1,4 +1,4 @@
-# SSRGAN-PyTorch
+# SSRGAN
 
 ### Overview
 This repository contains an op-for-op PyTorch reimplementation of [Research and application of GAN based super resolution technology for pathological microscopic images](http://www.dakewe.com/).
@@ -82,15 +82,15 @@ $ python3 scripts/cal_model_complexity.py
 -----------------------------------------------
 |       Model       |    Params   |   FLOPs   |
 -----------------------------------------------
-|       BioNet      |   559.9 k   | 5.17 GMac |
-|       ESRGAN      |   16.91 M   | 52.3 GMac |
-|     Inception     |   631.17 k  | 5.84 GMac |
-|    MobileNetV1    |   511.94 k  | 4.47 GMac |
-|    MobileNetV2    |   32.03 M   | 96.42 GMac|
-|    MobileNetV3    |   88.08 M   |254.93 GMac|
+|       BioNet      |    1.16 M   | 5.98 GMac |
+|       ESRGAN      |   16.92 M   | 52.35 GMac |
+|     Inception     |   884.44 k  | 7.10 GMac |
+|    MobileNetV1    |   346.24 k  | 4.31 GMac |/
+|    MobileNetV2    |    1.62 M   | 8.44 GMac |
+|    MobileNetV3    |    3.48 M   | 5.57 GMac |
 |     RFBESRGAN     |   21.25 M   | 66.28 GMac|
-|    ShuffleNetV1   |   449.38 k  | 4.29 GMac |
-|    ShuffleNetV2   |   430.24 k  | 4.24 GMac |
+|    ShuffleNetV1   |   117.38 k  | 1.04 GMac |
+|    ShuffleNetV2   |    95.74 k  | 0.94 GMac |
 |     SqueezeNet    |   442.75 k  | 4.28 GMac |
 |       SRGAN       |    1.53 M   | 6.45 GMac |
 |        UNet       |    2.89 M   | 10.93 GMac|

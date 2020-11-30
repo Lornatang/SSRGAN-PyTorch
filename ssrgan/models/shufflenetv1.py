@@ -21,11 +21,10 @@ from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
 from .utils import channel_shuffle
-from .utils import conv1x1
-from .utils import conv3x3
 
 __all__ = [
-    "FReLU", "BottleNeck", "ShuffleNetV1", "shufflenetv1"
+    "BottleNeck",
+    "ShuffleNetV1", "shufflenetv1"
 ]
 
 model_urls = {
@@ -41,33 +40,34 @@ class BottleNeck(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int = 64, out_channels: int = 64) -> None:
+    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.25) -> None:
         r""" Modules introduced in ShuffleNetV1 paper.
         Args:
-            in_channels (int): Number of channels in the input image. (Default: 64).
-            out_channels (int): Number of channels produced by the convolution. (Default: 64).
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.25).
         """
         super(BottleNeck, self).__init__()
 
-        channels = in_channels // 4
+        channels = int(in_channels * expand_factor)
 
         # pw
         self.pointwise = nn.Sequential(
-            conv1x1(in_channels, channels, groups=4),
+            nn.Conv2d(in_channels, channels, kernel_size=1, stride=1, padding=0, groups=4),
             nn.BatchNorm2d(channels),
             FReLU(channels)
         )
 
         # dw
         self.depthwise = nn.Sequential(
-            conv3x3(channels, channels),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels),
             nn.BatchNorm2d(channels),
             FReLU(channels)
         )
 
         # pw-linear
         self.pointwise_linear = nn.Sequential(
-            conv1x1(channels, out_channels, groups=4),
+            nn.Conv2d(channels, out_channels, kernel_size=1, stride=1, padding=0, groups=4),
             nn.BatchNorm2d(out_channels)
         )
 
@@ -77,14 +77,6 @@ class BottleNeck(nn.Module):
                 m.weight.data *= 0.1
                 if m.bias is not None:
                     m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.constant_(m.weight, 1)
-                nn.init.constant_(m.bias.data, 0.0)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Expansion convolution
@@ -111,9 +103,9 @@ class ShuffleNetV1(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = conv3x3(3, 64)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
-        # Twenty-three structures similar to ShuffleNetV1 network.
+        # Twenty-three structures similar to BottleNeck network.
         trunk = []
         for _ in range(23):
             trunk.append(BottleNeck(64, 64))
@@ -127,25 +119,17 @@ class ShuffleNetV1(nn.Module):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
                 BottleNeck(64, 64),
-                conv3x3(64, 64, groups=64),
-                FReLU(64),
-                conv1x1(64, 256),
-                FReLU(256),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
                 BottleNeck(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            conv3x3(64, 64, groups=64),
-            FReLU(64),
-            conv1x1(64, 64),
-            FReLU(64)
-        )
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer
-        self.conv3 = conv3x3(64, 3)
+        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
