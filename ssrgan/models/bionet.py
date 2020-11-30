@@ -19,12 +19,11 @@ import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
-from ssrgan.models.mobilenetv3 import SEModule
 from ssrgan.models.utils import Conv
 from ssrgan.models.utils import dw_conv
 
-__all__ = ["SymmetricBlock", "SymmetricDenseBlock",
-           "DepthwiseBlock", "DepthwiseDenseBlock",
+__all__ = ["SymmetricBlock",
+           "DepthwiseBlock",
            "InceptionBlock", "InceptionDenseBlock",
            "BioNet", "bionet"]
 
@@ -41,47 +40,41 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.5, scale_ratio: float = 0.5,
-                 non_linearity: bool = True) -> None:
+    def __init__(self, in_channels: int, out_channels: int, scale_ratio: float = 0.2) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.5).
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.5).
-            non_linearity (optional, bool): Does the last layer use nonlinear activation. (Default: ``True``).
+            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
         """
         super(SymmetricBlock, self).__init__()
-        hidden_channels = int(out_channels * expand_factor)
-
         # shortcut layer
         self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # Down sampling.
         self.down = nn.Sequential(
             dw_conv(in_channels, in_channels, kernel_size=3, stride=2, padding=1, dilation=1),
-            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0),
+            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0, act=False),
 
             # Residual block.
-            dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
-            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=5, dilation=5),
-            Conv(hidden_channels, in_channels, kernel_size=1, stride=1, padding=0)
+            dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=1, dilation=1),
+            Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False),
+            dw_conv(out_channels, out_channels, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(out_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
+            nn.ConvTranspose2d(out_channels, out_channels, kernel_size=2, stride=2),
 
             # Residual block.
+            dw_conv(out_channels, out_channels, kernel_size=3, stride=1, padding=1, dilation=1),
+            Conv(out_channels, in_channels, kernel_size=1, stride=1, padding=0, act=False),
             dw_conv(in_channels, in_channels, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0),
-            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=5, dilation=5),
-            Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0)
+            Conv(in_channels, in_channels, kernel_size=1, stride=1, padding=0, act=False)
         )
 
-        self.frelu = FReLU(out_channels) if non_linearity else None
         self.scale_ratio = scale_ratio
 
         for m in self.modules():
@@ -100,45 +93,7 @@ class SymmetricBlock(nn.Module):
         # Up sampling.
         out = self.up(out)
 
-        # Out and input fusion.
-        out = out + shortcut.mul(self.scale_ratio)
-        if self.frelu is not None:
-            out = self.frelu(out)
-
-        return out
-
-
-class SymmetricDenseBlock(nn.Module):
-    r""" U-shaped dense network.
-    """
-
-    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.5, scale_ratio: float = 0.2) -> None:
-        r""" Modules introduced in U-Net paper.
-
-        Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.5).
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
-        """
-        super(SymmetricDenseBlock, self).__init__()
-        hidden_channels = int(out_channels * expand_factor)
-        self.SB1 = SymmetricBlock(in_channels + 0 * hidden_channels, hidden_channels, expand_factor)
-        self.SB2 = SymmetricBlock(in_channels + 1 * hidden_channels, hidden_channels, expand_factor)
-        self.SB3 = SymmetricBlock(in_channels + 2 * hidden_channels, hidden_channels, expand_factor)
-        self.SB4 = SymmetricBlock(in_channels + 3 * hidden_channels, hidden_channels, expand_factor)
-        self.SB5 = SymmetricBlock(in_channels + 4 * hidden_channels, out_channels, expand_factor, False)
-
-        self.scale_ratio = scale_ratio
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        sb1 = self.SB1(input)
-        sb2 = self.SB2(torch.cat((input, sb1), dim=1))
-        sb3 = self.SB3(torch.cat((input, sb1, sb2), dim=1))
-        sb4 = self.SB4(torch.cat((input, sb1, sb2, sb3), dim=1))
-        sb5 = self.SB5(torch.cat((input, sb1, sb2, sb3, sb4), dim=1))
-
-        return sb5.mul(self.scale_ratio) + input
+        return out + shortcut.mul(self.scale_ratio)
 
 
 class DepthwiseBlock(nn.Module):
@@ -148,38 +103,25 @@ class DepthwiseBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.5, scale_ratio: float = 0.5,
-                 non_linearity: bool = True) -> None:
+    def __init__(self, channels: int, scale_ratio: float = 0.2) -> None:
         r""" Modules introduced in MobileNetV3 paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.5).
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.5).
-            non_linearity (optional, bool): Does the last layer use nonlinear activation. (Default: ``True``).
+            channels (int): Number of channels in the input image.
+            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
         """
         super(DepthwiseBlock, self).__init__()
-        hidden_channels = int(out_channels * expand_factor)
-
-        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # pw
-        self.pointwise = Conv(in_channels, hidden_channels, kernel_size=1, stride=1, padding=0)
+        self.pointwise = Conv(channels, channels, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = dw_conv(hidden_channels, hidden_channels, kernel_size=5, stride=1, padding=2)
-
-        # squeeze and excitation module.
-        self.SEModule = nn.Sequential(
-            SEModule(hidden_channels),
-            FReLU(hidden_channels)
-        )
+        self.depthwise = dw_conv(channels, channels, kernel_size=3, stride=1, padding=1)
 
         # pw-linear
-        self.pointwise_linear = Conv(hidden_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.pointwise_linear = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
-        self.frelu = FReLU(out_channels) if non_linearity else None
         self.scale_ratio = scale_ratio
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
@@ -190,50 +132,13 @@ class DepthwiseBlock(nn.Module):
         out = self.pointwise(input)
         # DepthWise convolution
         out = self.depthwise(out)
-        # Squeeze-and-Excite
-        out = self.SEModule(out)
         # Projection convolution
         out = self.pointwise_linear(out)
 
         # Out and input fusion.
-        out = out + shortcut.mul(self.scale_ratio)
-        if self.frelu is not None:
-            out = self.frelu(out)
+        out = out + shortcut
 
-        return out
-
-
-class DepthwiseDenseBlock(nn.Module):
-    r""" MobileNetV3 dense network.
-    """
-
-    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.5, scale_ratio: float = 0.2) -> None:
-        r""" Modules introduced in MobileNetV3 paper.
-
-        Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.5).
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
-        """
-        super(DepthwiseDenseBlock, self).__init__()
-        hidden_channels = int(out_channels * expand_factor)
-        self.DB1 = DepthwiseBlock(in_channels + 0 * hidden_channels, hidden_channels, expand_factor)
-        self.DB2 = DepthwiseBlock(in_channels + 1 * hidden_channels, hidden_channels, expand_factor)
-        self.DB3 = DepthwiseBlock(in_channels + 2 * hidden_channels, hidden_channels, expand_factor)
-        self.DB4 = DepthwiseBlock(in_channels + 3 * hidden_channels, hidden_channels, expand_factor)
-        self.DB5 = DepthwiseBlock(in_channels + 4 * hidden_channels, out_channels, expand_factor, False)
-
-        self.scale_ratio = scale_ratio
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        db1 = self.DB1(input)
-        db2 = self.DB2(torch.cat((input, db1), dim=1))
-        db3 = self.DB3(torch.cat((input, db1, db2), dim=1))
-        db4 = self.DB4(torch.cat((input, db1, db2, db3), dim=1))
-        db5 = self.DB5(torch.cat((input, db1, db2, db3, db4), dim=1))
-
-        return db5.mul(self.scale_ratio) + input
+        return out + shortcut.mul(self.scale_ratio)
 
 
 class InceptionBlock(nn.Module):
@@ -244,19 +149,18 @@ class InceptionBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int, expand_factor: int = 0.25, scale_ratio: float = 0.5,
+    def __init__(self, in_channels: int, out_channels: int, scale_ratio: float = 0.2,
                  non_linearity: bool = True) -> None:
         r""" Modules introduced in InceptionX paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.25).
             scale_ratio (optional, float): Residual channel scaling column. (Default: 0.5).
             non_linearity (optional, bool): Does the last layer use nonlinear activation. (Default: ``True``).
         """
         super(InceptionBlock, self).__init__()
-        branch_features = int(in_channels * expand_factor)
+        branch_features = int(in_channels // 4)
 
         self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
 
@@ -266,27 +170,29 @@ class InceptionBlock(nn.Module):
         self.branch1_3 = Conv(branch_features // 4, branch_features // 2, kernel_size=3, stride=1, padding=1)
 
         # InvertedResidual style layer
-        self.branch2_1 = Conv(in_channels, branch_features * 2, kernel_size=1, stride=1, padding=0)
-        self.branch2_2 = dw_conv(branch_features * 2, branch_features * 2, kernel_size=3, stride=1, padding=1)
-        self.branch2_3 = Conv(branch_features * 2, branch_features, kernel_size=1, stride=1, padding=0, act=False)
+        self.branch2_1 = Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0)
+        self.branch2_2 = dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1)
+        self.branch2_3 = Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0, act=False)
 
         # Inception style layer 1
         self.branch3 = nn.Sequential(
-            Conv(in_channels, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0)
+            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0, act=False)
         )
 
         # Inception style layer 2
         self.branch4 = nn.Sequential(
-            Conv(in_channels, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
             dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
-            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0)
+            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0, act=False)
         )
 
         self.branch_concat = Conv(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0)
 
-        self.conv1x1 = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv1x1 = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
         self.frelu = FReLU(out_channels) if non_linearity else None
         self.scale_ratio = scale_ratio
@@ -338,22 +244,20 @@ class InceptionDenseBlock(nn.Module):
     r""" Inception dense network.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, expand_factor=0.25, scale_ratio: float = 0.2) -> None:
+    def __init__(self, channels: int, growth_channels: int = 32, scale_ratio: float = 0.2) -> None:
         r""" Modules introduced in InceptionV4 paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            expand_factor (optional, float): Number of channels produced by the expand convolution. (Default: 0.5).
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.2).
+            channels (int): Number of channels in the input image.
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
         """
         super(InceptionDenseBlock, self).__init__()
-        hidden_channels = int(in_channels * expand_factor)
-        self.IB1 = InceptionBlock(in_channels + 0 * hidden_channels, hidden_channels, expand_factor)
-        self.IB2 = InceptionBlock(in_channels + 1 * hidden_channels, hidden_channels, expand_factor)
-        self.IB3 = InceptionBlock(in_channels + 2 * hidden_channels, hidden_channels, expand_factor)
-        self.IB4 = InceptionBlock(in_channels + 3 * hidden_channels, hidden_channels, expand_factor)
-        self.IB5 = InceptionBlock(in_channels + 4 * hidden_channels, out_channels, expand_factor, False)
+        self.IB1 = InceptionBlock(channels + 0 * growth_channels, growth_channels)
+        self.IB2 = InceptionBlock(channels + 1 * growth_channels, growth_channels)
+        self.IB3 = InceptionBlock(channels + 2 * growth_channels, growth_channels)
+        self.IB4 = InceptionBlock(channels + 3 * growth_channels, growth_channels)
+        self.IB5 = InceptionBlock(channels + 4 * growth_channels, channels, non_linearity=False)
 
         self.scale_ratio = scale_ratio
 
@@ -378,20 +282,18 @@ class BioNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         self.trunk_a = nn.Sequential(
-            SymmetricDenseBlock(64, 64),
-            SymmetricDenseBlock(64, 64)
+            SymmetricBlock(64, 64),
+            SymmetricBlock(64, 64)
         )
         self.trunk_b = nn.Sequential(
-            DepthwiseDenseBlock(64, 64),
-            DepthwiseDenseBlock(64, 64)
+            DepthwiseBlock(64),
+            DepthwiseBlock(64)
         )
         self.trunk_c = nn.Sequential(
-            InceptionDenseBlock(64, 64),
-            InceptionDenseBlock(64, 64)
-        )
-        self.trunk_d = nn.Sequential(
-            DepthwiseDenseBlock(64, 64),
-            DepthwiseDenseBlock(64, 64)
+            InceptionDenseBlock(64, 32, 0.2),
+            InceptionDenseBlock(64, 32, 0.2),
+            InceptionDenseBlock(64, 32, 0.2),
+            InceptionDenseBlock(64, 32, 0.2)
         )
 
         self.bionet = InceptionBlock(64, 64)
@@ -404,26 +306,28 @@ class BioNet(nn.Module):
                 InceptionBlock(64, 64),
                 dw_conv(64, 64, kernel_size=3, stride=1, padding=1),
                 Conv(64, 256, kernel_size=1, stride=1, padding=0),
-                nn.LeakyReLU(negative_slope=0.2, inplace=True),
                 nn.PixelShuffle(upscale_factor=2),
                 InceptionBlock(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Sequential(
+            dw_conv(64, 64, kernel_size=3, stride=1, padding=1),
+            Conv(64, 64, kernel_size=1, stride=1, padding=0)
+        )
 
         # Final output layer
-        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
+        self.conv3 = Conv(64, 3, kernel_size=3, stride=1, padding=1, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
         conv1 = self.conv1(input)
 
         # U-Net trunk.
-        trunk = self.trunk_a(conv1)
+        trunk_a = self.trunk_a(conv1)
         # Concat conv1 and trunk a.
-        out1 = torch.add(conv1, trunk)
+        out1 = torch.add(conv1, trunk_a)
 
         # MobileNet trunk.
         trunk_b = self.trunk_b(out1)
@@ -435,13 +339,8 @@ class BioNet(nn.Module):
         # Concat conv1 and trunk-c.
         out3 = torch.add(conv1, trunk_c)
 
-        # MobileNet trunk.
-        trunk_d = self.trunk_d(out3)
-        # Concat conv1 and trunk-d.
-        out4 = torch.add(conv1, trunk_d)
-
         # InceptionX layer.
-        bionet = self.bionet(out4)
+        bionet = self.bionet(out3)
         # Concat conv1 and bionet layer.
         out = torch.add(conv1, bionet)
 
