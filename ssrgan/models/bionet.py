@@ -253,18 +253,16 @@ class BioNet(nn.Module):
 
         self.trunk_a = nn.Sequential(
             SymmetricBlock(64),
-            DepthwiseBlock(64),
-            InceptionDenseBlock(64),
-            DepthwiseBlock(64),
+            SymmetricBlock(64),
+            SymmetricBlock(64),
             SymmetricBlock(64)
         )
 
         self.trunk_b = nn.Sequential(
-            InceptionDenseBlock(64),
-            DepthwiseBlock(64),
-            SymmetricBlock(64),
-            DepthwiseBlock(64),
-            InceptionDenseBlock(64),
+            InceptionBlock(64, 64),
+            InceptionBlock(64, 64),
+            InceptionBlock(64, 64),
+            InceptionBlock(64, 64)
         )
 
         self.bionet = InceptionBlock(64, 64)
@@ -274,10 +272,10 @@ class BioNet(nn.Module):
         for _ in range(num_upsample_block):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                SymmetricBlock(64),
+                InceptionBlock(64, 64),
                 Conv(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
-                SymmetricBlock(64)
+                InceptionBlock(64, 64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
@@ -291,12 +289,12 @@ class BioNet(nn.Module):
         # First conv layer.
         conv1 = self.conv1(input)
 
-        # U-Net+MobileNet+IDB trunk.
+        # U-Net trunk.
         trunk_a = self.trunk_a(conv1)
         # Concat conv1 and trunk a.
         out1 = torch.add(conv1, trunk_a)
 
-        # Inception+MobileNet+IDB trunk.
+        # InceptionX trunk.
         trunk_b = self.trunk_b(out1)
         # Concat conv1 and trunk b.
         out2 = torch.add(conv1, trunk_b)
