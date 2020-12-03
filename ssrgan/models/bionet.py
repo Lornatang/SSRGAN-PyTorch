@@ -53,18 +53,14 @@ class SymmetricBlock(nn.Module):
         self.down = nn.Sequential(
             Conv(channels, channels // 2, kernel_size=3, stride=2, padding=1),
             dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(channels // 2, channels // 4, kernel_size=1, stride=1, padding=0),
-            dw_conv(channels // 4, channels // 4, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(channels // 4, channels // 8, kernel_size=1, stride=1, padding=0, act=False)
+            Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
         )
 
         # Up sampling.
         self.up = nn.Sequential(
-            nn.ConvTranspose2d(channels // 8, channels // 4, kernel_size=2, stride=2),
-            dw_conv(channels // 4, channels // 4, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(channels // 4, channels // 2, kernel_size=1, stride=1, padding=0),
+            nn.ConvTranspose2d(channels // 2, channels // 2, kernel_size=2, stride=2),
             dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0, act=False)
+            Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0),
         )
 
         for m in self.modules():
@@ -102,13 +98,13 @@ class DepthwiseBlock(nn.Module):
         self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # pw
-        self.pointwise = Conv(channels, channels // 2, kernel_size=1, stride=1, padding=0)
+        self.pointwise = Conv(channels, channels, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3)
+        self.depthwise = dw_conv(channels, channels, kernel_size=3, stride=1, padding=3, dilation=3)
 
         # pw-linear
-        self.pointwise_linear = Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.pointwise_linear = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # 1x1 nonlinear characteristic output.
@@ -251,21 +247,32 @@ class BioNet(nn.Module):
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
-        self.trunk_a = nn.Sequential(
-            SymmetricBlock(64),
-            SymmetricBlock(64),
-            SymmetricBlock(64),
-            SymmetricBlock(64)
-        )
+        trunk = []
+        for _ in range(23):
+            trunk.append(SymmetricBlock(64))
+        self.trunk = nn.Sequential(*trunk)
 
-        self.trunk_b = nn.Sequential(
-            InceptionBlock(64, 64),
-            InceptionBlock(64, 64),
-            InceptionBlock(64, 64),
-            InceptionBlock(64, 64)
-        )
+        # self.trunk_a = nn.Sequential(
+        #     SymmetricBlock(64),
+        #     SymmetricBlock(64)
+        # )
+        #
+        # self.trunk_b = nn.Sequential(
+        #     DepthwiseBlock(64),
+        #     DepthwiseBlock(64)
+        # )
+        #
+        # self.trunk_c = nn.Sequential(
+        #     InceptionBlock(64, 64),
+        #     InceptionBlock(64, 64)
+        # )
+        #
+        # self.trunk_d = nn.Sequential(
+        #     DepthwiseBlock(64),
+        #     DepthwiseBlock(64)
+        # )
 
-        self.bionet = InceptionBlock(64, 64)
+        self.conv2 = Conv(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Upsampling layers
         upsampling = []
@@ -280,36 +287,48 @@ class BioNet(nn.Module):
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = Conv(64, 64, kernel_size=3, stride=1, padding=1)
+        self.conv3 = Conv(64, 64, kernel_size=3, stride=1, padding=1)
 
         # Final output layer.
-        self.conv3 = Conv(64, 3, kernel_size=3, stride=1, padding=1, act=False)
+        self.conv4 = Conv(64, 3, kernel_size=3, stride=1, padding=1, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
         conv1 = self.conv1(input)
 
-        # U-Net trunk.
-        trunk_a = self.trunk_a(conv1)
-        # Concat conv1 and trunk a.
-        out1 = torch.add(conv1, trunk_a)
+        # # U-Net trunk.
+        # trunk_a = self.trunk_a(conv1)
+        # # Concat conv1 and trunk a.
+        # out1 = torch.add(conv1, trunk_a)
+        #
+        # # MobileNet trunk.
+        # trunk_b = self.trunk_b(out1)
+        # # Concat conv1 and trunk b.
+        # out2 = torch.add(conv1, trunk_b)
+        #
+        # # InceptionX trunk.
+        # trunk_c = self.trunk_c(out2)
+        # # Concat conv1 and trunk c.
+        # out3 = torch.add(conv1, trunk_c)
+        #
+        # # MobileNet trunk.
+        # trunk_d = self.trunk_b(out3)
+        # # Concat conv1 and trunk d.
+        # out4 = torch.add(conv1, trunk_d)
 
-        # InceptionX trunk.
-        trunk_b = self.trunk_b(out1)
-        # Concat conv1 and trunk b.
-        out2 = torch.add(conv1, trunk_b)
+        out = self.trunk(conv1)
 
         # InceptionX layer.
-        bionet = self.bionet(out2)
-        # Concat conv1 and bionet layer.
-        out = torch.add(conv1, bionet)
+        conv2 = self.conv2(out)
+        # Concat conv1 and conv2 layer.
+        out = torch.add(conv1, conv2)
 
         # Upsampling layers.
         out = self.upsampling(out)
         # Next conv layer.
-        out = self.conv2(out)
-        # Final output layer.
         out = self.conv3(out)
+        # Final output layer.
+        out = self.conv4(out)
 
         return torch.tanh(out)
 
@@ -326,3 +345,23 @@ def bionet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> Bi
         state_dict = load_state_dict_from_url(model_urls["bionet"], progress=progress)
         model.load_state_dict(state_dict)
     return model
+
+
+if __name__ == '__main__':
+    import time
+
+    a = torch.randn(1, 3, 54, 54)
+    a = a.cpu()
+    from ssrgan.models import inception
+
+    model = inception().cpu()
+    start_time = time.time()
+    _ = model(a)
+    print(f"Time: {time.time() - start_time}")
+
+    from ssrgan.models import inception
+
+    model = bionet().cpu()
+    start_time = time.time()
+    _ = model(a)
+    print(f"Time: {time.time() - start_time}")
