@@ -60,8 +60,8 @@ class SymmetricBlock(nn.Module):
             nn.ConvTranspose2d(out_channels, hidden_channels, kernel_size=2, stride=2),
 
             # Residual block.
-            Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, act=False),
-            Conv(hidden_channels, in_channels, kernel_size=3, stride=1, padding=1, act=False),
+            Conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1),
+            Conv(hidden_channels, in_channels, kernel_size=3, stride=1, padding=1)
         )
 
         for m in self.modules():
