@@ -47,31 +47,24 @@ class SymmetricBlock(nn.Module):
             channels (int): Number of channels in the input/output image.
         """
         super(SymmetricBlock, self).__init__()
-        hidden_channels = int(channels // 2)
-        # shortcut layer
         self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # Down sampling.
         self.down = nn.Sequential(
-            dw_conv(channels, hidden_channels, kernel_size=3, stride=2, padding=1, dilation=1),
-            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False),
-
-            # Residual block.
-            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, dilation=1),
-            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False),
-            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False)
+            Conv(channels, channels // 2, kernel_size=3, stride=2, padding=1),
+            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(channels // 2, channels // 4, kernel_size=1, stride=1, padding=0),
+            dw_conv(channels // 4, channels // 4, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(channels // 4, channels // 8, kernel_size=1, stride=1, padding=0, act=False)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
-            nn.ConvTranspose2d(hidden_channels, hidden_channels, kernel_size=2, stride=2),
-
-            # Residual block.
-            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=1, dilation=1),
-            Conv(hidden_channels, hidden_channels, kernel_size=1, stride=1, padding=0, act=False),
-            dw_conv(hidden_channels, hidden_channels, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(hidden_channels, channels, kernel_size=1, stride=1, padding=0, act=False)
+            nn.ConvTranspose2d(channels // 8, channels // 4, kernel_size=2, stride=2),
+            dw_conv(channels // 4, channels // 4, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(channels // 4, channels // 2, kernel_size=1, stride=1, padding=0),
+            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3),
+            Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0, act=False)
         )
 
         for m in self.modules():
@@ -94,14 +87,13 @@ class SymmetricBlock(nn.Module):
 
 
 class DepthwiseBlock(nn.Module):
-    r""" Base on MobileNetV2 + Squeeze-and-Excite.
+    r""" Improved convolution method based on MobileNet-v2 version.
 
-    `"Searching for MobileNetV3" <https://arxiv.org/pdf/1905.02244.pdf>`_ paper.
-
+    `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/abs/1801.04381>`_ paper.
     """
 
     def __init__(self, channels: int) -> None:
-        r""" Modules introduced in MobileNetV3 paper.
+        r""" Modules introduced in MobileNetV2 paper.
 
         Args:
             channels (int): Number of channels in the input/output image.
@@ -110,13 +102,13 @@ class DepthwiseBlock(nn.Module):
         self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # pw
-        self.pointwise = Conv(channels, channels, kernel_size=1, stride=1, padding=0)
+        self.pointwise = Conv(channels, channels // 2, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = dw_conv(channels, channels, kernel_size=3, stride=1, padding=1)
+        self.depthwise = dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3)
 
         # pw-linear
-        self.pointwise_linear = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.pointwise_linear = Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # 1x1 nonlinear characteristic output.
@@ -153,39 +145,38 @@ class InceptionBlock(nn.Module):
         super(InceptionBlock, self).__init__()
         branch_features = int(in_channels // 4)
 
-        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
 
-        # Squeeze style layer.
-        self.branch1_1 = Conv(in_channels, branch_features // 4, kernel_size=1, stride=1, padding=0)
-        self.branch1_2 = Conv(branch_features // 4, branch_features // 2, kernel_size=1, stride=1, padding=0)
-        self.branch1_3 = Conv(branch_features // 4, branch_features // 2, kernel_size=3, stride=1, padding=1)
-
-        # InvertedResidual style layer
-        self.branch2_1 = Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0)
-        self.branch2_2 = dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1)
-        self.branch2_3 = Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0, act=False)
-
-        # Inception style layer 1
+        self.branch1 = nn.Sequential(
+            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
+            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
+            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
+        )
+        self.branch2 = nn.Sequential(
+            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
+        )
         self.branch3 = nn.Sequential(
             Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
-            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0, act=False)
+            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
         )
-
-        # Inception style layer 2
         self.branch4 = nn.Sequential(
             Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
-            dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
-            Conv(branch_features, branch_features, kernel_size=1, stride=1, padding=0, act=False)
+            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
+            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
+            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
         )
 
         self.branch_concat = Conv(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0)
 
         self.conv1x1 = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
-
         self.frelu = FReLU(out_channels) if non_linearity else None
+
         self.scale_ratio = scale_ratio
 
         for m in self.modules():
@@ -198,32 +189,20 @@ class InceptionBlock(nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         shortcut = self.shortcut(input)
 
-        # Squeeze layer.
-        branch1_1 = self.branch1_1(input)  # Squeeze convolution
-        branch1_2 = self.branch1_2(branch1_1)  # Expand convolution 1x1
-        branch1_3 = self.branch1_3(branch1_1)  # Expand convolution 3x3
-        squeeze_out = torch.cat([branch1_2, branch1_3], dim=1)
-
-        # InvertedResidual layer.
-        branch2_1 = self.branch2_1(input)
-        branch2_2 = self.branch2_2(branch2_1)
-        mobile_out = self.branch2_3(branch2_2)
-
-        # Concat Squeeze and InvertedResidual layer.
-        branch_concat1_2 = torch.cat([squeeze_out, mobile_out], dim=1)
-        branch_out1 = self.branch_concat(branch_concat1_2)
-
-        # Inception layer
-        branch3 = self.branch3(input)
+        branch1 = self.branch1(input)
         branch4 = self.branch4(input)
-        branch_concat3_4 = torch.cat([branch3, branch4], dim=1)
-        branch_out2 = self.branch_concat(branch_concat3_4)
+        branch_concat1_4 = torch.cat([branch1, branch4], dim=1)
+        branch_out1 = self.branch_concat(branch_concat1_4)
+
+        branch2 = self.branch2(input)
+        branch3 = self.branch3(input)
+        branch_concat2_3 = torch.cat([branch2, branch3], dim=1)
+        branch_out2 = self.branch_concat(branch_concat2_3)
 
         # Concat layer
         out = torch.cat([branch_out1, branch_out2], dim=1)
         out = self.conv1x1(out)
 
-        # Out and input fusion.
         out = out + shortcut.mul(self.scale_ratio)
         if self.frelu is not None:
             out = self.frelu(out)
@@ -274,17 +253,18 @@ class BioNet(nn.Module):
 
         self.trunk_a = nn.Sequential(
             SymmetricBlock(64),
+            DepthwiseBlock(64),
+            InceptionDenseBlock(64),
+            DepthwiseBlock(64),
             SymmetricBlock(64)
         )
+
         self.trunk_b = nn.Sequential(
+            InceptionDenseBlock(64),
             DepthwiseBlock(64),
-            DepthwiseBlock(64)
-        )
-        self.trunk_c = nn.Sequential(
-            InceptionBlock(64, 64),
-            InceptionBlock(64, 64),
-            InceptionBlock(64, 64),
-            InceptionBlock(64, 64)
+            SymmetricBlock(64),
+            DepthwiseBlock(64),
+            InceptionDenseBlock(64),
         )
 
         self.bionet = InceptionBlock(64, 64)
@@ -294,43 +274,35 @@ class BioNet(nn.Module):
         for _ in range(num_upsample_block):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                InceptionBlock(64, 64),
-                dw_conv(64, 64, kernel_size=3, stride=1, padding=1),
-                Conv(64, 256, kernel_size=1, stride=1, padding=0),
+                SymmetricBlock(64),
+                Conv(64, 256, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
-                InceptionBlock(64, 64)
+                SymmetricBlock(64)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv2 = nn.Sequential(
-            dw_conv(64, 64, kernel_size=3, stride=1, padding=1),
-            Conv(64, 64, kernel_size=1, stride=1, padding=0)
-        )
+        self.conv2 = Conv(64, 64, kernel_size=3, stride=1, padding=1)
+
         # Final output layer.
-        self.conv3 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
+        self.conv3 = Conv(64, 3, kernel_size=3, stride=1, padding=1, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
         conv1 = self.conv1(input)
 
-        # U-Net trunk.
+        # U-Net+MobileNet+IDB trunk.
         trunk_a = self.trunk_a(conv1)
         # Concat conv1 and trunk a.
         out1 = torch.add(conv1, trunk_a)
 
-        # MobileNet trunk.
+        # Inception+MobileNet+IDB trunk.
         trunk_b = self.trunk_b(out1)
         # Concat conv1 and trunk b.
         out2 = torch.add(conv1, trunk_b)
 
-        # InceptionX trunk.
-        trunk_c = self.trunk_c(out2)
-        # Concat conv1 and trunk-c.
-        out3 = torch.add(conv1, trunk_c)
-
         # InceptionX layer.
-        bionet = self.bionet(out3)
+        bionet = self.bionet(out2)
         # Concat conv1 and bionet layer.
         out = torch.add(conv1, bionet)
 
