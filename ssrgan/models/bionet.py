@@ -47,20 +47,23 @@ class SymmetricBlock(nn.Module):
             channels (int): Number of channels in the input/output image.
         """
         super(SymmetricBlock, self).__init__()
-        self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
 
         # Down sampling.
         self.down = nn.Sequential(
             Conv(channels, channels // 2, kernel_size=3, stride=2, padding=1),
-            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3),
+            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
+            Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
+            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
             Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
         )
 
         # Up sampling.
         self.up = nn.Sequential(
-            nn.ConvTranspose2d(channels // 2, channels // 2, kernel_size=2, stride=2),
-            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=3, dilation=3),
-            Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0),
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
+            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
+            Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
+            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
+            Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0)
         )
 
         for m in self.modules():
@@ -71,15 +74,12 @@ class SymmetricBlock(nn.Module):
                     m.bias.data.zero_()
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # 1x1 nonlinear characteristic output.
-        shortcut = self.shortcut(input)
-
         # Down sampling.
         out = self.down(input)
         # Up sampling.
         out = self.up(out)
 
-        return out + shortcut
+        return out + input
 
 
 class DepthwiseBlock(nn.Module):
@@ -95,21 +95,23 @@ class DepthwiseBlock(nn.Module):
             channels (int): Number of channels in the input/output image.
         """
         super(DepthwiseBlock, self).__init__()
-        self.shortcut = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
-
         # pw
-        self.pointwise = Conv(channels, channels, kernel_size=1, stride=1, padding=0)
+        self.pointwise = Conv(channels, channels // 2, kernel_size=1, stride=1, padding=0)
 
         # dw
-        self.depthwise = dw_conv(channels, channels, kernel_size=3, stride=1, padding=3, dilation=3)
+        self.depthwise = dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1)
 
         # pw-linear
-        self.pointwise_linear = Conv(channels, channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.pointwise_linear = Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0, act=False)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # 1x1 nonlinear characteristic output.
-        shortcut = self.shortcut(input)
-
         # Expansion convolution
         out = self.pointwise(input)
         # DepthWise convolution
@@ -117,7 +119,7 @@ class DepthwiseBlock(nn.Module):
         # Projection convolution
         out = self.pointwise_linear(out)
 
-        return out + shortcut
+        return out + input
 
 
 class InceptionBlock(nn.Module):
@@ -146,31 +148,27 @@ class InceptionBlock(nn.Module):
         self.branch1 = nn.Sequential(
             Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
-            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
             Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
         )
         self.branch2 = nn.Sequential(
             Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
-            dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
             Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
         )
         self.branch3 = nn.Sequential(
             Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
         )
         self.branch4 = nn.Sequential(
             Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
             dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
-            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
             Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
         )
 
-        self.branch_concat = Conv(branch_features * 2, branch_features * 2, kernel_size=1, stride=1, padding=0)
+        self.fusion_conv_2_3 = Conv(branch_features * 2, branch_features * 2, 1, 1, 0, act=False)
+        self.fusion_conv_1_2_3_4 = Conv(in_channels, out_channels, 1, 1, 0, act=False)
 
-        self.conv1x1 = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
         self.frelu = FReLU(out_channels) if non_linearity else None
 
         self.scale_ratio = scale_ratio
@@ -185,21 +183,18 @@ class InceptionBlock(nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         shortcut = self.shortcut(input)
 
-        branch1 = self.branch1(input)
-        branch4 = self.branch4(input)
-        branch_concat1_4 = torch.cat([branch1, branch4], dim=1)
-        branch_out1 = self.branch_concat(branch_concat1_4)
+        branch_out_1 = self.branch1(input)
+        branch_out_2 = self.branch2(input)
+        branch_out_3 = self.branch3(input)
+        branch_out_4 = self.branch4(input)
 
-        branch2 = self.branch2(input)
-        branch3 = self.branch3(input)
-        branch_concat2_3 = torch.cat([branch2, branch3], dim=1)
-        branch_out2 = self.branch_concat(branch_concat2_3)
+        branch_concat_2_3 = torch.cat([branch_out_2, branch_out_3], dim=1)
+        branch_out_2_3 = self.fusion_conv_2_3(branch_concat_2_3)
 
-        # Concat layer
-        out = torch.cat([branch_out1, branch_out2], dim=1)
-        out = self.conv1x1(out)
+        branch_concat_1_2_3_4 = torch.cat([branch_out_1, branch_out_2_3, branch_out_4], dim=1)
+        branch_out_1_2_3_4 = self.fusion_conv_1_2_3_4(branch_concat_1_2_3_4)
 
-        out = out + shortcut.mul(self.scale_ratio)
+        out = branch_out_1_2_3_4 + shortcut.mul(self.scale_ratio)
         if self.frelu is not None:
             out = self.frelu(out)
 
@@ -245,81 +240,74 @@ class BioNet(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
 
-        trunk = []
-        for _ in range(23):
-            trunk.append(SymmetricBlock(64))
-        self.trunk = nn.Sequential(*trunk)
+        self.trunk_a = nn.Sequential(
+            SymmetricBlock(32),
+            SymmetricBlock(32)
+        )
 
-        # self.trunk_a = nn.Sequential(
-        #     SymmetricBlock(64),
-        #     SymmetricBlock(64)
-        # )
-        #
-        # self.trunk_b = nn.Sequential(
-        #     DepthwiseBlock(64),
-        #     DepthwiseBlock(64)
-        # )
-        #
-        # self.trunk_c = nn.Sequential(
-        #     InceptionBlock(64, 64),
-        #     InceptionBlock(64, 64)
-        # )
-        #
-        # self.trunk_d = nn.Sequential(
-        #     DepthwiseBlock(64),
-        #     DepthwiseBlock(64)
-        # )
+        self.trunk_b = nn.Sequential(
+            DepthwiseBlock(32),
+            DepthwiseBlock(32)
+        )
 
-        self.conv2 = Conv(64, 64, kernel_size=3, stride=1, padding=1)
+        self.trunk_c = nn.Sequential(
+            InceptionBlock(32, 32),
+            InceptionBlock(32, 32)
+        )
+
+        self.trunk_d = nn.Sequential(
+            DepthwiseBlock(32),
+            DepthwiseBlock(32)
+        )
+
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
 
         # Upsampling layers
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                InceptionBlock(64, 64),
-                Conv(64, 256, kernel_size=3, stride=1, padding=1),
+                InceptionBlock(32, 32),
+                Conv(32, 128, kernel_size=3, stride=1, padding=1),
                 nn.PixelShuffle(upscale_factor=2),
-                InceptionBlock(64, 64)
+                InceptionBlock(32, 32)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv3 = Conv(64, 64, kernel_size=3, stride=1, padding=1)
+        self.conv3 = Conv(32, 32, kernel_size=3, stride=1, padding=1)
 
         # Final output layer.
-        self.conv4 = Conv(64, 3, kernel_size=3, stride=1, padding=1, act=False)
+        self.conv4 = Conv(32, 3, kernel_size=3, stride=1, padding=1, act=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
         conv1 = self.conv1(input)
 
-        # # U-Net trunk.
-        # trunk_a = self.trunk_a(conv1)
-        # # Concat conv1 and trunk a.
-        # out1 = torch.add(conv1, trunk_a)
-        #
-        # # MobileNet trunk.
-        # trunk_b = self.trunk_b(out1)
-        # # Concat conv1 and trunk b.
-        # out2 = torch.add(conv1, trunk_b)
-        #
-        # # InceptionX trunk.
-        # trunk_c = self.trunk_c(out2)
-        # # Concat conv1 and trunk c.
-        # out3 = torch.add(conv1, trunk_c)
-        #
-        # # MobileNet trunk.
-        # trunk_d = self.trunk_b(out3)
-        # # Concat conv1 and trunk d.
-        # out4 = torch.add(conv1, trunk_d)
+        # U-Net trunk.
+        trunk_a = self.trunk_a(conv1)
+        # Concat conv1 and trunk a.
+        out1 = torch.add(conv1, trunk_a)
 
-        out = self.trunk(conv1)
+        # MobileNet trunk.
+        trunk_b = self.trunk_b(out1)
+        # Concat conv1 and trunk b.
+        out2 = torch.add(conv1, trunk_b)
 
-        # InceptionX layer.
-        conv2 = self.conv2(out)
+        # InceptionX trunk.
+        trunk_c = self.trunk_c(out2)
+        # Concat conv1 and trunk c.
+        out3 = torch.add(conv1, trunk_c)
+
+        # MobileNet trunk.
+        trunk_d = self.trunk_b(out3)
+        # Concat conv1 and trunk d.
+        out4 = torch.add(conv1, trunk_d)
+
+        # conv2 layer.
+        conv2 = self.conv2(out4)
         # Concat conv1 and conv2 layer.
         out = torch.add(conv1, conv2)
 
@@ -350,18 +338,23 @@ def bionet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> Bi
 if __name__ == '__main__':
     import time
 
-    a = torch.randn(1, 3, 54, 54)
+    a = torch.randn(1, 32, 54, 54)
     a = a.cpu()
-    from ssrgan.models import inception
 
-    model = inception().cpu()
+    from ssrgan.models import mobilenetv1
+    from ssrgan.models import srgan
+
+    model = SymmetricBlock(32).cpu()
     start_time = time.time()
     _ = model(a)
-    print(f"Time: {time.time() - start_time}")
+    print(f"SymmetricBlock inference time: {(time.time() - start_time) * 1000:.2f}ms.")
 
-    from ssrgan.models import inception
-
-    model = bionet().cpu()
+    model = DepthwiseBlock(32).cpu()
     start_time = time.time()
     _ = model(a)
-    print(f"Time: {time.time() - start_time}")
+    print(f"Depthwise inference time: {(time.time() - start_time) * 1000:.2f}ms.")
+
+    # model = bionet().cpu()
+    # start_time = time.time()
+    # _ = model(a)
+    # print(f"BioNet inference time: {(time.time() - start_time) * 1000:.2f}ms.")

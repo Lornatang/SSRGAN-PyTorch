@@ -80,21 +80,22 @@ def dw_conv(i, o, kernel_size=1, stride=1, padding=None, dilation=1, act=True):
 
 
 class Conv(nn.Module):
-    r""" Standard convolution
-
-    Args:
-        i (int): Number of channels in the input image.
-        o (int): Number of channels produced by the convolution.
-        kernel_size (int or tuple): Size of the convolving kernel. (Default: 1).
-        stride (optional, int or tuple): Stride of the convolution. (Default: 1).
-        padding (optional, int or tuple): Zero-padding added to both sides of
-            the input. Default: ``None``.
-        dilation (int or tuple, optional): Spacing between kernel elements. (Default: 1).
-        groups (optional, int): Number of blocked connections from input channels to output channels. (Default: 1).
-        act (optional, bool): Whether to use activation function. (Default: ``True``).
+    r""" Standard convolution.
     """
 
     def __init__(self, i, o, kernel_size=1, stride=1, padding=None, dilation=1, groups=1, act=True) -> None:
+        """
+        Args:
+            i (int): Number of channels in the input image.
+            o (int): Number of channels produced by the convolution.
+            kernel_size (int or tuple): Size of the convolving kernel. (Default: 1).
+            stride (optional, int or tuple): Stride of the convolution. (Default: 1).
+            padding (optional, int or tuple): Zero-padding added to both sides of
+                the input. Default: ``None``.
+            dilation (int or tuple, optional): Spacing between kernel elements. (Default: 1).
+            groups (optional, int): Number of blocked connections from input channels to output channels. (Default: 1).
+            act (optional, bool): Whether to use activation function. (Default: ``True``).
+        """
         super(Conv, self).__init__()
         self.conv = nn.Conv2d(i, o, kernel_size, stride, auto_padding(kernel_size, padding), dilation=dilation,
                               groups=groups, bias=False)
@@ -102,3 +103,66 @@ class Conv(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.conv(x))
+
+
+class SPConv(nn.Module):
+    r""" Split convolution.
+    """
+
+    def __init__(self, in_channels, out_channels, stride=1, scale_factor=2):
+        """
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+            stride (optional, int or tuple): Stride of the convolution. (Default: 1).
+            scale_factor (optional, int): Channel number scaling size. (Default: 2).
+        """
+        super(SPConv, self).__init__()
+        self.i = in_channels
+        self.o = out_channels
+        self.s = stride
+        self.scale_factor = scale_factor
+
+        self.i_3x3 = int(self.i // self.scale_factor)
+        self.o_3x3 = int(self.o // self.scale_factor)
+        self.i_1x1 = self.i - self.i_3x3
+        self.o_1x1 = self.o - self.o_3x3
+
+        self.depthwise_conv = nn.Conv2d(self.i_3x3, self.o, 3, self.stride, 1, groups=2, bias=False)
+        self.pointwise_conv = nn.Conv2d(self.i_3x3, self.o, 1, 1, 0, bias=False)
+
+        self.conv1x1 = nn.Conv2d(self.in_channels_1x1, self.out_channels, kernel_size=1)
+        self.bn = nn.BatchNorm2d(self.out_channels)
+        self.groups = int(1 * self.scale_factor)
+        self.avgpool_stride = nn.AvgPool2d(kernel_size=2, stride=2)
+        self.avgpool_add = nn.AdaptiveAvgPool2d(1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size, channel, _, _ = x.size()
+
+        # Split conv3x3
+        x_3x3 = x[:, :int(channel // self.scale_factor), :, :]
+        depthwise_out_3x3 = self.depthwise_conv(x_3x3)
+        if self.stride == 2:
+            x_3x3 = self.avgpool_stride(x_3x3)
+        pointwise_out_3x3 = self.pointwise_conv(x_3x3)
+        out_3x3 = depthwise_out_3x3 + pointwise_out_3x3
+        out_3x3 = self.bn(out_3x3)
+        out_3x3_ratio = self.avgpool_add(out_3x3).squeeze(dim=3).squeeze(dim=2)
+
+        # Split conv1x1.
+        x_1x1 = x[:, int(channel // self.scale_factor):, :, :]
+        # use avgpool first to reduce information lost.
+        if self.stride == 2:
+            x_1x1 = self.avgpool_stride(x_1x1)
+        out_1x1 = self.conv1x1(x_1x1)
+        out_1x1 = self.bn(out_1x1)
+        out_1x1_ratio = self.avgpool_add(out_1x1).squeeze(dim=3).squeeze(dim=2)
+
+        out_31_ratio = torch.stack((out_3x3_ratio, out_1x1_ratio), 2)
+        out_31_ratio = nn.Softmax(dim=2)(out_31_ratio)
+        out_3x3 = out_3x3 * (out_31_ratio[:, :, 0].view(batch_size, self.o, 1, 1).expand_as(out_3x3))
+        out_1x1 = out_1x1 * (out_31_ratio[:, :, 1].view(batch_size, self.outplanes, 1, 1).expand_as(out_1x1))
+        out = out_3x3 + out_1x1
+
+        return out

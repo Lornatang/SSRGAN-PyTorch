@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 import logging
+import math
 import os
 
 import cv2
@@ -50,7 +51,7 @@ class Test(object):
                     f"\tLoad dataset to CUDA")
 
     def run(self):
-        # Evaluate algorithm performance
+        # Evaluate algorithm performance.
         total_mse_value = 0.0
         total_rmse_value = 0.0
         total_psnr_value = 0.0
@@ -61,7 +62,7 @@ class Test(object):
         total_vif_value = 0.0
         total_lpips_value = 0.0
 
-        # Start evaluate model performance
+        # Start evaluate model performance.
         progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
         # Concat image.
         images = []
@@ -76,10 +77,14 @@ class Test(object):
             vutils.save_image(hr, f"./{self.args.outf}/hr_{i}.bmp")  # Save high resolution image.
 
             # Evaluate performance
-            value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
-                                             self.args.detail, self.device)
+            if self.args.quickly:
+                mse_value = ((sr - hr) ** 2).data.mean()
+                psnr_value = 10 * math.log10(1. / mse_value)
+                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] PSNR: {psnr_value:.2f}dB.")
+            else:
+                value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
+                                                 self.args.detail, self.device)
 
-            if self.args.detail:
                 total_mse_value += value[0]
                 total_rmse_value += value[1]
                 total_psnr_value += value[2]
@@ -92,12 +97,6 @@ class Test(object):
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
                                              f"PSNR: {value[2]:.2f}dB "
                                              f"SSIM: {value[3][0]:.4f}")
-            else:
-                total_psnr_value += value[0]
-                total_ssim_value += value[1][0]
-                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
-                                             f"PSNR: {value[0]:.2f}dB "
-                                             f"SSIM: {value[1][0]:.4f}")
 
             images.extend([hr.data.cpu().squeeze(0), bicubic.squeeze(0), sr.data.cpu().squeeze(0)])
 
@@ -113,7 +112,9 @@ class Test(object):
         print(f"Performance avg results:\n")
         print(f"indicator Score\n")
         print(f"--------- -----\n")
-        if self.args.detail:
+        if self.args.quickly:
+            print(f"PSNR      {total_psnr_value / len(self.dataloader):.1f}\n")
+        else:
             print(f"MSE       {total_mse_value / len(self.dataloader):.2f}\n"
                   f"RMSE      {total_rmse_value / len(self.dataloader):.2f}\n"
                   f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
@@ -123,9 +124,6 @@ class Test(object):
                   f"SAM       {total_sam_value / len(self.dataloader):.4f}\n"
                   f"VIF       {total_vif_value / len(self.dataloader):.4f}\n"
                   f"LPIPS     {total_lpips_value / len(self.dataloader):.4f}\n")
-        else:
-            print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"SSIM      {total_ssim_value / len(self.dataloader):.4f}\n")
 
 
 class Estimate(object):

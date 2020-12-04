@@ -37,8 +37,8 @@ if __name__ == "__main__":
                         help="The location of the image in the evaluation process. (default: ``test``).")
     parser.add_argument("--device", default="",
                         help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
-    parser.add_argument("--detail", dest="detail", action="store_true",
-                        help="Use comprehensive assessment.")
+    parser.add_argument("--quickly", dest="quickly", action="store_true",
+                        help="Only evaluation PSNR. It is very quickly.")
 
     # model parameters
     parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     print(args)
 
     create_folder(args.outf)
-    detail = True if args.detail else False
+    quickly = True if args.quickly else False
 
     logger.info("TestEngine:")
     print("\tAPI version .......... 0.1.1")
