@@ -39,8 +39,8 @@ if __name__ == "__main__":
                         help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
 
     # log parameters
-    parser.add_argument("--save-freq", type=int, default=5000,
-                        help="frequency of evaluating and save the model.")
+    parser.add_argument("-p", "--print-freq", default=10, type=int,
+                        metavar="N", help="Print frequency. (default: 10).")
 
     # model parameters
     parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
@@ -54,10 +54,10 @@ if __name__ == "__main__":
                         help="Path to latest checkpoint for model. (default: ````).")
     parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                         help="Use pre-trained model.")
-    parser.add_argument("--resume-PSNR", action="store_true",
-                        help="Path to latest checkpoint for PSNR model.")
-    parser.add_argument("--resume", action="store_true",
-                        help="Path to latest checkpoint for Generator.")
+    parser.add_argument("--resumeD", default="", type=str, metavar="PATH",
+                        help="Path to latest discriminator checkpoint. (default: ````).")
+    parser.add_argument("--resumeG", default="", type=str, metavar="PATH",
+                        help="Path to latest generator checkpoint. (default: ````).")
 
     # training parameters
     parser.add_argument("--start-epoch", default=0, type=int, metavar="N",
