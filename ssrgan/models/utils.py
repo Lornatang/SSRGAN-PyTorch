@@ -19,7 +19,7 @@ import torch.nn as nn
 
 from ssrgan.activation import FReLU
 
-__all__ = ["auto_padding", "dw_conv", "channel_shuffle", "Conv"]
+__all__ = ["auto_padding", "dw_conv", "channel_shuffle", "Conv", "SPConv"]
 
 
 # Reference from `https://github.com/ultralytics/yolov5/blob/master/models/common.py`
@@ -109,31 +109,31 @@ class SPConv(nn.Module):
     r""" Split convolution.
     """
 
-    def __init__(self, in_channels, out_channels, stride=1, scale_factor=2):
+    def __init__(self, in_channels, out_channels, stride=1, scale_ratio=2):
         """
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
             stride (optional, int or tuple): Stride of the convolution. (Default: 1).
-            scale_factor (optional, int): Channel number scaling size. (Default: 2).
+            scale_ratio (optional, int): Channel number scaling size. (Default: 2).
         """
         super(SPConv, self).__init__()
         self.i = in_channels
         self.o = out_channels
-        self.s = stride
-        self.scale_factor = scale_factor
+        self.stride = stride
+        self.scale_ratio = scale_ratio
 
-        self.i_3x3 = int(self.i // self.scale_factor)
-        self.o_3x3 = int(self.o // self.scale_factor)
+        self.i_3x3 = int(self.i // self.scale_ratio)
+        self.o_3x3 = int(self.o // self.scale_ratio)
         self.i_1x1 = self.i - self.i_3x3
         self.o_1x1 = self.o - self.o_3x3
 
         self.depthwise_conv = nn.Conv2d(self.i_3x3, self.o, 3, self.stride, 1, groups=2, bias=False)
         self.pointwise_conv = nn.Conv2d(self.i_3x3, self.o, 1, 1, 0, bias=False)
 
-        self.conv1x1 = nn.Conv2d(self.in_channels_1x1, self.out_channels, kernel_size=1)
-        self.bn = nn.BatchNorm2d(self.out_channels)
-        self.groups = int(1 * self.scale_factor)
+        self.conv1x1 = nn.Conv2d(self.i_1x1, self.o, kernel_size=1)
+        self.bn = nn.BatchNorm2d(self.o)
+        self.groups = int(1 * self.scale_ratio)
         self.avgpool_stride = nn.AvgPool2d(kernel_size=2, stride=2)
         self.avgpool_add = nn.AdaptiveAvgPool2d(1)
 
@@ -141,7 +141,7 @@ class SPConv(nn.Module):
         batch_size, channel, _, _ = x.size()
 
         # Split conv3x3
-        x_3x3 = x[:, :int(channel // self.scale_factor), :, :]
+        x_3x3 = x[:, :int(channel // self.scale_ratio), :, :]
         depthwise_out_3x3 = self.depthwise_conv(x_3x3)
         if self.stride == 2:
             x_3x3 = self.avgpool_stride(x_3x3)
@@ -151,7 +151,7 @@ class SPConv(nn.Module):
         out_3x3_ratio = self.avgpool_add(out_3x3).squeeze(dim=3).squeeze(dim=2)
 
         # Split conv1x1.
-        x_1x1 = x[:, int(channel // self.scale_factor):, :, :]
+        x_1x1 = x[:, int(channel // self.scale_ratio):, :, :]
         # use avgpool first to reduce information lost.
         if self.stride == 2:
             x_1x1 = self.avgpool_stride(x_1x1)
@@ -162,7 +162,7 @@ class SPConv(nn.Module):
         out_31_ratio = torch.stack((out_3x3_ratio, out_1x1_ratio), 2)
         out_31_ratio = nn.Softmax(dim=2)(out_31_ratio)
         out_3x3 = out_3x3 * (out_31_ratio[:, :, 0].view(batch_size, self.o, 1, 1).expand_as(out_3x3))
-        out_1x1 = out_1x1 * (out_31_ratio[:, :, 1].view(batch_size, self.outplanes, 1, 1).expand_as(out_1x1))
+        out_1x1 = out_1x1 * (out_31_ratio[:, :, 1].view(batch_size, self.o, 1, 1).expand_as(out_1x1))
         out = out_3x3 + out_1x1
 
         return out

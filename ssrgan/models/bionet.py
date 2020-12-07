@@ -20,6 +20,7 @@ from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import FReLU
 from ssrgan.models.utils import Conv
+from ssrgan.models.utils import SPConv
 from ssrgan.models.utils import dw_conv
 
 __all__ = ["SymmetricBlock",
@@ -40,30 +41,32 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, channels: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
-            channels (int): Number of channels in the input/output image.
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
         """
         super(SymmetricBlock, self).__init__()
 
         # Down sampling.
         self.down = nn.Sequential(
-            Conv(channels, channels // 2, kernel_size=3, stride=2, padding=1),
-            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
-            Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
-            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
-            Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
+            SPConv(in_channels, in_channels, 2, 2),
+            FReLU(in_channels),
+            SPConv(in_channels, in_channels, 1, 2),
+            FReLU(in_channels),
+            SPConv(in_channels, in_channels, 1, 2),
+            FReLU(in_channels)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
-            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
-            Conv(channels // 2, channels // 2, kernel_size=1, stride=1, padding=0),
-            dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
-            Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0)
+            SPConv(in_channels, in_channels, 1, 2),
+            FReLU(in_channels),
+            SPConv(in_channels, out_channels, 1, 2),
+            FReLU(out_channels)
         )
 
         for m in self.modules():
@@ -242,25 +245,30 @@ class BioNet(nn.Module):
         # First layer
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
 
-        self.trunk_a = nn.Sequential(
-            SymmetricBlock(32),
-            SymmetricBlock(32)
-        )
+        trunk = []
+        for _ in range(8):
+            trunk.append(SymmetricBlock(32, 32))
+        self.trunk = nn.Sequential(*trunk)
 
-        self.trunk_b = nn.Sequential(
-            DepthwiseBlock(32),
-            DepthwiseBlock(32)
-        )
-
-        self.trunk_c = nn.Sequential(
-            InceptionBlock(32, 32),
-            InceptionBlock(32, 32)
-        )
-
-        self.trunk_d = nn.Sequential(
-            DepthwiseBlock(32),
-            DepthwiseBlock(32)
-        )
+        # self.trunk_a = nn.Sequential(
+        #     SymmetricBlock(32),
+        #     SymmetricBlock(32)
+        # )
+        #
+        # self.trunk_b = nn.Sequential(
+        #     DepthwiseBlock(32),
+        #     DepthwiseBlock(32)
+        # )
+        #
+        # self.trunk_c = nn.Sequential(
+        #     InceptionBlock(32, 32),
+        #     InceptionBlock(32, 32)
+        # )
+        #
+        # self.trunk_d = nn.Sequential(
+        #     DepthwiseBlock(32),
+        #     DepthwiseBlock(32)
+        # )
 
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
 
@@ -285,29 +293,31 @@ class BioNet(nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
         conv1 = self.conv1(input)
+        # Trunk layer.
+        trunk = self.trunk(conv1)
 
-        # U-Net trunk.
-        trunk_a = self.trunk_a(conv1)
-        # Concat conv1 and trunk a.
-        out1 = torch.add(conv1, trunk_a)
-
-        # MobileNet trunk.
-        trunk_b = self.trunk_b(out1)
-        # Concat conv1 and trunk b.
-        out2 = torch.add(conv1, trunk_b)
-
-        # InceptionX trunk.
-        trunk_c = self.trunk_c(out2)
-        # Concat conv1 and trunk c.
-        out3 = torch.add(conv1, trunk_c)
-
-        # MobileNet trunk.
-        trunk_d = self.trunk_b(out3)
-        # Concat conv1 and trunk d.
-        out4 = torch.add(conv1, trunk_d)
+        # # U-Net trunk.
+        # trunk_a = self.trunk_a(conv1)
+        # # Concat conv1 and trunk a.
+        # out1 = torch.add(conv1, trunk_a)
+        #
+        # # MobileNet trunk.
+        # trunk_b = self.trunk_b(out1)
+        # # Concat conv1 and trunk b.
+        # out2 = torch.add(conv1, trunk_b)
+        #
+        # # InceptionX trunk.
+        # trunk_c = self.trunk_c(out2)
+        # # Concat conv1 and trunk c.
+        # out3 = torch.add(conv1, trunk_c)
+        #
+        # # MobileNet trunk.
+        # trunk_d = self.trunk_b(out3)
+        # # Concat conv1 and trunk d.
+        # out4 = torch.add(conv1, trunk_d)
 
         # conv2 layer.
-        conv2 = self.conv2(out4)
+        conv2 = self.conv2(trunk)
         # Concat conv1 and conv2 layer.
         out = torch.add(conv1, conv2)
 
@@ -338,23 +348,26 @@ def bionet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> Bi
 if __name__ == '__main__':
     import time
 
-    a = torch.randn(1, 32, 54, 54)
+    a = torch.randn(16, 3, 54, 54)
+
     a = a.cpu()
-
-    from ssrgan.models import mobilenetv1
-    from ssrgan.models import srgan
-
-    model = SymmetricBlock(32).cpu()
+    model = bionet().cpu()
     start_time = time.time()
     _ = model(a)
-    print(f"SymmetricBlock inference time: {(time.time() - start_time) * 1000:.2f}ms.")
+    print(f"SymmetricBlock CPU inference time: {(time.time() - start_time) * 1000:.2f}ms.")
 
-    model = DepthwiseBlock(32).cpu()
+    a = a.cuda()
+    model = bionet().cuda()
     start_time = time.time()
     _ = model(a)
-    print(f"Depthwise inference time: {(time.time() - start_time) * 1000:.2f}ms.")
+    print(f"SymmetricBlock GPU inference time: {(time.time() - start_time) * 1000:.2f}ms.")
 
-    # model = bionet().cpu()
+    # model = DepthwiseBlock(32).cpu()
     # start_time = time.time()
     # _ = model(a)
-    # print(f"BioNet inference time: {(time.time() - start_time) * 1000:.2f}ms.")
+    # print(f"Depthwise inference time: {(time.time() - start_time) * 1000:.2f}ms.")
+    #
+    # # model = bionet().cpu()
+    # # start_time = time.time()
+    # # _ = model(a)
+    # # print(f"BioNet inference time: {(time.time() - start_time) * 1000:.2f}ms.")
