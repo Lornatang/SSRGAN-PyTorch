@@ -84,7 +84,7 @@ class Test(object):
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] PSNR: {psnr_value:.2f}dB.")
             else:
                 value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
-                                                 self.args.detail, self.device)
+                                                 self.device)
 
                 total_mse_value += value[0]
                 total_rmse_value += value[1]

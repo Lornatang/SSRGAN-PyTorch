@@ -30,13 +30,12 @@ __all__ = [
 ]
 
 
-def image_quality_evaluation(sr_filename: str, hr_filename: str, detail: bool = False, device: torch.device = "cpu"):
+def image_quality_evaluation(sr_filename: str, hr_filename: str, device: torch.device = "cpu"):
     """Image quality evaluation function.
 
     Args:
         sr_filename (str): Image file name after super resolution.
         hr_filename (str): Original high resolution image file name.
-        detail (optional, bool): Is there a detailed assessment. (Default: ``False``)
         device (optional, torch.device): Selection of data processing equipment in PyTorch. (Default: ``cpu``).
 
     Returns:
@@ -53,19 +52,14 @@ def image_quality_evaluation(sr_filename: str, hr_filename: str, detail: bool = 
     sr_tensor = opencv2tensor(sr, device)
     hr_tensor = opencv2tensor(hr, device)
 
-    if detail:
-        # Complete estimate.
-        mse_value = mse(sr, hr)
-        rmse_value = rmse(sr, hr)
-        psnr_value = psnr(sr, hr)
-        ssim_value = ssim(sr, hr)
-        msssim_value = msssim(sr, hr)
-        niqe_value = niqe(sr_filename)
-        sam_value = sam(sr, hr)
-        vifp_value = vifp(sr, hr)
-        lpips_value = lpips_loss(sr_tensor, hr_tensor)
-        return mse_value, rmse_value, psnr_value, ssim_value, msssim_value, niqe_value, sam_value, vifp_value, lpips_value
-    else:
-        psnr_value = psnr(sr, hr)
-        ssim_value = ssim(sr, hr)
-        return psnr_value, ssim_value
+    # Complete estimate.
+    mse_value = mse(sr, hr)
+    rmse_value = rmse(sr, hr)
+    psnr_value = psnr(sr, hr)
+    ssim_value = ssim(sr, hr)
+    msssim_value = msssim(sr, hr)
+    niqe_value = niqe(sr_filename)
+    sam_value = sam(sr, hr)
+    vifp_value = vifp(sr, hr)
+    lpips_value = lpips_loss(sr_tensor, hr_tensor)
+    return mse_value, rmse_value, psnr_value, ssim_value, msssim_value, niqe_value, sam_value, vifp_value, lpips_value
