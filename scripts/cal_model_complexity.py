@@ -12,7 +12,9 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import time
 
+import torch
 from ptflops import get_model_complexity_info
 
 import ssrgan.models as models
@@ -33,14 +35,37 @@ if __name__ == "__main__":
                              " (default: bionet)")
     args = parser.parse_args()
 
-    device = select_device("cpu")
-    model = models.__dict__[args.arch]().to(device)
+    inputs = torch.randn(16, 3, 54, 54)
+
+    # Create cpu model and cpu data.
+    cpu_device = select_device("cpu")
+    cpu_data = inputs.to(cpu_device)
+    cpu_model = models.__dict__[args.arch]().to(cpu_device)
+
+    # Create gpu model and gpu data.
+    cuda_device = select_device("0")
+    cuda_data = inputs.to(cuda_device)
+    cuda_model = models.__dict__[args.arch]().to(cuda_device)
 
     size = (3, 54, 54)
-    flops, params = get_model_complexity_info(model, size, as_strings=True, print_per_layer_stat=True)
-    print(f"                   Summary                     ")
-    print(f"-----------------------------------------------")
-    print(f"|       Model       |    Params   |   FLOPs   |")
-    print(f"-----------------------------------------------")
-    print(f"|{model.__class__.__name__.center(19):19}|{params.center(13):13}|{flops.center(11):11}|")
-    print(f"-----------------------------------------------")
+    flops, params = get_model_complexity_info(cpu_model, size, as_strings=True, print_per_layer_stat=True)
+
+    # Cal cpu forward time.
+    start_time = time.time()
+    _ = cpu_model(cpu_data)
+    cpu_time = time.time() - start_time
+
+    # Cal gpu forward time.
+    start_time = time.time()
+    _ = cuda_model(cuda_data)
+    cuda_time = time.time() - start_time
+    print(f"                               Summary                                 ")
+    print(f"-----------------------------------------------------------------------")
+    print(f"|       Model       |    Params   |   FLOPs   |CPU Latency|GPU Latency|")
+    print(f"-----------------------------------------------------------------------")
+    print(f"|{cpu_model.__class__.__name__.center(19):19}"
+          f"|{params.center(13):13}"
+          f"|{flops.center(11):11}"
+          f"|  {(cpu_time * 1000):.2f}ms "
+          f"|  {(cuda_time * 1000):.2f}ms |")
+    print(f"-----------------------------------------------------------------------")
