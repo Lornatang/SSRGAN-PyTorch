@@ -80,6 +80,7 @@ class Test(object):
             if self.args.quickly:
                 mse_value = ((sr - hr) ** 2).data.mean()
                 psnr_value = 10 * math.log10(1. / mse_value)
+                total_psnr_value += psnr_value
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] PSNR: {psnr_value:.2f}dB.")
             else:
                 value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
@@ -113,7 +114,7 @@ class Test(object):
         print(f"indicator Score\n")
         print(f"--------- -----\n")
         if self.args.quickly:
-            print(f"PSNR      {total_psnr_value / len(self.dataloader):.1f}\n")
+            print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n")
         else:
             print(f"MSE       {total_mse_value / len(self.dataloader):.2f}\n"
                   f"RMSE      {total_rmse_value / len(self.dataloader):.2f}\n"
