@@ -13,12 +13,14 @@
 # ==============================================================================
 import csv
 import logging
+import math
 import os
+import time
+from typing import Any
 
 import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
-from tqdm import tqdm
 
 import ssrgan.models as models
 from ssrgan import CustomTrainDataset
@@ -26,7 +28,6 @@ from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import configure
 from ssrgan.utils import init_torch_seeds
-from ssrgan.utils import load_checkpoint
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -39,6 +40,7 @@ logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 class Trainer(object):
     def __init__(self, args):
         self.args = args
+
         # Set random initialization seed, easy to reproduce.
         init_torch_seeds(args.manualSeed)
 
@@ -102,200 +104,299 @@ class Trainer(object):
                     f"\tPixel loss is L1\n"
                     f"\tAdversarial loss is BCEWithLogitsLoss")
 
-    # Loading PSNR pre training model
-    def resume_resnet(self):
-        self.args.start_epoch = load_checkpoint(self.generator, self.psnr_optimizer,
-                                                f"./weights/ResNet_{self.args.upscale_factor}x_checkpoint.pth")
+    # TODO: Simply resume discriminator function.
+    def resume_discriminator(self, model: nn.Module, optimizer: torch.optim, device: torch.device) -> Any:
+        args = self.args
 
-    # Loading GAN checkpoint
-    def resume_gan(self):
-        self.args.start_epoch = load_checkpoint(self.discriminator, self.optimizerD,
-                                                f"./weights/netD_{self.args.upscale_factor}x_checkpoint.pth")
-        self.args.start_epoch = load_checkpoint(self.generator, self.optimizerG,
-                                                f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
+        if os.path.isfile(args.resumeD):
+            logger.info(f"Loading checkpoint '{os.path.basename(args.resumeD)}'.")
+            # Map model to be loaded to specified single gpu.
+            checkpoint = torch.load(args.resumeD, map_location=device)
+            start_epoch = checkpoint["epoch"]
+            best_loss = checkpoint["best_loss"]
+            # best_psnr may be from a checkpoint from a different GPU
+            best_loss = best_loss.to(device)
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            logger.info(f"Loaded checkpoint '{os.path.basename(args.resumeD)}' (epoch {checkpoint['epoch']}).")
+        else:
+            start_epoch = 0
+            best_loss = 0.
+            logger.info(f"No checkpoint found at '{os.path.basename(args.resumeD)}'")
+
+        return start_epoch, best_loss
+
+    # TODO: Simply resume generator function.
+    def resume_generator(self, model: nn.Module, optimizer: torch.optim, device: torch.device) -> Any:
+        args = self.args
+
+        if os.path.isfile(args.resumeG):
+            logger.info(f"Loading checkpoint '{os.path.basename(args.resumeG)}'.")
+            # Map model to be loaded to specified single gpu.
+            checkpoint = torch.load(args.resumeG, map_location=device)
+            start_epoch = checkpoint["epoch"]
+            best_psnr = checkpoint["best_psnr"]
+            # best_loss may be from a checkpoint from a different GPU.
+            best_psnr = best_psnr.to(device)
+            model.load_state_dict(checkpoint['state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer'])
+            logger.info(f"Loaded checkpoint '{os.path.basename(args.resumeG)}' (epoch {checkpoint['epoch']}).")
+        else:
+            start_epoch = 0
+            best_psnr = 0.
+            logger.info(f"No checkpoint found at '{os.path.basename(args.resumeG)}'")
+
+        return start_epoch, best_psnr
+
+    def train_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, optimizer: torch.optim,
+                   scheduler: torch.optim.lr_scheduler, device: torch.device) -> Any:
+        args = self.args
+
+        batch_time = AverageMeter("Time", ":6.3f")
+        data_time = AverageMeter("Data", ":6.3f")
+        losses = AverageMeter("Loss", ":.6f")
+        psnres = AverageMeter("PSNR", ":2.2f")
+        progress = ProgressMeter(len(dataloader), [batch_time, data_time, losses, psnres], prefix=f"Epoch: [{epoch}]")
+
+        # switch to train mode
+        model.train()
+
+        end = time.time()
+        for i, (images, target) in enumerate(dataloader):
+            # measure data loading time
+            data_time.update(time.time() - end)
+
+            # Generate data.
+            lr = images.to(device)
+            hr = target.to(device)
+
+            # Generating fake high resolution images from real low resolution images.
+            sr = model(lr)
+            # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
+            loss = self.pix_criterion(sr, hr)
+            psnr = 10 * math.log10(1. / loss.item() ** 2)
+
+            # measure accuracy and record loss
+            losses.update(loss.item(), images.size(0))
+            psnres.update(psnr, images.size(0))
+
+            # compute gradient and do SGD step
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            # Dynamic adjustment of learning rate.
+            scheduler.step()
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if i % args.print_freq == 0:
+                progress.display(i)
+
+            # The image is saved every 2000 iterations.
+            total_iter = epoch * len(dataloader) + 1
+            if total_iter % 2000 == 0:
+                vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{total_iter + 1}.bmp"))
+                vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{total_iter + 1}.bmp"))
+
+        # Writer training log
+        with open(f"ResNet_{self.args.upscale_factor}x_{args.arch}.csv", "a+") as f:
+            writer = csv.writer(f)
+            writer.writerow([epoch + 1, psnres.avg])
+
+        return psnres.avg
 
     def run(self):
-        # Set the all model to training mode
-        logger.info("Switch discriminator model to train mode")
-        self.discriminator.train()
-        logger.info("Switch generator model to train mode")
-        self.generator.train()
+        args = self.args
+        best_psnr = 0.
+        best_loss = 0.
 
-        # Loading PSNR pre training model
-        if self.args.resume_PSNR:
-            logger.info("Load pre-training model parameters and weights")
-            self.resume_resnet()
+        # Loading PSNR pre training model.
+        if args.resumeG:
+            args.start_epoch, best_loss = self.resume_generator(model=self.generator,
+                                                                optimizer=self.psnr_optimizer,
+                                                                device=self.device)
 
-        # Pre-train generator using raw l1 loss.
-        logger.info("Start training PSNR model based on L1 loss")
-        # Save the generator model based on MSE pre training to speed up the training time
-        if os.path.exists(f"./weights/ResNet_{self.args.upscale_factor}x.pth"):
-            logger.info("Found PSNR pretrained model weights. Skip pre-train")
-            self.generator.load_state_dict(torch.load(f"./weights/ResNet_{self.args.upscale_factor}x.pth",
-                                                      map_location=self.device))
-        else:
-            # Writer train PSNR model log.
-            if self.args.start_epoch == 0:
-                with open(f"ResNet_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["Epoch", "Loss"])
-
-            logger.warning("Not found pretrained weights. Start training PSNR model")
-            for epoch in range(self.args.start_epoch, self.psnr_epochs):
-                progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
-                avg_loss = 0.
-                for i, (input, target) in progress_bar:
-                    # Set generator gradients to zero
-                    self.generator.zero_grad()
-                    # Generate data
-                    lr = input.to(self.device)
-                    hr = target.to(self.device)
-
-                    # Generating fake high resolution images from real low resolution images.
-                    sr = self.generator(lr)
-                    # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
-                    loss = self.pix_criterion(sr, hr)
-                    # Calculate gradients for generator
-                    loss.backward()
-                    # Update generator weights
-                    self.psnr_optimizer.step()
-
-                    # Dynamic adjustment of learning rate
-                    self.psnr_scheduler.step()
-
-                    avg_loss += loss.item()
-
-                    progress_bar.set_description(f"[{epoch + 1}/{self.psnr_epochs}][{i + 1}/{len(self.dataloader)}] "
-                                                 f"Loss: {loss.item():.6f}")
-
-                    # record iter.
-                    total_iter = len(self.dataloader) * epoch + i
-
-                    # The image is saved every 5000 iterations.
-                    if (total_iter + 1) % self.args.save_freq == 0:
-                        vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{total_iter + 1}.bmp"))
-                        vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{total_iter + 1}.bmp"))
-
-                # The model is saved every 1 epoch.
-                torch.save({"epoch": epoch + 1,
-                            "optimizer": self.psnr_optimizer.state_dict(),
-                            "state_dict": self.generator.state_dict()
-                            }, f"./weights/ResNet_{self.args.upscale_factor}x_checkpoint.pth")
-
-                # Writer training log
-                with open(f"ResNet_{self.args.upscale_factor}x_Loss.csv", "a+") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([epoch + 1, avg_loss / len(self.dataloader)])
-
-            torch.save(self.generator.state_dict(), f"./weights/ResNet_{self.args.upscale_factor}x.pth")
-            logger.info(f"Training PSNR model done! Saving PSNR model weight to "
-                        f"`./weights/ResNet_{self.args.upscale_factor}x.pth`")
-
-        # After training the PSNR model, set the initial iteration to 0.
-        self.args.start_epoch = 0
-
-        # Loading GAN checkpoint
-        if self.args.resume:
-            logger.info("Load GAN model parameters and weights")
-            self.resume_gan()
-
-        # Train GAN model.
-        logger.info("Staring training GAN model")
-        logger.info(f"Training for {self.epochs} epochs")
-        # Writer train GAN model log.
+        # Start train PSNR model.
+        logger.info("Staring training PSNR model")
+        logger.info(f"Training for {self.psnr_epochs} epochs")
+        # Writer train PSNR model log.
         if self.args.start_epoch == 0:
-            with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
+            with open(f"ResNet_{self.args.upscale_factor}x_{args.arch}.csv", "w+") as f:
                 writer = csv.writer(f)
-                writer.writerow(["Epoch", "D Loss", "G Loss"])
+                writer.writerow(["Epoch", "PSNR"])
+        for epoch in range(args.start_epoch, self.psnr_epochs):
+            psnr = self.train_psnr(dataloader=self.dataloader,
+                                   epoch=epoch,
+                                   model=self.generator,
+                                   optimizer=self.psnr_optimizer,
+                                   scheduler=self.psnr_scheduler,
+                                   device=self.device)
 
-        for epoch in range(self.args.start_epoch, self.epochs):
-            progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
-            g_avg_loss = 0.
-            d_avg_loss = 0.
-            for i, (input, target) in progress_bar:
-                lr = input.to(self.device)
-                hr = target.to(self.device)
-                batch_size = lr.size(0)
-                real_label = torch.full((batch_size, 1), 1, dtype=lr.dtype, device=self.device)
-                fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype, device=self.device)
-
-                ##############################################
-                # (1) Update D network: maximize - E(hr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
-                ##############################################
-                # Set discriminator gradients to zero.
-                self.discriminator.zero_grad()
-
-                # Generate a super-resolution image
-                sr = self.generator(lr)
-
-                # Train with real high resolution image.
-                hr_output = self.discriminator(hr)  # Train real image.
-                sr_output = self.discriminator(sr.detach())  # No train fake image.
-                # Adversarial loss for real and fake images (relativistic average GAN)
-                errD_hr = self.adversarial_criterion(hr_output - torch.mean(sr_output), real_label)
-                errD_sr = self.adversarial_criterion(sr_output - torch.mean(hr_output), fake_label)
-                errD = (errD_sr + errD_hr) / 2
-                errD.backward()
-                D_x = hr_output.mean().item()
-                D_G_z1 = sr_output.mean().item()
-                self.optimizerD.step()
-
-                ##############################################
-                # (2) Update G network: maximize - E(hr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
-                ##############################################
-                # Set generator gradients to zero
-                self.generator.zero_grad()
-
-                # According to the feature map, the root mean square error is regarded as the content loss.
-                vgg_loss = self.vgg_criterion(sr, hr)
-                # Train with fake high resolution image.
-                hr_output = self.discriminator(hr.detach())  # No train real fake image.
-                sr_output = self.discriminator(sr)  # Train fake image.
-                # Adversarial loss (relativistic average GAN)
-                adversarial_loss = self.adversarial_criterion(sr_output - torch.mean(hr_output), real_label)
-                # Pixel level loss between two images.
-                l1_loss = self.pix_criterion(sr, hr)
-                errG = 10 * l1_loss + vgg_loss + 5e-3 * adversarial_loss
-                errG.backward()
-                D_G_z2 = sr_output.mean().item()
-                self.optimizerG.step()
-
-                # Dynamic adjustment of learning rate
-                self.schedulerD.step()
-                self.schedulerG.step()
-
-                d_avg_loss += errD.item()
-                g_avg_loss += errG.item()
-
-                progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.dataloader)}] "
-                                             f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
-                                             f"D(HR): {D_x:.6f} D(G(LR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
-
-                # record iter.
-                total_iter = len(self.dataloader) * epoch + i
-
-                # The image is saved every 5000 iterations.
-                if (total_iter + 1) % self.args.save_freq == 0:
-                    vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{total_iter + 1}.bmp"))
-                    vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{total_iter + 1}.bmp"))
+            # remember best psnr and save checkpoint
+            is_best = psnr > best_psnr
+            best_psnr = max(psnr, best_psnr)
 
             # The model is saved every 1 epoch.
-            torch.save({"epoch": epoch + 1,
-                        "optimizer": self.optimizerD.state_dict(),
-                        "state_dict": self.discriminator.state_dict()
-                        }, f"./weights/netD_{self.args.upscale_factor}x_checkpoint.pth")
-            torch.save({"epoch": epoch + 1,
-                        "optimizer": self.optimizerG.state_dict(),
-                        "state_dict": self.generator.state_dict()
-                        }, f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
+            save_checkpoint({"epoch": epoch + 1, "state_dict": self.generator.state_dict(), "best_psnr": best_psnr,
+                             "optimizer": self.psnr_optimizer.state_dict()}, is_best,
+                            f"./weights/ResNet_{args.upscale_factor}x_checkpoint.pth",
+                            f"./weights/ResNet_{args.upscale_factor}x.pth")
 
-            # Writer training log
-            with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "a+") as f:
-                writer = csv.writer(f)
-                writer.writerow([epoch + 1,
-                                 d_avg_loss / len(self.dataloader),
-                                 g_avg_loss / len(self.dataloader)])
+        # # Loading GAN training all model.
+        # if args.resumed and args.resumeG:
+        #     args.start_epoch, best_loss = self.resume_discriminator(model=self.discriminator,
+        #                                                             optimizer=self.optimizerG,
+        #                                                             device=self.device)
+        #     args.start_epoch, best_psnr = self.resume_generator(model=self.generator,
+        #                                                         optimizer=self.optimizerD,
+        #                                                         device=self.device)
 
-        torch.save(self.generator.state_dict(), f"./weights/GAN_{self.args.upscale_factor}x.pth")
-        logger.info(f"Training GAN model done! Saving GAN model weight to "
-                    f"`./weights/GAN_{self.args.upscale_factor}x.pth`")
+        # # Writer train GAN model log.
+        # if self.args.start_epoch == 0:
+        #     with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
+        #         writer = csv.writer(f)
+        #         writer.writerow(["Epoch", "D Loss", "G Loss"])
+        #
+        # for epoch in range(self.args.start_epoch, self.epochs):
+        #     progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
+        #     avg_d_loss = 0.
+        #     avg_g_loss = 0.
+        #     for i, (input, target) in progress_bar:
+        #         lr = input.to(self.device)
+        #         hr = target.to(self.device)
+        #         batch_size = lr.size(0)
+        #         real_label = torch.full((batch_size, 1), 1, dtype=lr.dtype, device=self.device)
+        #         fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype, device=self.device)
+        #
+        #         ##############################################
+        #         # (1) Update D network: maximize - E(hr)[1- log(D(hr, sr))] - E(sr)[log(D(sr, hr))]
+        #         ##############################################
+        #         # Set discriminator gradients to zero.
+        #         self.discriminator.zero_grad()
+        #
+        #         # Generate a super-resolution image
+        #         sr = self.generator(lr)
+        #
+        #         # Train with real high resolution image.
+        #         hr_output = self.discriminator(hr)  # Train real image.
+        #         sr_output = self.discriminator(sr.detach())  # No train fake image.
+        #         # Adversarial loss for real and fake images (relativistic average GAN)
+        #         errD_hr = self.adversarial_criterion(hr_output - torch.mean(sr_output), real_label)
+        #         errD_sr = self.adversarial_criterion(sr_output - torch.mean(hr_output), fake_label)
+        #         errD = (errD_sr + errD_hr) / 2
+        #         errD.backward()
+        #         D_x = hr_output.mean().item()
+        #         D_G_z1 = sr_output.mean().item()
+        #         self.optimizerD.step()
+        #
+        #         ##############################################
+        #         # (2) Update G network: maximize - E(hr)[log(D(hr, sr))] - E(sr)[1- log(D(sr, hr))]
+        #         ##############################################
+        #         # Set generator gradients to zero
+        #         self.generator.zero_grad()
+        #
+        #         # According to the feature map, the root mean square error is regarded as the content loss.
+        #         vgg_loss = self.vgg_criterion(sr, hr)
+        #         # Train with fake high resolution image.
+        #         hr_output = self.discriminator(hr.detach())  # No train real fake image.
+        #         sr_output = self.discriminator(sr)  # Train fake image.
+        #         # Adversarial loss (relativistic average GAN)
+        #         adversarial_loss = self.adversarial_criterion(sr_output - torch.mean(hr_output), real_label)
+        #         # Pixel level loss between two images.
+        #         l1_loss = self.pix_criterion(sr, hr)
+        #         errG = 10 * l1_loss + vgg_loss + 5e-3 * adversarial_loss
+        #         errG.backward()
+        #         D_G_z2 = sr_output.mean().item()
+        #         self.optimizerG.step()
+        #
+        #         # Dynamic adjustment of learning rate
+        #         self.schedulerD.step()
+        #         self.schedulerG.step()
+        #
+        #         avg_d_loss += errD.item()
+        #         avg_g_loss += errG.item()
+        #
+        #         progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.dataloader)}] "
+        #                                      f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
+        #                                      f"D(HR): {D_x:.6f} D(G(LR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
+        #
+        #         # record iter.
+        #         total_iter = len(self.dataloader) * epoch + i
+        #
+        #         # The image is saved every 5000 iterations.
+        #         if (total_iter + 1) % self.args.save_freq == 0:
+        #             vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{total_iter + 1}.bmp"))
+        #             vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{total_iter + 1}.bmp"))
+        #
+        #     # The model is saved every 1 epoch.
+        #     torch.save({"epoch": epoch + 1,
+        #                 "state_dict": self.discriminator.state_dict(),
+        #                 "best_loss": avg_d_loss,
+        #                 "optimizer": self.optimizerD.state_dict()
+        #                 }, f"./weights/netD_{self.args.upscale_factor}x_checkpoint.pth")
+        #     torch.save({"epoch": epoch + 1,
+        #                 "state_dict": self.generator.state_dict(),
+        #                 "best_loss": avg_g_loss,
+        #                 "optimizer": self.optimizerG.state_dict()
+        #                 }, f"./weights/netG_{self.args.upscale_factor}x_checkpoint.pth")
+        #
+        #     # Writer training log
+        #     with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "a+") as f:
+        #         writer = csv.writer(f)
+        #         writer.writerow([epoch + 1,
+        #                          avg_d_loss / len(self.dataloader),
+        #                          avg_g_loss / len(self.dataloader)])
+        #
+        # torch.save(self.generator.state_dict(), f"./weights/GAN_{self.args.upscale_factor}x.pth")
+        # logger.info(f"Training GAN model done! Saving GAN model weight to "
+        #             f"`./weights/GAN_{self.args.upscale_factor}x.pth`")
+
+
+def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):
+    torch.save(state, source_filename)
+    if is_best:
+        torch.save(state["state_dict"], target_filename)
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self, name, fmt=':f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
+        return fmtstr.format(**self.__dict__)
+
+
+class ProgressMeter(object):
+    def __init__(self, num_batches, meters, prefix=""):
+        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
+        self.meters = meters
+        self.prefix = prefix
+
+    def display(self, batch):
+        entries = [self.prefix + self.batch_fmtstr.format(batch)]
+        entries += [str(meter) for meter in self.meters]
+        print("\t".join(entries))
+
+    def _get_batch_fmtstr(self, num_batches):
+        num_digits = len(str(num_batches // 1))
+        fmt = "{:" + str(num_digits) + "d}"
+        return "[" + fmt + '/' + fmt.format(num_batches) + "]"
