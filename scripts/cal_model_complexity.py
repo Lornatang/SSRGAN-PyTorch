@@ -52,12 +52,14 @@ if __name__ == "__main__":
 
     # Cal cpu forward time.
     start_time = time.time()
-    _ = cpu_model(cpu_data)
+    for _ in range(10):
+        _ = cpu_model(cpu_data)
     cpu_time = time.time() - start_time
 
     # Cal gpu forward time.
     start_time = time.time()
-    _ = cuda_model(cuda_data)
+    for _ in range(10):
+        _ = cuda_model(cuda_data)
     cuda_time = time.time() - start_time
     print(f"                               Summary                                 ")
     print(f"-----------------------------------------------------------------------")
@@ -66,6 +68,6 @@ if __name__ == "__main__":
     print(f"|{cpu_model.__class__.__name__.center(19):19}"
           f"|{params.center(13):13}"
           f"|{flops.center(11):11}"
-          f"|  {(cpu_time * 1000):.2f}ms "
-          f"|  {(cuda_time * 1000):.2f}ms |")
+          f"|  {(cpu_time * 1000 / 10):.2f}ms "
+          f"|  {(cuda_time * 1000 / 10):.2f}ms |")
     print(f"-----------------------------------------------------------------------")
