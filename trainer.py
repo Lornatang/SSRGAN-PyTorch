@@ -217,6 +217,7 @@ class Trainer(object):
         model.eval()
 
         with torch.no_grad():
+            end = time.time()
             for i, (images, _, target) in enumerate(dataloader):
 
                 # Move data to special device.
