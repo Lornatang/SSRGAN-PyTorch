@@ -81,7 +81,7 @@ class Test(object):
                 mse_value = ((sr - hr) ** 2).data.mean()
                 psnr_value = 10 * math.log10(1. / mse_value)
                 total_psnr_value += psnr_value
-                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] PSNR: {psnr_value:.2f}dB.")
+                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] PSNR: {psnr_value:.2f}dB")
             else:
                 value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
                                                  self.device)
