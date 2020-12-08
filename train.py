@@ -29,8 +29,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
                                                  "technology for pathological microscopic images.")
     # basic parameters
-    parser.add_argument("--dataroot", type=str, default="data/train",
-                        help="Path to datasets. (default:`data/train`)")
+    parser.add_argument("--dataroot", type=str, default="data",
+                        help="Path to datasets. (default:`data`)")
     parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                         help="Number of data loading workers. (default:4)")
     parser.add_argument("--manualSeed", type=int, default=1111,

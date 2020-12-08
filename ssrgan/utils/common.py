@@ -24,7 +24,8 @@ import ssrgan.models as models
 from .device import select_device
 
 __all__ = [
-    "configure", "create_folder", "inference", "init_torch_seeds", "load_checkpoint"
+    "configure", "create_folder", "inference", "init_torch_seeds", "load_checkpoint", "save_checkpoint",
+    "AverageMeter", "ProgressMeter"
 ]
 
 logger = logging.getLogger(__name__)
@@ -136,3 +137,51 @@ def load_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Adam = torch.
         epoch = 0
 
     return epoch
+
+
+def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):
+    torch.save(state, source_filename)
+    if is_best:
+        torch.save(state["state_dict"], target_filename)
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+
+    def __init__(self, name, fmt=':f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
+        return fmtstr.format(**self.__dict__)
+
+
+class ProgressMeter(object):
+    def __init__(self, num_batches, meters, prefix=""):
+        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
+        self.meters = meters
+        self.prefix = prefix
+
+    def display(self, batch):
+        entries = [self.prefix + self.batch_fmtstr.format(batch)]
+        entries += [str(meter) for meter in self.meters]
+        print("\t".join(entries))
+
+    def _get_batch_fmtstr(self, num_batches):
+        num_digits = len(str(num_batches // 1))
+        fmt = "{:" + str(num_digits) + "d}"
+        return "[" + fmt + '/' + fmt.format(num_batches) + "]"

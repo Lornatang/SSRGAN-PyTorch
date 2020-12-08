@@ -24,10 +24,14 @@ import torchvision.utils as vutils
 
 import ssrgan.models as models
 from ssrgan import CustomTrainDataset
+from ssrgan import CustomTestDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
+from ssrgan.utils import AverageMeter
+from ssrgan.utils import ProgressMeter
 from ssrgan.utils import configure
 from ssrgan.utils import init_torch_seeds
+from ssrgan.utils import save_checkpoint
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -46,13 +50,22 @@ class Trainer(object):
 
         logger.info("Load training dataset")
         # Selection of appropriate treatment equipment.
-        self.dataloader = torch.utils.data.DataLoader(CustomTrainDataset(args.dataroot),
-                                                      batch_size=args.batch_size,
-                                                      pin_memory=True,
-                                                      num_workers=int(args.workers))
+        self.train_dataloader = torch.utils.data.DataLoader(CustomTrainDataset(f"{args.dataroot}/train"),
+                                                            batch_size=args.batch_size,
+                                                            pin_memory=True,
+                                                            num_workers=int(args.workers))
+        self.test_dataloader = torch.utils.data.DataLoader(CustomTestDataset(f"{args.dataroot}/test"),
+                                                           batch_size=args.batch_size,
+                                                           pin_memory=True,
+                                                           num_workers=int(args.workers))
 
         logger.info(f"Train Dataset information:\n"
-                    f"\tTrain Dataset dir is `{os.getcwd()}/{args.dataroot}`\n"
+                    f"\tTrain Dataset dir is `{os.getcwd()}/{args.dataroot}/train`\n"
+                    f"\tBatch size is {args.batch_size}\n"
+                    f"\tWorkers is {int(args.workers)}\n"
+                    f"\tLoad dataset to CUDA")
+        logger.info(f"Test Dataset information:\n"
+                    f"\tTest Dataset dir is `{os.getcwd()}/{args.dataroot}/test`\n"
                     f"\tBatch size is {args.batch_size}\n"
                     f"\tWorkers is {int(args.workers)}\n"
                     f"\tLoad dataset to CUDA")
@@ -63,7 +76,7 @@ class Trainer(object):
         self.discriminator = DiscriminatorForVGG().to(self.device)
 
         # Parameters of pre training model.
-        self.psnr_epochs = int(args.psnr_iters // len(self.dataloader))
+        self.psnr_epochs = int(args.psnr_iters // len(self.train_dataloader))
         self.psnr_epoch_indices = int(self.psnr_epochs // 4)
         self.psnr_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.99))
         self.psnr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.psnr_optimizer,
@@ -79,7 +92,7 @@ class Trainer(object):
                     f"\tScheduler CosineAnnealingWarmRestarts")
 
         # Parameters of GAN training model.
-        self.epochs = int(args.iters // len(self.dataloader))
+        self.epochs = int(args.iters // len(self.train_dataloader))
         self.base_epoch = int(self.epochs // 8)
         self.indices = [self.base_epoch, self.base_epoch * 2, self.base_epoch * 4, self.base_epoch * 6]
         self.optimizerD = torch.optim.Adam(self.discriminator.parameters(), lr=args.lr)
@@ -155,8 +168,7 @@ class Trainer(object):
         batch_time = AverageMeter("Time", ":6.3f")
         data_time = AverageMeter("Data", ":6.3f")
         losses = AverageMeter("Loss", ":.6f")
-        psnres = AverageMeter("PSNR", ":2.2f")
-        progress = ProgressMeter(len(dataloader), [batch_time, data_time, losses, psnres], prefix=f"Epoch: [{epoch}]")
+        progress = ProgressMeter(len(dataloader), [batch_time, data_time, losses], prefix=f"Epoch: [{epoch}]")
 
         # switch to train mode
         model.train()
@@ -166,7 +178,7 @@ class Trainer(object):
             # measure data loading time
             data_time.update(time.time() - end)
 
-            # Generate data.
+            # Move data to special device.
             lr = images.to(device)
             hr = target.to(device)
 
@@ -174,11 +186,9 @@ class Trainer(object):
             sr = model(lr)
             # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
             loss = self.pix_criterion(sr, hr)
-            psnr = 10 * math.log10(1. / loss.item() ** 2)
 
             # measure accuracy and record loss
             losses.update(loss.item(), images.size(0))
-            psnres.update(psnr, images.size(0))
 
             # compute gradient and do SGD step
             optimizer.zero_grad()
@@ -193,20 +203,60 @@ class Trainer(object):
 
             if i % args.print_freq == 0:
                 progress.display(i)
-                vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{epoch + 1}.bmp"))
-                vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{epoch + 1}.bmp"))
 
-        # Writer training log
+    def test_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module,
+                  device: torch.device) -> float:
+        args = self.args
+
+        batch_time = AverageMeter("Time", ":6.3f")
+        losses = AverageMeter("Loss", ":.6f")
+        psnres = AverageMeter("PSNR", ":2.2f")
+        progress = ProgressMeter(len(dataloader), [batch_time, losses, psnres], prefix="Test: ")
+
+        # switch to evaluate mode.
+        model.eval()
+
+        with torch.no_grad():
+            for i, (images, _, target) in enumerate(dataloader):
+
+                # Move data to special device.
+                lr = images.to(device)
+                hr = target.to(device)
+
+                # Generating fake high resolution images from real low resolution images.
+                sr = model(lr)
+                # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
+                loss = self.pix_criterion(sr, hr)
+                psnr = 10 * math.log10(1. / loss.item() ** 2)
+
+                # measure accuracy and record loss
+                losses.update(loss.item(), images.size(0))
+                psnres.update(psnr, images.size(0))
+
+                # measure elapsed time
+                batch_time.update(time.time() - end)
+                end = time.time()
+
+                if i % args.print_freq == 0:
+                    progress.display(i)
+
+        # Last saved image of test.
+        vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{epoch + 1}.bmp"))
+        vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{epoch + 1}.bmp"))
+
+        # Writer evaluation log
         with open(f"ResNet_{self.args.upscale_factor}x_{args.arch}.csv", "a+") as f:
             writer = csv.writer(f)
             writer.writerow([epoch + 1, psnres.avg])
+
+        # TODO: this should also be done with the ProgressMeter.
+        logger.info(f" * PSNR: {psnres.avg:.2f}.")
 
         return psnres.avg
 
     def run(self):
         args = self.args
         best_psnr = 0.
-        best_loss = 0.
 
         # Loading PSNR pre training model.
         if args.resumeG:
@@ -223,12 +273,17 @@ class Trainer(object):
                 writer = csv.writer(f)
                 writer.writerow(["Epoch", "PSNR"])
         for epoch in range(args.start_epoch, self.psnr_epochs):
-            psnr = self.train_psnr(dataloader=self.dataloader,
-                                   epoch=epoch,
-                                   model=self.generator,
-                                   optimizer=self.psnr_optimizer,
-                                   scheduler=self.psnr_scheduler,
-                                   device=self.device)
+            self.train_psnr(dataloader=self.train_dataloader,
+                            epoch=epoch,
+                            model=self.generator,
+                            optimizer=self.psnr_optimizer,
+                            scheduler=self.psnr_scheduler,
+                            device=self.device)
+
+            psnr = self.test_psnr(dataloader=self.test_dataloader,
+                                  epoch=epoch,
+                                  model=self.generator,
+                                  device=self.device)
 
             # remember best psnr and save checkpoint
             is_best = psnr > best_psnr
@@ -237,8 +292,8 @@ class Trainer(object):
             # The model is saved every 1 epoch.
             save_checkpoint({"epoch": epoch + 1, "state_dict": self.generator.state_dict(), "best_psnr": best_psnr,
                              "optimizer": self.psnr_optimizer.state_dict()}, is_best,
-                            f"./weights/ResNet_{args.upscale_factor}x_checkpoint.pth",
-                            f"./weights/ResNet_{args.upscale_factor}x.pth")
+                            f"./weights/ResNet_{args.upscale_factor}x_{args.arch}_checkpoint.pth",
+                            f"./weights/ResNet_{args.upscale_factor}x_{args.arch}.pth")
 
         # # Loading GAN training all model.
         # if args.resumed and args.resumeG:
@@ -348,51 +403,3 @@ class Trainer(object):
         # torch.save(self.generator.state_dict(), f"./weights/GAN_{self.args.upscale_factor}x.pth")
         # logger.info(f"Training GAN model done! Saving GAN model weight to "
         #             f"`./weights/GAN_{self.args.upscale_factor}x.pth`")
-
-
-def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):
-    torch.save(state, source_filename)
-    if is_best:
-        torch.save(state["state_dict"], target_filename)
-
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-
-    def __init__(self, name, fmt=':f'):
-        self.name = name
-        self.fmt = fmt
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-    def __str__(self):
-        fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
-        return fmtstr.format(**self.__dict__)
-
-
-class ProgressMeter(object):
-    def __init__(self, num_batches, meters, prefix=""):
-        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
-        self.meters = meters
-        self.prefix = prefix
-
-    def display(self, batch):
-        entries = [self.prefix + self.batch_fmtstr.format(batch)]
-        entries += [str(meter) for meter in self.meters]
-        print("\t".join(entries))
-
-    def _get_batch_fmtstr(self, num_batches):
-        num_digits = len(str(num_batches // 1))
-        fmt = "{:" + str(num_digits) + "d}"
-        return "[" + fmt + '/' + fmt.format(num_batches) + "]"
