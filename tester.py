@@ -140,8 +140,7 @@ class Estimate(object):
         sr, use_time = inference(self.model, lr, statistical_time=True)
         vutils.save_image(sr, f"./{self.args.outf}/{self.args.lr.split('/')[-1]}")  # Save super resolution image.
 
-        value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}", self.args.hr, self.args.detail,
-                                         self.device)
+        value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}", self.args.hr, self.device)
 
         print(f"Performance avg results:\n")
         print(f"indicator Score\n")
