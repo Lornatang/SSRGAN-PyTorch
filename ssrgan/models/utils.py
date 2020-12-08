@@ -132,7 +132,6 @@ class SPConv(nn.Module):
         self.pointwise_conv = nn.Conv2d(self.i_3x3, self.o, 1, 1, 0, bias=False)
 
         self.conv1x1 = nn.Conv2d(self.i_1x1, self.o, kernel_size=1)
-        self.bn = nn.BatchNorm2d(self.o)
         self.groups = int(1 * self.scale_ratio)
         self.avgpool_stride = nn.AvgPool2d(kernel_size=2, stride=2)
         self.avgpool_add = nn.AdaptiveAvgPool2d(1)
@@ -147,7 +146,6 @@ class SPConv(nn.Module):
             x_3x3 = self.avgpool_stride(x_3x3)
         pointwise_out_3x3 = self.pointwise_conv(x_3x3)
         out_3x3 = depthwise_out_3x3 + pointwise_out_3x3
-        out_3x3 = self.bn(out_3x3)
         out_3x3_ratio = self.avgpool_add(out_3x3).squeeze(dim=3).squeeze(dim=2)
 
         # Split conv1x1.
@@ -156,7 +154,6 @@ class SPConv(nn.Module):
         if self.stride == 2:
             x_1x1 = self.avgpool_stride(x_1x1)
         out_1x1 = self.conv1x1(x_1x1)
-        out_1x1 = self.bn(out_1x1)
         out_1x1_ratio = self.avgpool_add(out_1x1).squeeze(dim=3).squeeze(dim=2)
 
         out_31_ratio = torch.stack((out_3x3_ratio, out_1x1_ratio), 2)
