@@ -193,12 +193,8 @@ class Trainer(object):
 
             if i % args.print_freq == 0:
                 progress.display(i)
-
-            # The image is saved every 2000 iterations.
-            total_iter = epoch * len(dataloader) + 1
-            if total_iter % 2000 == 0:
-                vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{total_iter + 1}.bmp"))
-                vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{total_iter + 1}.bmp"))
+                vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{epoch + 1}.bmp"))
+                vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{epoch + 1}.bmp"))
 
         # Writer training log
         with open(f"ResNet_{self.args.upscale_factor}x_{args.arch}.csv", "a+") as f:
