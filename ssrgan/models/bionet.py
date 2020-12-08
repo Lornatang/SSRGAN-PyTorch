@@ -343,31 +343,3 @@ def bionet(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> Bi
         state_dict = load_state_dict_from_url(model_urls["bionet"], progress=progress)
         model.load_state_dict(state_dict)
     return model
-
-
-if __name__ == '__main__':
-    import time
-
-    a = torch.randn(16, 3, 54, 54)
-
-    a = a.cpu()
-    model = bionet().cpu()
-    start_time = time.time()
-    _ = model(a)
-    print(f"SymmetricBlock CPU inference time: {(time.time() - start_time) * 1000:.2f}ms.")
-
-    a = a.cuda()
-    model = bionet().cuda()
-    start_time = time.time()
-    _ = model(a)
-    print(f"SymmetricBlock GPU inference time: {(time.time() - start_time) * 1000:.2f}ms.")
-
-    # model = DepthwiseBlock(32).cpu()
-    # start_time = time.time()
-    # _ = model(a)
-    # print(f"Depthwise inference time: {(time.time() - start_time) * 1000:.2f}ms.")
-    #
-    # # model = bionet().cpu()
-    # # start_time = time.time()
-    # # _ = model(a)
-    # # print(f"BioNet inference time: {(time.time() - start_time) * 1000:.2f}ms.")
