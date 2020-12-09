@@ -30,7 +30,7 @@ class FReLU(nn.Module):
     Examples:
         >>> channels = 64
         >>> frelu = FReLU(channels)
-        >>> input = torch.randn(2)
+        >>> input = torch.randn(1, channels, 64, 64)
         >>> output = frelu(input)
     """
 
