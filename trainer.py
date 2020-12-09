@@ -228,7 +228,7 @@ class Trainer(object):
                 sr = model(lr)
                 # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
                 loss = self.pix_criterion(sr, hr)
-                psnr = 10 * math.log10(1. / loss.item() ** 2)
+                psnr = 10 * math.log10(1. / (loss.item() ** 2))
 
                 # measure accuracy and record loss
                 losses.update(loss.item(), images.size(0))
