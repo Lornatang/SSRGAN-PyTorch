@@ -12,29 +12,15 @@
 # limitations under the License.
 # ==============================================================================
 """General convolution layer"""
-import math
-
 import torch
 import torch.nn as nn
 
 from ssrgan.activation import FReLU
+from ssrgan.activation import HSigmoid
 
-__all__ = ["auto_padding", "dw_conv", "channel_shuffle", "Conv", "SPConv"]
-
-
-# Reference from `https://github.com/ultralytics/yolov5/blob/master/models/common.py`
-def auto_padding(kernel_size, padding=None):  # kernel, padding
-    r""" Edge filling 0 operation.
-
-    Args:
-        kernel_size (int or tuple): Size of the convolving kernel.
-        padding (int or tuple, optional): Zero-padding added to both sides of
-            the input. Default: ``None``.
-    """
-    # Pad to 'same'.
-    if padding is None:
-        padding = kernel_size // 2 if isinstance(kernel_size, int) else [x // 2 for x in kernel_size]  # auto-pad
-    return padding
+__all__ = ["channel_shuffle", "SqueezeExcite",
+           "GhostConv", "GhostBottleneck",
+           "SPConv"]
 
 
 # Source from `https://github.com/pytorch/vision/blob/master/torchvision/models/shufflenetv2.py`
@@ -63,50 +49,139 @@ def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
     return x
 
 
-def dw_conv(i, o, kernel_size=1, stride=1, padding=None, dilation=1, act=True):
-    r""" Depthwise convolution
+class SqueezeExcite(nn.Module):
+    r""" Squeeze-and-Excite module.
 
-    Args:
-        i (int): Number of channels in the input image.
-        o (int): Number of channels produced by the convolution.
-        kernel_size (int or tuple): Size of the convolving kernel. (Default: 1).
-        stride (optional, int or tuple): Stride of the convolution. (Default: 1).
-        padding (optional, int or tuple): Zero-padding added to both sides of
-            the input. Default: ``None``.
-        dilation (int or tuple, optional): Spacing between kernel elements. (Default: 1).
-        act (optional, bool): Whether to use activation function. (Default: ``True``).
-    """
-    return Conv(i, o, kernel_size, stride, padding, dilation, groups=math.gcd(i, o), act=act)
+    `"MnasNet: Platform-Aware Neural Architecture Search for Mobile" <https://arxiv.org/pdf/1807.11626.pdf>`_
 
-
-class Conv(nn.Module):
-    r""" Standard convolution.
     """
 
-    def __init__(self, i, o, kernel_size=1, stride=1, padding=None, dilation=1, groups=1, act=True) -> None:
-        """
+    def __init__(self, channels: int, reduction: int = 4) -> None:
+        r""" Modules introduced in MnasNet paper.
         Args:
-            i (int): Number of channels in the input image.
-            o (int): Number of channels produced by the convolution.
+            channels (int): Number of channels in the input image.
+            reduction (optional, int): Reduce the number of channels by several times. (Default: 4).
+        """
+        super(SqueezeExcite, self).__init__()
+        reduce_channels = int(channels // reduction)
+        self.HSigmoid = HSigmoid()
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.conv_reduce = nn.Conv2d(channels, reduce_channels, 1, 1, 0, bias=True)
+        self.FReLU = FReLU(reduction)
+        self.conv_expand = nn.Conv2d(reduce_channels, channels, 1, 1, 0, bias=True)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        out = self.avgpool(input)
+        out = self.conv_reduce(out)
+        out = self.FReLU(out)
+        out = self.conv_expand(out)
+        return input * self.HSigmoid(out)
+
+
+class GhostConv(nn.Module):
+    r""" Ghost convolution.
+
+    `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907.pdf>`_ paper.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 1, stride: int = 1, padding: int = 0,
+                 dw_kernel_size: int = 5, act: bool = True):
+        """
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
             kernel_size (int or tuple): Size of the convolving kernel. (Default: 1).
             stride (optional, int or tuple): Stride of the convolution. (Default: 1).
-            padding (optional, int or tuple): Zero-padding added to both sides of
-                the input. Default: ``None``.
-            dilation (int or tuple, optional): Spacing between kernel elements. (Default: 1).
-            groups (optional, int): Number of blocked connections from input channels to output channels. (Default: 1).
+            padding (optional, int or tuple): Zero-padding added to both sides of the input. (Default: 0).
+            dw_kernel_size (int or tuple): Size of the depthwise convolving kernel. (Default: 5).
             act (optional, bool): Whether to use activation function. (Default: ``True``).
         """
-        super(Conv, self).__init__()
-        self.conv = nn.Conv2d(i, o, kernel_size, stride, auto_padding(kernel_size, padding), dilation=dilation,
-                              groups=groups, bias=False)
-        self.act = FReLU(o) if act else nn.Identity()
+        super(GhostConv, self).__init__()
+        mid_channels = out_channels // 2
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.act(self.conv(x))
+        # Point-wise expansion.
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, kernel_size, stride, padding),
+            FReLU(mid_channels) if act else nn.Identity()
+        )
+        # Depth-wise convolution.
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(mid_channels, mid_channels, dw_kernel_size, 1, (dw_kernel_size - 1) // 2, groups=mid_channels),
+            FReLU(mid_channels) if act else nn.Identity()
+        )
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        out = self.pointwise(input)
+        return torch.cat([out, self.depthwise(out)], 1)
+
+
+class GhostBottleneck(nn.Module):
+    r""" Ghost bottleneck.
+
+    `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907.pdf>`_ paper.
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, dw_kernel_size: int = 5, stride: int = 1):
+        """
+
+        Args:
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
+            dw_kernel_size (int or tuple): Size of the depthwise convolving kernel. (Default: 5).
+            stride (optional, int or tuple): Stride of the convolution. (Default: 1).
+        """
+        super(GhostBottleneck, self).__init__()
+        self.stride = stride
+        mid_channels = out_channels // 2
+        dw_padding = (dw_kernel_size - 1) // 2
+
+        # Shortcut layer
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, dw_kernel_size, stride, dw_padding, groups=in_channels, bias=False),
+            nn.Conv2d(in_channels, out_channels, 1, 1, 0, bias=False) if self.stride == 2 else nn.Identity()
+        )
+
+        # Point-wise expansion.
+        self.pointwise = GhostConv(in_channels, mid_channels, 1, 1, 0)
+
+        # Depth-wise convolution.
+        if self.stride == 2:
+            self.depthwise = nn.Conv2d(mid_channels, mid_channels, dw_kernel_size, stride, dw_padding,
+                                       groups=mid_channels, bias=False)
+        else:
+            self.depthwise = nn.Identity()
+
+        # Squeeze-and-excitation
+        self.se = SqueezeExcite(mid_channels, 4)
+
+        # Point-wise linear projection.
+        self.pointwise_linear = GhostConv(mid_channels, out_channels, 1, 1, 0, act=False)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        # Nonlinear residual convolution link layer
+        shortcut = self.shortcut(input)
+
+        # 1st ghost bottleneck.
+        out = self.pointwise(input)
+
+        # Depth-wise convolution.
+        if self.stride == 2:
+            out = self.depthwise(out)
+
+        # Squeeze-and-excitation
+        out = self.se(out)
+
+        # 2nd ghost bottleneck.
+        out = self.pointwise_linear(out)
+
+        return out + shortcut
 
 
 class SPConv(nn.Module):
     r""" Split convolution.
+
+    `"Split to Be Slim: An Overlooked Redundancy in Vanilla Convolution" <https://arxiv.org/pdf/2006.12085.pdf>`_ paper.
     """
 
     def __init__(self, in_channels, out_channels, stride=1, scale_ratio=2):
@@ -118,48 +193,48 @@ class SPConv(nn.Module):
             scale_ratio (optional, int): Channel number scaling size. (Default: 2).
         """
         super(SPConv, self).__init__()
-        self.i = in_channels
-        self.o = out_channels
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.stride = stride
         self.scale_ratio = scale_ratio
 
-        self.i_3x3 = int(self.i // self.scale_ratio)
-        self.o_3x3 = int(self.o // self.scale_ratio)
-        self.i_1x1 = self.i - self.i_3x3
-        self.o_1x1 = self.o - self.o_3x3
+        self.in_channels_3x3 = int(self.in_channels // self.scale_ratio)
+        self.in_channels_1x1 = self.in_channels - self.in_channels_3x3
+        self.out_channels_3x3 = int(self.out_channels // self.scale_ratio)
+        self.out_channels_1x1 = self.out_channels - self.out_channels_3x3
 
-        self.depthwise_conv = nn.Conv2d(self.i_3x3, self.o, 3, self.stride, 1, groups=2, bias=False)
-        self.pointwise_conv = nn.Conv2d(self.i_3x3, self.o, 1, 1, 0, bias=False)
+        self.depthwise = nn.Conv2d(self.in_channels_3x3, self.out_channels, 3, stride, 1, groups=2, bias=False)
+        self.pointwise = nn.Conv2d(self.in_channels_3x3, self.out_channels, 1, 1, 0, bias=False)
 
-        self.conv1x1 = nn.Conv2d(self.i_1x1, self.o, kernel_size=1)
+        self.conv1x1 = nn.Conv2d(self.in_channels_1x1, self.out_channels, 1, 1, 0, bias=False)
         self.groups = int(1 * self.scale_ratio)
-        self.avgpool_stride = nn.AvgPool2d(kernel_size=2, stride=2)
+        self.avgpool_stride = nn.AvgPool2d(2, 2)
         self.avgpool_add = nn.AdaptiveAvgPool2d(1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        batch_size, channel, _, _ = x.size()
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        batch_size, channel, _, _ = input.size()
 
         # Split conv3x3
-        x_3x3 = x[:, :int(channel // self.scale_ratio), :, :]
-        depthwise_out_3x3 = self.depthwise_conv(x_3x3)
+        input_3x3 = input[:, :int(channel // self.scale_ratio), :, :]
+        depthwise_out_3x3 = self.depthwise(input_3x3)
         if self.stride == 2:
-            x_3x3 = self.avgpool_stride(x_3x3)
-        pointwise_out_3x3 = self.pointwise_conv(x_3x3)
+            input_3x3 = self.avgpool_stride(input_3x3)
+        pointwise_out_3x3 = self.pointwise(input_3x3)
         out_3x3 = depthwise_out_3x3 + pointwise_out_3x3
         out_3x3_ratio = self.avgpool_add(out_3x3).squeeze(dim=3).squeeze(dim=2)
 
         # Split conv1x1.
-        x_1x1 = x[:, int(channel // self.scale_ratio):, :, :]
+        input_1x1 = input[:, int(channel // self.scale_ratio):, :, :]
         # use avgpool first to reduce information lost.
         if self.stride == 2:
-            x_1x1 = self.avgpool_stride(x_1x1)
-        out_1x1 = self.conv1x1(x_1x1)
+            input_1x1 = self.avgpool_stride(input_1x1)
+        out_1x1 = self.conv1x1(input_1x1)
         out_1x1_ratio = self.avgpool_add(out_1x1).squeeze(dim=3).squeeze(dim=2)
 
         out_31_ratio = torch.stack((out_3x3_ratio, out_1x1_ratio), 2)
         out_31_ratio = nn.Softmax(dim=2)(out_31_ratio)
-        out_3x3 = out_3x3 * (out_31_ratio[:, :, 0].view(batch_size, self.o, 1, 1).expand_as(out_3x3))
-        out_1x1 = out_1x1 * (out_31_ratio[:, :, 1].view(batch_size, self.o, 1, 1).expand_as(out_1x1))
-        out = out_3x3 + out_1x1
 
-        return out
+        out_3x3 = out_3x3 * (out_31_ratio[:, :, 0].view(batch_size, self.out_channels, 1, 1).expand_as(out_3x3))
+        out_1x1 = out_1x1 * (out_31_ratio[:, :, 1].view(batch_size, self.out_channels, 1, 1).expand_as(out_1x1))
+
+        return out_3x3 + out_1x1
