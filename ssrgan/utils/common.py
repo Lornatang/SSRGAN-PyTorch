@@ -24,7 +24,7 @@ import ssrgan.models as models
 from .device import select_device
 
 __all__ = [
-    "configure", "create_folder", "inference", "init_torch_seeds", "load_checkpoint", "save_checkpoint",
+    "configure", "create_folder", "inference", "init_torch_seeds", "save_checkpoint",
     "AverageMeter", "ProgressMeter"
 ]
 
@@ -112,31 +112,6 @@ def init_torch_seeds(seed: int = 0):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-
-def load_checkpoint(model: torch.nn.Module, optimizer: torch.optim.Adam = torch.optim.Adam, file: str = None) -> int:
-    r""" Quick loading model functions
-
-    Args:
-        model (nn.Module): Neural network model.
-        optimizer (torch.optim): Model optimizer. (Default: torch.optim.Adam).
-        file (str): Model file. (default: None).
-
-    Returns:
-        How much epoch to start training from.
-    """
-    if os.path.isfile(file):
-        logger.info(f"Loading checkpoint `{file}`")
-        checkpoint = torch.load(file)
-        epoch = checkpoint["epoch"]
-        model.load_state_dict(checkpoint["state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer"])
-        logger.info(f"Loaded checkpoint `{file}` (epoch {checkpoint['epoch'] + 1})")
-    else:
-        logger.warning(f"No checkpoint found at `{file}`")
-        epoch = 0
-
-    return epoch
 
 
 def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):
