@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import argparse
 import csv
 import logging
 import math
@@ -39,6 +40,137 @@ model_names = sorted(name for name in models.__dict__
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
+
+
+def resume(model: nn.Module, optimizer: torch.optim.Adam, device: torch.device,
+           args: argparse.ArgumentParser.parse_args) -> [int, float]:
+    r""" Resume your last training schedule.
+
+    Args:
+        model (nn.Module): Neural network model.
+        optimizer (torch.optim.Adam): Model optimizer.
+        device (torch.device): Load data to specified device.
+        args (argparse.ArgumentParser.parse_args): Parsing command line parameters.
+    """
+    # At present, it supports the simultaneous loading of two models.
+    models = [args.resumeD, args.resumeG]
+    start_epochs, best_values = [], []
+    for index in range(len(models)):
+        if os.path.isfile(models[index]):
+            logger.info(f"Loading checkpoint '{os.path.basename(models[index])}'.")
+            # Map model to be loaded to specified single gpu.
+            checkpoint = torch.load(models[index], map_location=device)
+            start_epoch = checkpoint["epoch"]
+            # The optimization index of discriminator is different from that of generator.
+            best_value = checkpoint["best_value"]
+            # best_loss may be from a checkpoint from a different GPU.
+            best_value = best_value.to(device)
+            # Support transfer learning.
+            model.load_state_dict(checkpoint["state_dict"], strict=False)
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            logger.info(f"Loaded checkpoint '{os.path.basename(models[index])}' (epoch {checkpoint['epoch']}).")
+        else:
+            start_epoch = 0
+            best_value = 0.
+            logger.info(f"No checkpoint found at '{os.path.basename(models[index])}'")
+
+        start_epochs.append(start_epoch)
+        best_values.append(best_value)
+
+    return start_epochs[0], start_epochs[1], best_values[0], best_values[1]
+
+
+def train_psnr(dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, criterion: nn.L1Loss,
+               optimizer: torch.optim, scheduler: torch.optim.lr_scheduler, device: torch.device,
+               args: argparse.ArgumentParser.parse_args) -> Any:
+    batch_time = AverageMeter("Time", ":6.3f")
+    data_time = AverageMeter("Data", ":6.3f")
+    losses = AverageMeter("Loss", ":.6f")
+    progress = ProgressMeter(len(dataloader), [batch_time, data_time, losses], prefix=f"Epoch: [{epoch}]")
+
+    # switch to train mode
+    model.train()
+
+    end = time.time()
+    for i, (images, target) in enumerate(dataloader):
+        # measure data loading time
+        data_time.update(time.time() - end)
+
+        # Move data to special device.
+        lr = images.to(device)
+        hr = target.to(device)
+
+        # Generating fake high resolution images from real low resolution images.
+        sr = model(lr)
+        # The L1 Loss of the generated fake high-resolution image and real high-resolution image is calculated.
+        loss = criterion(sr, hr)
+
+        # measure accuracy and record loss
+        losses.update(loss.item(), images.size(0))
+
+        # compute gradient and do SGD step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        # Dynamic adjustment of learning rate.
+        scheduler.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i % args.print_freq == 0:
+            progress.display(i)
+
+
+def test_psnr(dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, criterion: nn.MSELoss,
+              device: torch.device, args: argparse.ArgumentParser.parse_args) -> float:
+    batch_time = AverageMeter("Time", ":6.3f")
+    losses = AverageMeter("Loss", ":.6f")
+    psnres = AverageMeter("PSNR", ":2.2f")
+    progress = ProgressMeter(len(dataloader), [batch_time, losses, psnres], prefix="Test: ")
+
+    # switch to evaluate mode.
+    model.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        for i, (images, _, target) in enumerate(dataloader):
+
+            # Move data to special device.
+            lr = images.to(device)
+            hr = target.to(device)
+
+            # Generating fake high resolution images from real low resolution images.
+            sr = model(lr)
+            # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
+            loss = criterion(sr, hr)
+            psnr = 10 * math.log10(1. / loss.item())
+
+            # measure accuracy and record loss
+            losses.update(loss.item(), images.size(0))
+            psnres.update(psnr, images.size(0))
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if i % args.print_freq == 0:
+                progress.display(i)
+
+    # Last saved image of test.
+    vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{epoch + 1}.bmp"))
+    vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{epoch + 1}.bmp"))
+
+    # Writer evaluation log
+    with open(f"ResNet_{args.upscale_factor}x_{args.arch}.csv", "a+") as f:
+        writer = csv.writer(f)
+        writer.writerow([epoch + 1, psnres.avg])
+
+    # TODO: this should also be done with the ProgressMeter.
+    logger.info(f" * PSNR: {psnres.avg:.2f}.")
+
+    return psnres.avg
 
 
 class Trainer(object):
@@ -119,153 +251,17 @@ class Trainer(object):
                     f"\tPixel loss is L1\n"
                     f"\tAdversarial loss is BCEWithLogitsLoss")
 
-    # TODO: Simply resume discriminator function.
-    def resume_discriminator(self, model: nn.Module, optimizer: torch.optim, device: torch.device) -> Any:
-        args = self.args
-
-        if os.path.isfile(args.resumeD):
-            logger.info(f"Loading checkpoint '{os.path.basename(args.resumeD)}'.")
-            # Map model to be loaded to specified single gpu.
-            checkpoint = torch.load(args.resumeD, map_location=device)
-            start_epoch = checkpoint["epoch"]
-            best_loss = checkpoint["best_loss"]
-            # best_psnr may be from a checkpoint from a different GPU
-            best_loss = best_loss.to(device)
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            logger.info(f"Loaded checkpoint '{os.path.basename(args.resumeD)}' (epoch {checkpoint['epoch']}).")
-        else:
-            start_epoch = 0
-            best_loss = 0.
-            logger.info(f"No checkpoint found at '{os.path.basename(args.resumeD)}'")
-
-        return start_epoch, best_loss
-
-    # TODO: Simply resume generator function.
-    def resume_generator(self, model: nn.Module, optimizer: torch.optim, device: torch.device) -> Any:
-        args = self.args
-
-        if os.path.isfile(args.resumeG):
-            logger.info(f"Loading checkpoint '{os.path.basename(args.resumeG)}'.")
-            # Map model to be loaded to specified single gpu.
-            checkpoint = torch.load(args.resumeG, map_location=device)
-            start_epoch = checkpoint["epoch"]
-            best_psnr = checkpoint["best_psnr"]
-            # best_loss may be from a checkpoint from a different GPU.
-            best_psnr = best_psnr.to(device)
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            logger.info(f"Loaded checkpoint '{os.path.basename(args.resumeG)}' (epoch {checkpoint['epoch']}).")
-        else:
-            start_epoch = 0
-            best_psnr = 0.
-            logger.info(f"No checkpoint found at '{os.path.basename(args.resumeG)}'")
-
-        return start_epoch, best_psnr
-
-    def train_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, criterion: nn.L1Loss,
-                   optimizer: torch.optim, scheduler: torch.optim.lr_scheduler, device: torch.device) -> Any:
-        args = self.args
-
-        batch_time = AverageMeter("Time", ":6.3f")
-        data_time = AverageMeter("Data", ":6.3f")
-        losses = AverageMeter("Loss", ":.6f")
-        progress = ProgressMeter(len(dataloader), [batch_time, data_time, losses], prefix=f"Epoch: [{epoch}]")
-
-        # switch to train mode
-        model.train()
-
-        end = time.time()
-        for i, (images, target) in enumerate(dataloader):
-            # measure data loading time
-            data_time.update(time.time() - end)
-
-            # Move data to special device.
-            lr = images.to(device)
-            hr = target.to(device)
-
-            # Generating fake high resolution images from real low resolution images.
-            sr = model(lr)
-            # The L1 Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-            loss = criterion(sr, hr)
-
-            # measure accuracy and record loss
-            losses.update(loss.item(), images.size(0))
-
-            # compute gradient and do SGD step
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            # Dynamic adjustment of learning rate.
-            scheduler.step()
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if i % args.print_freq == 0:
-                progress.display(i)
-
-    def test_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, criterion: nn.MSELoss,
-                  device: torch.device) -> float:
-        args = self.args
-
-        batch_time = AverageMeter("Time", ":6.3f")
-        losses = AverageMeter("Loss", ":.6f")
-        psnres = AverageMeter("PSNR", ":2.2f")
-        progress = ProgressMeter(len(dataloader), [batch_time, losses, psnres], prefix="Test: ")
-
-        # switch to evaluate mode.
-        model.eval()
-
-        with torch.no_grad():
-            end = time.time()
-            for i, (images, _, target) in enumerate(dataloader):
-
-                # Move data to special device.
-                lr = images.to(device)
-                hr = target.to(device)
-
-                # Generating fake high resolution images from real low resolution images.
-                sr = model(lr)
-                # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
-                loss = criterion(sr, hr)
-                psnr = 10 * math.log10(1. / loss.item())
-
-                # measure accuracy and record loss
-                losses.update(loss.item(), images.size(0))
-                psnres.update(psnr, images.size(0))
-
-                # measure elapsed time
-                batch_time.update(time.time() - end)
-                end = time.time()
-
-                if i % args.print_freq == 0:
-                    progress.display(i)
-
-        # Last saved image of test.
-        vutils.save_image(hr, os.path.join("./output/hr", f"ResNet_{epoch + 1}.bmp"))
-        vutils.save_image(sr, os.path.join("./output/sr", f"ResNet_{epoch + 1}.bmp"))
-
-        # Writer evaluation log
-        with open(f"ResNet_{self.args.upscale_factor}x_{args.arch}.csv", "a+") as f:
-            writer = csv.writer(f)
-            writer.writerow([epoch + 1, psnres.avg])
-
-        # TODO: this should also be done with the ProgressMeter.
-        logger.info(f" * PSNR: {psnres.avg:.2f}.")
-
-        return psnres.avg
-
     def run(self):
         args = self.args
+        best_loss = 0.
         best_psnr = 0.
 
         # Loading PSNR pre training model.
-        if args.resumeG:
-            args.start_epoch, best_loss = self.resume_generator(model=self.generator,
-                                                                optimizer=self.psnr_optimizer,
-                                                                device=self.device)
+        if args.resumeG or args.resumeD:
+            args.start_epoch, args.start_epoch, best_loss, best_psnr = resume(model=self.generator,
+                                                                              optimizer=self.psnr_optimizer,
+                                                                              device=self.device,
+                                                                              args=self.args)
 
         # Start train PSNR model.
         logger.info("Staring training PSNR model")
@@ -276,29 +272,31 @@ class Trainer(object):
                 writer = csv.writer(f)
                 writer.writerow(["Epoch", "PSNR"])
         for epoch in range(args.start_epoch, self.psnr_epochs):
-            self.train_psnr(dataloader=self.train_dataloader,
-                            epoch=epoch,
-                            model=self.generator,
-                            criterion=self.pix_criterion,
-                            optimizer=self.psnr_optimizer,
-                            scheduler=self.psnr_scheduler,
-                            device=self.device)
+            train_psnr(dataloader=self.train_dataloader,
+                       epoch=epoch,
+                       model=self.generator,
+                       criterion=self.pix_criterion,
+                       optimizer=self.psnr_optimizer,
+                       scheduler=self.psnr_scheduler,
+                       device=self.device,
+                       args=self.args)
 
-            psnr = self.test_psnr(dataloader=self.test_dataloader,
-                                  epoch=epoch,
-                                  model=self.generator,
-                                  criterion=self.mse_criterion,
-                                  device=self.device)
+            psnr = test_psnr(dataloader=self.test_dataloader,
+                             epoch=epoch,
+                             model=self.generator,
+                             criterion=self.mse_criterion,
+                             device=self.device,
+                             args=self.args)
 
             # remember best psnr and save checkpoint
             is_best = psnr > best_psnr
             best_psnr = max(psnr, best_psnr)
 
             # The model is saved every 1 epoch.
-            save_checkpoint({"epoch": epoch + 1, "state_dict": self.generator.state_dict(), "best_psnr": best_psnr,
+            save_checkpoint({"epoch": epoch + 1, "state_dict": self.generator.state_dict(), "best_value": best_psnr,
                              "optimizer": self.psnr_optimizer.state_dict()}, is_best,
                             f"./weights/ResNet_{args.upscale_factor}x_{args.arch}_checkpoint.pth",
-                            f"./weights/ResNet_{args.upscale_factor}x_{args.arch}.pth")
+                            f"./weights/Exp/Activations/baseline.pth")
 
         # # Loading GAN training all model.
         # if args.resumed and args.resumeG:
