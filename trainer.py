@@ -23,8 +23,8 @@ import torch.utils.data
 import torchvision.utils as vutils
 
 import ssrgan.models as models
-from ssrgan import CustomTrainDataset
 from ssrgan import CustomTestDataset
+from ssrgan import CustomTrainDataset
 from ssrgan import VGGLoss
 from ssrgan.models import DiscriminatorForVGG
 from ssrgan.utils import AverageMeter
@@ -112,6 +112,8 @@ class Trainer(object):
         # Loss = 10 * l1 loss + vgg loss + 5e-3 * adversarial loss
         self.pix_criterion = nn.L1Loss().to(self.device)
         self.adversarial_criterion = nn.BCEWithLogitsLoss().to(self.device)
+        # Evaluating the loss function of PSNR.
+        self.mse_criterion = nn.MSELoss().to(self.device)
         logger.info(f"Loss function:\n"
                     f"\tVGG loss is VGGLoss\n"
                     f"\tPixel loss is L1\n"
@@ -161,8 +163,8 @@ class Trainer(object):
 
         return start_epoch, best_psnr
 
-    def train_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, optimizer: torch.optim,
-                   scheduler: torch.optim.lr_scheduler, device: torch.device) -> Any:
+    def train_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, criterion: nn.L1Loss,
+                   optimizer: torch.optim, scheduler: torch.optim.lr_scheduler, device: torch.device) -> Any:
         args = self.args
 
         batch_time = AverageMeter("Time", ":6.3f")
@@ -184,8 +186,8 @@ class Trainer(object):
 
             # Generating fake high resolution images from real low resolution images.
             sr = model(lr)
-            # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
-            loss = self.pix_criterion(sr, hr)
+            # The L1 Loss of the generated fake high-resolution image and real high-resolution image is calculated.
+            loss = criterion(sr, hr)
 
             # measure accuracy and record loss
             losses.update(loss.item(), images.size(0))
@@ -204,7 +206,7 @@ class Trainer(object):
             if i % args.print_freq == 0:
                 progress.display(i)
 
-    def test_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module,
+    def test_psnr(self, dataloader: torch.utils.data.DataLoader, epoch: int, model: nn.Module, criterion: nn.MSELoss,
                   device: torch.device) -> float:
         args = self.args
 
@@ -227,8 +229,8 @@ class Trainer(object):
                 # Generating fake high resolution images from real low resolution images.
                 sr = model(lr)
                 # The MSE of the generated fake high-resolution image and real high-resolution image is calculated.
-                loss = self.pix_criterion(sr, hr)
-                psnr = 10 * math.log10(1. / (loss.item() ** 2))
+                loss = criterion(sr, hr)
+                psnr = 10 * math.log10(1. / loss.item())
 
                 # measure accuracy and record loss
                 losses.update(loss.item(), images.size(0))
@@ -277,6 +279,7 @@ class Trainer(object):
             self.train_psnr(dataloader=self.train_dataloader,
                             epoch=epoch,
                             model=self.generator,
+                            criterion=self.pix_criterion,
                             optimizer=self.psnr_optimizer,
                             scheduler=self.psnr_scheduler,
                             device=self.device)
@@ -284,6 +287,7 @@ class Trainer(object):
             psnr = self.test_psnr(dataloader=self.test_dataloader,
                                   epoch=epoch,
                                   model=self.generator,
+                                  criterion=self.mse_criterion,
                                   device=self.device)
 
             # remember best psnr and save checkpoint
