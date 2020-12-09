@@ -12,5 +12,8 @@
 # limitations under the License.
 # ==============================================================================
 import requests
+import time
 
-requests.post("http://127.0.0.1:10086/run")
+while True:
+    requests.post("http://127.0.0.1:10086/run")
+    time.sleep(1)
