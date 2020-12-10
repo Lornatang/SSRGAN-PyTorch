@@ -31,17 +31,17 @@ model_urls = {
 class ResidualBlock(nn.Module):
     r"""Main residual block structure"""
 
-    def __init__(self, channels: int = 64) -> None:
+    def __init__(self, channels: int) -> None:
         r"""Initializes internal Module state, shared by both nn.Module and ScriptModule.
         Args:
             channels (int): Number of channels in the input image.
         """
         super(ResidualBlock, self).__init__()
         self.main = nn.Sequential(
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(channels, channels, 3, 1, 1, bias=False),
             nn.BatchNorm2d(channels),
             nn.PReLU(),
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(channels, channels, 3, 1, 1, bias=False),
             nn.BatchNorm2d(channels)
         )
 
@@ -62,7 +62,7 @@ class SRGAN(nn.Module):
 
         # First layer
         self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False),
             nn.PReLU()
         )
 
@@ -73,7 +73,7 @@ class SRGAN(nn.Module):
         self.trunk = nn.Sequential(*trunk)
 
         self.conv2 = nn.Sequential(
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(64)
         )
 
@@ -81,7 +81,7 @@ class SRGAN(nn.Module):
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
-                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1, bias=False),
                 nn.PixelShuffle(upscale_factor=2),
                 nn.PReLU()
             ]
