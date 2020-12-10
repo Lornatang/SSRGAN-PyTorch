@@ -15,8 +15,8 @@
 import torch
 import torch.nn as nn
 
-from ssrgan.activation import FReLU
 from ssrgan.activation import HSigmoid
+from ssrgan.activation import Mish
 
 __all__ = ["channel_shuffle", "SqueezeExcite",
            "GhostConv", "GhostBottleneck",
@@ -67,13 +67,13 @@ class SqueezeExcite(nn.Module):
         self.HSigmoid = HSigmoid()
         self.avgpool = nn.AdaptiveAvgPool2d(1)
         self.conv_reduce = nn.Conv2d(channels, reduce_channels, 1, 1, 0, bias=True)
-        self.FReLU = FReLU(reduction)
+        self.Mish = Mish()
         self.conv_expand = nn.Conv2d(reduce_channels, channels, 1, 1, 0, bias=True)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         out = self.avgpool(input)
         out = self.conv_reduce(out)
-        out = self.FReLU(out)
+        out = self.Mish(out)
         out = self.conv_expand(out)
         return input * self.HSigmoid(out)
 
@@ -103,12 +103,12 @@ class GhostConv(nn.Module):
         # Point-wise expansion.
         self.pointwise = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size, stride, padding),
-            FReLU(mid_channels) if act else nn.Identity()
+            Mish() if act else nn.Identity()
         )
         # Depth-wise convolution.
         self.depthwise = nn.Sequential(
             nn.Conv2d(mid_channels, mid_channels, dw_kernel_size, 1, (dw_kernel_size - 1) // 2, groups=mid_channels),
-            FReLU(mid_channels) if act else nn.Identity()
+            Mish() if act else nn.Identity()
         )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
@@ -122,7 +122,7 @@ class GhostBottleneck(nn.Module):
     `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907.pdf>`_ paper.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, dw_kernel_size: int = 5, stride: int = 1):
+    def __init__(self, in_channels: int, out_channels: int, dw_kernel_size: int = 3, stride: int = 1):
         """
 
         Args:
@@ -133,14 +133,17 @@ class GhostBottleneck(nn.Module):
         """
         super(GhostBottleneck, self).__init__()
         self.stride = stride
-        mid_channels = out_channels // 2
+        mid_channels = in_channels // 2
         dw_padding = (dw_kernel_size - 1) // 2
 
         # Shortcut layer
-        self.shortcut = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, dw_kernel_size, stride, dw_padding, groups=in_channels, bias=False),
-            nn.Conv2d(in_channels, out_channels, 1, 1, 0, bias=False) if self.stride == 2 else nn.Identity()
-        )
+        if in_channels == out_channels:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(in_channels, in_channels, dw_kernel_size, stride, dw_padding, groups=in_channels, bias=False),
+                nn.Conv2d(in_channels, out_channels, 1, 1, 0, bias=False) if self.stride == 2 else nn.Identity()
+            )
+        else:
+            self.shortcut = nn.Sequential()
 
         # Point-wise expansion.
         self.pointwise = GhostConv(in_channels, mid_channels, 1, 1, 0)

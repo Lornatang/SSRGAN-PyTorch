@@ -38,6 +38,7 @@ class InvertedResidual(nn.Module):
 
     def __init__(self, in_channels: int = 64, out_channels: int = 64, expand_factor: int = 6) -> None:
         r""" Modules introduced in MobileNetV2 paper.
+        
         Args:
             in_channels (int): Number of channels in the input image. (Default: 64).
             out_channels (int): Number of channels produced by the convolution. (Default: 64).
