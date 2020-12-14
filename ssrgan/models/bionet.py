@@ -280,13 +280,11 @@ class BioNet(nn.Module):
         for _ in range(num_upsample_block):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                nn.Conv2d(32, 32, 3, 1, 1, bias=False),
-                Mish(),
+                SymmetricBlock(32, 32),
                 nn.Conv2d(32, 128, 3, 1, 1, bias=False),
                 Mish(),
                 nn.PixelShuffle(upscale_factor=2),
-                nn.Conv2d(32, 32, 3, 1, 1, bias=False),
-                Mish()
+                SymmetricBlock(32, 32)
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
