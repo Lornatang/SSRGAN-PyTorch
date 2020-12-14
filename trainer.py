@@ -296,7 +296,7 @@ class Trainer(object):
             save_checkpoint({"epoch": epoch + 1, "state_dict": self.generator.state_dict(), "best_value": best_psnr,
                              "optimizer": self.psnr_optimizer.state_dict()}, is_best,
                             f"./weights/ResNet_{args.upscale_factor}x_{args.arch}_checkpoint.pth",
-                            f"./weights/Exp/Activations/baseline.pth")
+                            f"./weights/ResNet_{args.upscale_factor}x.pth")
 
         # # Loading GAN training all model.
         # if args.resumed and args.resumeG:
