@@ -20,7 +20,10 @@ from torch.hub import load_state_dict_from_url
 
 from ssrgan.activation import Mish
 
-__all__ = ["BioNet", "bionet"]
+__all__ = ["SymmetricBlock",
+           "DepthwiseBlock",
+           "InceptionBlock",
+           "BioNet", "bionet"]
 
 model_urls = {
     "bionet": ""
