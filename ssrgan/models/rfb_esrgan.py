@@ -150,7 +150,7 @@ class ReceptiveFieldBlock(nn.Module):
             nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=5, dilation=5, groups=1)
         )
 
-        self.conv1x1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv1x1 = nn.Conv2d(channels * 4, channels * 4, kernel_size=1, stride=1, padding=0)
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True) if non_linearity else None
 
         self.scale_ratio = scale_ratio
