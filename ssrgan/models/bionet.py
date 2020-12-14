@@ -18,15 +18,9 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import FReLU
-from ssrgan.models.utils import Conv
-from ssrgan.models.utils import SPConv
-from ssrgan.models.utils import dw_conv
+from ssrgan.activation import Mish
 
-__all__ = ["SymmetricBlock",
-           "DepthwiseBlock",
-           "InceptionBlock", "InceptionDenseBlock",
-           "BioNet", "bionet"]
+__all__ = ["BioNet", "bionet"]
 
 model_urls = {
     "bionet": ""
@@ -52,21 +46,26 @@ class SymmetricBlock(nn.Module):
 
         # Down sampling.
         self.down = nn.Sequential(
-            SPConv(in_channels, in_channels, 2, 2),
-            FReLU(in_channels),
-            SPConv(in_channels, in_channels, 1, 2),
-            FReLU(in_channels),
-            SPConv(in_channels, in_channels, 1, 2),
-            FReLU(in_channels)
+            nn.Conv2d(in_channels, in_channels, 3, 2, 1, bias=False),
+            nn.Conv2d(in_channels, in_channels, 3, 1, 1, groups=in_channels, bias=False),
+            Mish(),
+            nn.Conv2d(in_channels, in_channels // 2, 1, 1, 0, bias=False),
+            Mish(),
+            nn.Conv2d(in_channels // 2, in_channels // 2, 3, 1, 1, groups=in_channels // 2, bias=False),
+            Mish(),
+            nn.Conv2d(in_channels // 2, in_channels // 4, 1, 1, 0, bias=False)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
-            SPConv(in_channels, in_channels, 1, 2),
-            FReLU(in_channels),
-            SPConv(in_channels, out_channels, 1, 2),
-            FReLU(out_channels)
+            nn.Conv2d(in_channels // 4, in_channels // 4, 3, 1, 1, groups=in_channels // 4, bias=False),
+            Mish(),
+            nn.Conv2d(in_channels // 4, in_channels // 2, 1, 1, 0, bias=False),
+            Mish(),
+            nn.Conv2d(in_channels // 2, in_channels // 2, 3, 1, 1, groups=in_channels // 2, bias=False),
+            Mish(),
+            nn.Conv2d(in_channels // 2, out_channels, 1, 1, 0, bias=False)
         )
 
         for m in self.modules():
@@ -91,21 +90,29 @@ class DepthwiseBlock(nn.Module):
     `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/abs/1801.04381>`_ paper.
     """
 
-    def __init__(self, channels: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int) -> None:
         r""" Modules introduced in MobileNetV2 paper.
 
         Args:
-            channels (int): Number of channels in the input/output image.
+            in_channels (int): Number of channels in the input image.
+            out_channels (int): Number of channels produced by the convolution.
         """
         super(DepthwiseBlock, self).__init__()
+
         # pw
-        self.pointwise = Conv(channels, channels // 2, kernel_size=1, stride=1, padding=0)
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, 3, 1, 1, bias=False),
+            Mish()
+        )
 
         # dw
-        self.depthwise = dw_conv(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1)
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(in_channels, in_channels, 3, 1, 1, groups=in_channels, bias=False),
+            Mish()
+        )
 
         # pw-linear
-        self.pointwise_linear = Conv(channels // 2, channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.pointwise_linear = nn.Conv2d(in_channels, out_channels, 3, 1, 1, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -133,48 +140,50 @@ class InceptionBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int, scale_ratio: float = 0.2,
-                 non_linearity: bool = True) -> None:
+    def __init__(self, in_channels: int, out_channels: int, non_linearity: bool = True) -> None:
         r""" Modules introduced in InceptionX paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            scale_ratio (optional, float): Residual channel scaling column. (Default: 0.5).
             non_linearity (optional, bool): Does the last layer use nonlinear activation. (Default: ``True``).
         """
         super(InceptionBlock, self).__init__()
         branch_features = int(in_channels // 4)
 
-        self.shortcut = Conv(in_channels, out_channels, kernel_size=1, stride=1, padding=0, act=False)
+        self.shortcut = nn.Conv2d(in_channels, out_channels, 1, 1, 0)
 
         self.branch1 = nn.Sequential(
-            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
-            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
-            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
+            nn.Conv2d(in_channels, branch_features, 1, 1, 0, bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, 3, 1, 3, dilation=3, bias=False),
         )
         self.branch2 = nn.Sequential(
-            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
-            dw_conv(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
-            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
+            nn.Conv2d(in_channels, branch_features, 1, 1, 0, bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, (1, 3), 1, (0, 1), bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, 3, 1, 3, dilation=3, bias=False),
         )
         self.branch3 = nn.Sequential(
-            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
-            dw_conv(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
+            nn.Conv2d(in_channels, branch_features, 1, 1, 0, bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, (3, 1), 1, (1, 0), bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, 3, 1, 3, dilation=3, bias=False),
         )
         self.branch4 = nn.Sequential(
-            Conv(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
-            dw_conv(branch_features, branch_features, kernel_size=3, stride=1, padding=1),
-            Conv(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3, act=False)
+            nn.Conv2d(in_channels, branch_features, 1, 1, 0, bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, (1, 3), 1, (0, 1), bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, (3, 1), 1, (1, 0), bias=False),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, 3, 1, 3, dilation=3, bias=False),
         )
 
-        self.fusion_conv_2_3 = Conv(branch_features * 2, branch_features * 2, 1, 1, 0, act=False)
-        self.fusion_conv_1_2_3_4 = Conv(in_channels, out_channels, 1, 1, 0, act=False)
-
-        self.frelu = FReLU(out_channels) if non_linearity else None
-
-        self.scale_ratio = scale_ratio
+        self.conv1x1 = nn.Conv2d(branch_features * 4, branch_features * 4, 1, 1, 0, bias=False)
+        self.Mish = Mish() if non_linearity else None
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -186,53 +195,52 @@ class InceptionBlock(nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         shortcut = self.shortcut(input)
 
-        branch_out_1 = self.branch1(input)
-        branch_out_2 = self.branch2(input)
-        branch_out_3 = self.branch3(input)
-        branch_out_4 = self.branch4(input)
+        branch1 = self.branch1(input)
+        branch2 = self.branch2(input)
+        branch3 = self.branch3(input)
+        branch4 = self.branch4(input)
 
-        branch_concat_2_3 = torch.cat([branch_out_2, branch_out_3], dim=1)
-        branch_out_2_3 = self.fusion_conv_2_3(branch_concat_2_3)
+        out = torch.cat([branch1, branch2, branch3, branch4], dim=1)
+        out = self.conv1x1(out)
 
-        branch_concat_1_2_3_4 = torch.cat([branch_out_1, branch_out_2_3, branch_out_4], dim=1)
-        branch_out_1_2_3_4 = self.fusion_conv_1_2_3_4(branch_concat_1_2_3_4)
-
-        out = branch_out_1_2_3_4 + shortcut.mul(self.scale_ratio)
-        if self.frelu is not None:
-            out = self.frelu(out)
+        out = out + shortcut
+        if self.Mish is not None:
+            out = self.Mish(out)
 
         return out
 
 
-class InceptionDenseBlock(nn.Module):
-    r""" Inception dense network.
-    """
-
-    def __init__(self, channels: int, growth_channels: int = 32, scale_ratio: float = 0.2) -> None:
-        r""" Modules introduced in InceptionV4 paper.
-
-        Args:
-            channels (int): Number of channels in the input image.
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
-            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
-        """
-        super(InceptionDenseBlock, self).__init__()
-        self.IB1 = InceptionBlock(channels + 0 * growth_channels, growth_channels)
-        self.IB2 = InceptionBlock(channels + 1 * growth_channels, growth_channels)
-        self.IB3 = InceptionBlock(channels + 2 * growth_channels, growth_channels)
-        self.IB4 = InceptionBlock(channels + 3 * growth_channels, growth_channels)
-        self.IB5 = InceptionBlock(channels + 4 * growth_channels, channels, non_linearity=False)
-
-        self.scale_ratio = scale_ratio
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        ib1 = self.IB1(input)
-        ib2 = self.IB2(torch.cat((input, ib1), dim=1))
-        ib3 = self.IB3(torch.cat((input, ib1, ib2), dim=1))
-        ib4 = self.IB4(torch.cat((input, ib1, ib2, ib3), dim=1))
-        ib5 = self.IB5(torch.cat((input, ib1, ib2, ib3, ib4), dim=1))
-
-        return ib5.mul(self.scale_ratio) + input
+#
+#
+# class InceptionDenseBlock(nn.Module):
+#     r""" Inception dense network.
+#     """
+#
+#     def __init__(self, channels: int, growth_channels: int = 32, scale_ratio: float = 0.2) -> None:
+#         r""" Modules introduced in InceptionV4 paper.
+#
+#         Args:
+#             channels (int): Number of channels in the input image.
+#             growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32).
+#             scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+#         """
+#         super(InceptionDenseBlock, self).__init__()
+#         self.IB1 = InceptionBlock(channels + 0 * growth_channels, growth_channels)
+#         self.IB2 = InceptionBlock(channels + 1 * growth_channels, growth_channels)
+#         self.IB3 = InceptionBlock(channels + 2 * growth_channels, growth_channels)
+#         self.IB4 = InceptionBlock(channels + 3 * growth_channels, growth_channels)
+#         self.IB5 = InceptionBlock(channels + 4 * growth_channels, channels, non_linearity=False)
+#
+#         self.scale_ratio = scale_ratio
+#
+#     def forward(self, input: torch.Tensor) -> torch.Tensor:
+#         ib1 = self.IB1(input)
+#         ib2 = self.IB2(torch.cat((input, ib1), dim=1))
+#         ib3 = self.IB3(torch.cat((input, ib1, ib2), dim=1))
+#         ib4 = self.IB4(torch.cat((input, ib1, ib2, ib3), dim=1))
+#         ib5 = self.IB5(torch.cat((input, ib1, ib2, ib3, ib4), dim=1))
+#
+#         return ib5.mul(self.scale_ratio) + input
 
 
 class BioNet(nn.Module):
@@ -243,81 +251,77 @@ class BioNet(nn.Module):
         num_upsample_block = int(math.log(upscale_factor, 4))
 
         # First layer
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(3, 32, 3, 1, 1, bias=False)
 
-        trunk = []
-        for _ in range(8):
-            trunk.append(SymmetricBlock(32, 32))
-        self.trunk = nn.Sequential(*trunk)
+        self.trunk_a = nn.Sequential(
+            DepthwiseBlock(32, 32),
+            DepthwiseBlock(32, 32)
+        )
+        self.trunk_b = nn.Sequential(
+            SymmetricBlock(32, 32),
+            SymmetricBlock(32, 32)
+        )
+        self.trunk_c = nn.Sequential(
+            DepthwiseBlock(32, 32),
+            DepthwiseBlock(32, 32)
+        )
+        self.trunk_d = nn.Sequential(
+            InceptionBlock(32, 32),
+            InceptionBlock(32, 32)
+        )
 
-        # self.trunk_a = nn.Sequential(
-        #     SymmetricBlock(32),
-        #     SymmetricBlock(32)
-        # )
-        #
-        # self.trunk_b = nn.Sequential(
-        #     DepthwiseBlock(32),
-        #     DepthwiseBlock(32)
-        # )
-        #
-        # self.trunk_c = nn.Sequential(
-        #     InceptionBlock(32, 32),
-        #     InceptionBlock(32, 32)
-        # )
-        #
-        # self.trunk_d = nn.Sequential(
-        #     DepthwiseBlock(32),
-        #     DepthwiseBlock(32)
-        # )
-
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(32, 32, 3, 1, 1, bias=False)
 
         # Upsampling layers
         upsampling = []
         for _ in range(num_upsample_block):
             upsampling += [
                 nn.Upsample(scale_factor=2, mode="nearest"),
-                InceptionBlock(32, 32),
-                Conv(32, 128, kernel_size=3, stride=1, padding=1),
+                nn.Conv2d(32, 32, 3, 1, 1, bias=False),
+                Mish(),
+                nn.Conv2d(32, 128, 3, 1, 1, bias=False),
+                Mish(),
                 nn.PixelShuffle(upscale_factor=2),
-                InceptionBlock(32, 32)
+                nn.Conv2d(32, 32, 3, 1, 1, bias=False),
+                Mish()
             ]
         self.upsampling = nn.Sequential(*upsampling)
 
         # Next conv layer
-        self.conv3 = Conv(32, 32, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(32, 32, 3, 1, 1, bias=False),
+            Mish()
+        )
 
         # Final output layer.
-        self.conv4 = Conv(32, 3, kernel_size=3, stride=1, padding=1, act=False)
+        self.conv4 = nn.Conv2d(32, 3, 3, 1, 1, bias=False)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # First conv layer.
         conv1 = self.conv1(input)
-        # Trunk layer.
-        trunk = self.trunk(conv1)
 
-        # # U-Net trunk.
-        # trunk_a = self.trunk_a(conv1)
-        # # Concat conv1 and trunk a.
-        # out1 = torch.add(conv1, trunk_a)
-        #
-        # # MobileNet trunk.
-        # trunk_b = self.trunk_b(out1)
-        # # Concat conv1 and trunk b.
-        # out2 = torch.add(conv1, trunk_b)
-        #
-        # # InceptionX trunk.
-        # trunk_c = self.trunk_c(out2)
-        # # Concat conv1 and trunk c.
-        # out3 = torch.add(conv1, trunk_c)
-        #
-        # # MobileNet trunk.
-        # trunk_d = self.trunk_b(out3)
-        # # Concat conv1 and trunk d.
-        # out4 = torch.add(conv1, trunk_d)
+        # MobileNet trunk.
+        trunk_a = self.trunk_a(conv1)
+        # Concat conv1 and trunk a.
+        out1 = torch.add(conv1, trunk_a)
+
+        # Symmetric trunk.
+        trunk_b = self.trunk_b(out1)
+        # Concat conv1 and trunk b.
+        out2 = torch.add(conv1, trunk_b)
+
+        # MobileNet trunk.
+        trunk_c = self.trunk_c(out2)
+        # Concat conv1 and trunk c.
+        out3 = torch.add(conv1, trunk_c)
+
+        # Inception trunk.
+        trunk_d = self.trunk_b(out3)
+        # Concat conv1 and trunk d.
+        out4 = torch.add(conv1, trunk_d)
 
         # conv2 layer.
-        conv2 = self.conv2(trunk)
+        conv2 = self.conv2(out4)
         # Concat conv1 and conv2 layer.
         out = torch.add(conv1, conv2)
 
