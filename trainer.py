@@ -25,15 +25,15 @@ import torchvision.utils as vutils
 from tqdm import tqdm
 
 import ssrgan.models as models
-from ssrgan import CustomTestDataset
-from ssrgan import CustomTrainDataset
-from ssrgan import VGGLoss
-from ssrgan.models import DiscriminatorForVGG
-from ssrgan.utils import AverageMeter
-from ssrgan.utils import ProgressMeter
-from ssrgan.utils import configure
-from ssrgan.utils import init_torch_seeds
-from ssrgan.utils import save_checkpoint
+from ssrgan.dataset import CustomTestDataset
+from ssrgan.dataset import CustomTrainDataset
+from ssrgan.loss import VGGLoss
+from ssrgan.models.vgg import DiscriminatorForVGG
+from ssrgan.utils.common import AverageMeter
+from ssrgan.utils.common import ProgressMeter
+from ssrgan.utils.common import configure
+from ssrgan.utils.common import init_torch_seeds
+from ssrgan.utils.common import save_checkpoint
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
