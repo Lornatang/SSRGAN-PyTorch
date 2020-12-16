@@ -15,7 +15,7 @@ import argparse
 import logging
 
 import ssrgan.models as models
-from ssrgan.utils import create_folder
+from ssrgan.utils.common import create_folder
 from trainer import Trainer
 
 model_names = sorted(name for name in models.__dict__
