@@ -311,8 +311,8 @@ class Trainer(object):
 
         for epoch in range(start_epoch, self.epochs):
             progress_bar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
-            avg_d_loss = 0.
-            avg_g_loss = 0.
+            total_d_loss = 0.
+            total_g_loss = 0.
             for i, (input, target) in progress_bar:
                 lr = input.to(self.device)
                 hr = target.to(self.device)
@@ -365,8 +365,8 @@ class Trainer(object):
                 self.schedulerD.step()
                 self.schedulerG.step()
 
-                avg_d_loss += errD.item()
-                avg_g_loss += errG.item()
+                total_d_loss += errD.item()
+                total_g_loss += errG.item()
 
                 progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.train_dataloader)}] "
                                              f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
@@ -376,6 +376,9 @@ class Trainer(object):
                 if (i + 1) - len(self.train_dataloader) == 0:
                     vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{epoch + 1}.bmp"))
                     vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{epoch + 1}.bmp"))
+
+            avg_d_loss = total_d_loss / len(self.train_dataloader)
+            avg_g_loss = total_g_loss / len(self.train_dataloader)
 
             # remember best psnr and save checkpoint
             is_best = avg_g_loss < best_loss
