@@ -25,10 +25,10 @@ from PIL import Image
 from tqdm import tqdm
 
 from ssrgan.dataset import CustomTestDataset
-from ssrgan.utils import configure
-from ssrgan.utils import image_quality_evaluation
-from ssrgan.utils import inference
-from ssrgan.utils import process_image
+from ssrgan.utils.common import configure
+from ssrgan.utils.common import inference
+from ssrgan.utils.estimate import image_quality_evaluation
+from ssrgan.utils.transform import process_image
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
