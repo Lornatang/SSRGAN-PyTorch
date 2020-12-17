@@ -61,8 +61,6 @@ def resume(model: nn.Module, optimizer: torch.optim.Adam, device: torch.device,
         start_epoch = checkpoint["epoch"]
         # The optimization index of discriminator is different from that of generator.
         best_value = checkpoint["best_value"]
-        # best_loss may be from a checkpoint from a different GPU.
-        best_value = best_value.to(device)
         # Support transfer learning.
         model.load_state_dict(checkpoint["state_dict"], strict=False)
         optimizer.load_state_dict(checkpoint["optimizer"])
