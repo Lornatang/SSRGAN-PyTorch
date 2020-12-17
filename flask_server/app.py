@@ -11,8 +11,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import requests
 import time
+
+import requests
 
 while True:
     requests.post("http://127.0.0.1:10086/run")
