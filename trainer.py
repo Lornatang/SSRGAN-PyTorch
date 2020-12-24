@@ -19,6 +19,7 @@ import os
 import time
 from typing import Any
 
+import lpips
 import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
@@ -239,6 +240,8 @@ class Trainer(object):
         self.adversarial_criterion = nn.BCEWithLogitsLoss().to(self.device)
         # Evaluating the loss function of PSNR.
         self.mse_criterion = nn.MSELoss().to(self.device)
+        # LPIPS Evaluating.
+        self.lpips_loss = lpips.LPIPS(net="vgg", verbose=False).to(self.device)
         logger.info(f"Loss function:\n"
                     f"\tVGG loss is VGGLoss\n"
                     f"\tPixel loss is L1\n"
@@ -246,7 +249,7 @@ class Trainer(object):
 
     def run(self):
         args = self.args
-        best_loss = 0.
+        best_lpips = 0.
         best_psnr = 0.
 
         # Loading PSNR pre training model.
@@ -293,13 +296,15 @@ class Trainer(object):
 
         # pre-training done, start train GAN model.
         start_epoch = 0
+        # Load best generator model weight.
+        self.generator.load_state_dict(f"./weights/ResNet_{args.upscale_factor}x_{args.arch}.pth")
 
         # Loading discriminator model.
         if args.resumeD:
-            start_epoch, best_loss = resume(model=self.discriminator,
-                                            optimizer=self.optimizerD,
-                                            device=self.device,
-                                            model_file=args.resumeD)
+            start_epoch, best_lpips = resume(model=self.discriminator,
+                                             optimizer=self.optimizerD,
+                                             device=self.device,
+                                             model_file=args.resumeD)
 
         # Writer train GAN model log.
         if start_epoch == 0:
@@ -309,8 +314,6 @@ class Trainer(object):
 
         for epoch in range(start_epoch, self.epochs):
             progress_bar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
-            total_d_loss = 0.
-            total_g_loss = 0.
             for i, (input, target) in progress_bar:
                 lr = input.to(self.device)
                 hr = target.to(self.device)
@@ -328,15 +331,15 @@ class Trainer(object):
                 sr = self.generator(lr)
 
                 # Train with real high resolution image.
-                hr_output = self.discriminator(hr)  # Train real image.
-                sr_output = self.discriminator(sr.detach())  # No train fake image.
+                hr_output = self.discriminator(hr)  # Train lr image.
+                D_x = hr_output.mean().item()
+                sr_output = self.discriminator(sr.detach())  # No train sr image.
+                D_G_z1 = sr_output.mean().item()
                 # Adversarial loss for real and fake images (relativistic average GAN)
                 errD_hr = self.adversarial_criterion(hr_output - torch.mean(sr_output), real_label)
                 errD_sr = self.adversarial_criterion(sr_output - torch.mean(hr_output), fake_label)
-                errD = (errD_sr + errD_hr) / 2
+                errD = errD_sr + errD_hr
                 errD.backward()
-                D_x = hr_output.mean().item()
-                D_G_z1 = sr_output.mean().item()
                 self.optimizerD.step()
 
                 ##############################################
@@ -363,9 +366,6 @@ class Trainer(object):
                 self.schedulerD.step()
                 self.schedulerG.step()
 
-                total_d_loss += errD.item()
-                total_g_loss += errG.item()
-
                 progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.train_dataloader)}] "
                                              f"Loss_D: {errD.item():.6f} Loss_G: {errG.item():.6f} "
                                              f"D(HR): {D_x:.6f} D(G(LR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
@@ -375,16 +375,32 @@ class Trainer(object):
                     vutils.save_image(hr, os.path.join("./output/hr", f"GAN_{epoch + 1}.bmp"))
                     vutils.save_image(sr, os.path.join("./output/sr", f"GAN_{epoch + 1}.bmp"))
 
-            avg_d_loss = total_d_loss / len(self.train_dataloader)
-            avg_g_loss = total_g_loss / len(self.train_dataloader)
+            # switch to evaluate mode.
+            self.generator.eval()
 
-            # remember best psnr and save checkpoint
-            is_best = avg_g_loss < best_loss
-            best_loss = max(avg_g_loss, best_loss)
+            with torch.no_grad():
+                total_lpips_value = 0.
+                for i, (images, _, target) in enumerate(self.test_dataloader):
+                    # Move data to special device.
+                    lr = images.to(self.device)
+                    hr = target.to(self.device)
+
+                    # Generating fake high resolution images from real low resolution images.
+                    sr = self.generator(lr)
+                    # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
+                    loss = self.lpips_loss(sr, hr)
+
+                    total_lpips_value += loss
+
+            avg_lpips_value = total_lpips_value / len(self.test_dataloader)
+
+            # remember best lpips and save checkpoint
+            is_best = avg_lpips_value < best_lpips
+            best_lpips = max(avg_lpips_value, best_lpips)
 
             save_checkpoint({"epoch": epoch + 1,
                              "state_dict": self.generator.state_dict(),
-                             "best_value": best_loss,
+                             "best_lpips": best_lpips,
                              "optimizer": self.optimizerG.state_dict()},
                             is_best,
                             f"./weights/GAN_{args.upscale_factor}x_{args.arch}_checkpoint.pth",
@@ -393,6 +409,4 @@ class Trainer(object):
             # Writer training log
             with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "a+") as f:
                 writer = csv.writer(f)
-                writer.writerow([epoch + 1,
-                                 avg_d_loss / len(self.train_dataloader),
-                                 avg_g_loss / len(self.train_dataloader)])
+                writer.writerow([epoch + 1, avg_lpips_value])
