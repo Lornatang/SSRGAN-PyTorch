@@ -297,7 +297,8 @@ class Trainer(object):
         # pre-training done, start train GAN model.
         start_epoch = 0
         # Load best generator model weight.
-        self.generator.load_state_dict(f"./weights/ResNet_{args.upscale_factor}x_{args.arch}.pth")
+        self.generator.load_state_dict(torch.load(f"./weights/ResNet_{args.upscale_factor}x_{args.arch}.pth",
+                                                  map_location=self.device))
 
         # Loading discriminator model.
         if args.resumeD:
@@ -310,9 +311,11 @@ class Trainer(object):
         if start_epoch == 0:
             with open(f"GAN_{self.args.upscale_factor}x_Loss.csv", "w+") as f:
                 writer = csv.writer(f)
-                writer.writerow(["Epoch", "D Loss", "G Loss"])
+                writer.writerow(["Epoch", "LPIPS"])
 
         for epoch in range(start_epoch, self.epochs):
+            self.discriminator.train()
+            self.generator.train()
             progress_bar = tqdm(enumerate(self.train_dataloader), total=len(self.train_dataloader))
             for i, (input, target) in progress_bar:
                 lr = input.to(self.device)
@@ -380,7 +383,8 @@ class Trainer(object):
 
             with torch.no_grad():
                 total_lpips_value = 0.
-                for i, (images, _, target) in enumerate(self.test_dataloader):
+                progress_bar = tqdm(enumerate(self.test_dataloader), total=len(self.test_dataloader))
+                for i, (images, _, target) in progress_bar:
                     # Move data to special device.
                     lr = images.to(self.device)
                     hr = target.to(self.device)
@@ -388,9 +392,12 @@ class Trainer(object):
                     # Generating fake high resolution images from real low resolution images.
                     sr = self.generator(lr)
                     # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
-                    loss = self.lpips_loss(sr, hr)
+                    loss = torch.mean(self.lpips_loss(sr, hr))
 
-                    total_lpips_value += loss
+                    total_lpips_value += loss.item()
+
+                    progress_bar.set_description(f"[{epoch + 1}/{self.epochs}][{i + 1}/{len(self.test_dataloader)}] "
+                                                 f"LPIPS Loss: {loss.item():.6f}")
 
             avg_lpips_value = total_lpips_value / len(self.test_dataloader)
 
