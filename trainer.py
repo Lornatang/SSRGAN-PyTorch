@@ -297,7 +297,7 @@ class Trainer(object):
         # Loading discriminator model.
         if args.resumeD:
             start_epoch, best_loss = resume(model=self.discriminator,
-                                            optimizer=self.optimizerG,
+                                            optimizer=self.optimizerD,
                                             device=self.device,
                                             model_file=args.resumeD)
 
