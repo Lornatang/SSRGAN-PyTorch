@@ -25,6 +25,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from ssrgan.dataset import CustomTestDataset
+from ssrgan.utils.calculate_ssim import ssim
 from ssrgan.utils.common import configure
 from ssrgan.utils.common import inference
 from ssrgan.utils.estimate import image_quality_evaluation
@@ -40,17 +41,21 @@ class Test(object):
         self.model, self.device = configure(args)
 
         logger.info("Load testing dataset")
-        self.dataloader = torch.utils.data.DataLoader(CustomTestDataset(args.dataroot, img_size=216),
-                                                      batch_size=1,
+        dataset = CustomTestDataset(root=os.path.join(args.data, "test"),
+                                    image_size=args.image_size)
+        self.dataloader = torch.utils.data.DataLoader(dataset,
+                                                      batch_size=args.batch_size,
                                                       pin_memory=True,
                                                       num_workers=int(args.workers))
+
         logger.info(f"Dataset information\n"
-                    f"\tDataset dir is `{os.getcwd()}/{args.dataroot}`\n"
-                    f"\tBatch size is 1\n"
+                    f"\tDataset dir is `{os.getcwd()}/{args.data}/test`\n"
+                    f"\tBatch size is {args.batch_size}\n"
                     f"\tWorkers is {int(args.workers)}\n"
                     f"\tLoad dataset to CUDA")
 
     def run(self):
+        args = self.args
         # Evaluate algorithm performance.
         total_mse_value = 0.0
         total_rmse_value = 0.0
@@ -64,27 +69,23 @@ class Test(object):
 
         # Start evaluate model performance.
         progress_bar = tqdm(enumerate(self.dataloader), total=len(self.dataloader))
-        # Concat image.
-        images = []
 
         for i, (input, bicubic, target) in progress_bar:
             # Set model gradients to zero
             lr = input.to(self.device)
+            bicubic = bicubic.to(self.device)
             hr = target.to(self.device)
 
+            # Super-resolution.
             sr = inference(self.model, lr)
-            vutils.save_image(sr, f"./{self.args.outf}/sr_{i}.bmp")  # Save super resolution image.
-            vutils.save_image(hr, f"./{self.args.outf}/hr_{i}.bmp")  # Save high resolution image.
 
             # Evaluate performance
-            if self.args.quickly:
-                mse_value = ((sr - hr) ** 2).data.mean()
-                psnr_value = 10 * math.log10(1. / mse_value)
-                total_psnr_value += psnr_value
-                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] PSNR: {psnr_value:.2f}dB")
-            else:
-                value = image_quality_evaluation(f"./{self.args.outf}/sr_{i}.bmp", f"./{self.args.outf}/hr_{i}.bmp",
-                                                 self.device)
+            if args.detail:
+                vutils.save_image(sr, os.path.join("benchmark", "sr.bmp"))  # Save super resolution image.
+                vutils.save_image(hr, os.path.join("benchmark", "hr.bmp"))  # Save high resolution image.
+                value = image_quality_evaluation(sr_filename=os.path.join("benchmark", "sr.bmp"),
+                                                 hr_filename=os.path.join("benchmark", "hr.bmp"),
+                                                 device=self.device)
 
                 total_mse_value += value[0]
                 total_rmse_value += value[1]
@@ -98,24 +99,22 @@ class Test(object):
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
                                              f"PSNR: {value[2]:.2f}dB "
                                              f"SSIM: {value[3][0]:.4f}")
+            else:
+                mse_value = ((sr - hr) ** 2).data.mean()
+                psnr_value = 10 * math.log10(1. / mse_value)
+                ssim_value = ssim(hr, sr)
+                total_psnr_value += psnr_value
+                total_ssim_value += ssim_value
+                progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
+                                             f"PSNR: {psnr_value:.2f}dB SSIM: {ssim_value:.4f}.")
 
-            images.extend([hr.data.cpu().squeeze(0), bicubic.squeeze(0), sr.data.cpu().squeeze(0)])
-
-        images = torch.stack(images)
-        images = torch.chunk(images, len(self.dataloader) // 3)
-        bar = tqdm(images, desc="[saving testing results]")
-        index = 1
-        for image in bar:
-            image = vutils.make_grid(image, nrow=3, padding=5)
-            vutils.save_image(image, f"{self.args.outf}/{index}.bmp", padding=5)
-            index += 1
+            images = torch.cat([bicubic, sr, hr], dim=-1)
+            vutils.save_image(images, os.path.join("benchmark", f"{i + 1}.bmp"), padding=10)
 
         print(f"Performance avg results:\n")
         print(f"indicator Score\n")
         print(f"--------- -----\n")
-        if self.args.quickly:
-            print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n")
-        else:
+        if args.detail:
             print(f"MSE       {total_mse_value / len(self.dataloader):.2f}\n"
                   f"RMSE      {total_rmse_value / len(self.dataloader):.2f}\n"
                   f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
@@ -125,6 +124,9 @@ class Test(object):
                   f"SAM       {total_sam_value / len(self.dataloader):.4f}\n"
                   f"VIF       {total_vif_value / len(self.dataloader):.4f}\n"
                   f"LPIPS     {total_lpips_value / len(self.dataloader):.4f}\n")
+        else:
+            print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.4f}\n")
 
 
 class Estimate(object):
@@ -133,33 +135,52 @@ class Estimate(object):
         self.model, self.device = configure(args)
 
     def run(self):
-        # Read img to tensor and transfer to the specified device for processing.
-        img = Image.open(self.args.lr)
-        lr = process_image(img, self.device)
+        args = self.args
+        # Get file name.
+        filename = os.path.basename(args.lr)
 
-        sr, use_time = inference(self.model, lr, statistical_time=True)
-        vutils.save_image(sr, f"./{self.args.outf}/{self.args.lr.split('/')[-1]}")  # Save super resolution image.
+        # Read all pictures.
+        input = Image.open(args.lr)
+        bicubic = transforms.Resize((args.image_size, args.image_size), interpolation=Image.BICUBIC)(input)
+        target = Image.open(args.hr)
 
-        value = image_quality_evaluation(f"./{self.args.outf}/{self.args.lr}", self.args.hr, self.device)
+        # Convert image to tensor format.
+        lr = process_image(input, self.device)
+        bicubic = process_image(bicubic, self.device)
+        hr = process_image(target, self.device)
 
-        print(f"Performance avg results:\n")
-        print(f"indicator Score\n")
-        print(f"--------- -----\n")
-        if self.args.detail:
-            print(f"MSE       {value[0]:.2f}\n"
-                  f"RMSE      {value[1]:.2f}\n"
-                  f"PSNR      {value[2]:.2f}\n"
-                  f"SSIM      {value[3][0]:.4f}\n"
-                  f"MS-SSIM   {value[4].real:.4f}\n"
-                  f"NIQE      {value[5]:.2f}\n"
-                  f"SAM       {value[6]:.4f}\n"
-                  f"VIF       {value[7]:.4f}\n"
-                  f"LPIPS     {value[8].item():.4f}\n"
-                  f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
+        if args.eval:
+            sr, use_time = inference(self.model, lr, statistical_time=True)
+            images = torch.cat([bicubic, sr, hr], dim=-1)
+            vutils.save_image(sr, os.path.join("test", f"sr_{filename}"), padding=10)
+            vutils.save_image(images, os.path.join("test", f"compare_{filename}"), padding=10)
+            value = image_quality_evaluation(sr_filename=os.path.join("test", f"sr_{filename}"),
+                                             hr_filename=args.hr,
+                                             device=self.device)
+
+            print(f"Performance avg results:\n")
+            print(f"indicator Score\n")
+            print(f"--------- -----\n")
+            if self.args.detail:
+                print(f"MSE       {value[0]:.2f}\n"
+                      f"RMSE      {value[1]:.2f}\n"
+                      f"PSNR      {value[2]:.2f}\n"
+                      f"SSIM      {value[3][0]:.4f}\n"
+                      f"MS-SSIM   {value[4].real:.4f}\n"
+                      f"NIQE      {value[5]:.2f}\n"
+                      f"SAM       {value[6]:.4f}\n"
+                      f"VIF       {value[7]:.4f}\n"
+                      f"LPIPS     {value[8].item():.4f}\n"
+                      f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
+            else:
+                print(f"PSNR      {value[2]:.2f}\n"
+                      f"SSIM      {value[3][0]:.2f}\n"
+                      f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
         else:
-            print(f"PSNR      {value[0]:.2f}\n"
-                  f"SSIM      {value[1][0]:.2f}\n"
-                  f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
+            sr = inference(self.model, lr)
+            images = torch.cat([bicubic, sr, hr], dim=-1)
+            vutils.save_image(sr, os.path.join("test", f"sr_{filename}"))
+            vutils.save_image(images, os.path.join("test", f"compare_{filename}"))
 
 
 class Video(object):
@@ -179,12 +200,19 @@ class Video(object):
         self.sr_size = (self.size[0] * args.upscale_factor, self.size[1] * args.upscale_factor)
         self.pare_size = (self.sr_size[0] * 2 + 10, self.sr_size[1] + 10 + self.sr_size[0] // 5 - 9)
         # Video write loader.
-        self.sr_writer = cv2.VideoWriter(f"./video/sr_{args.scale_factor}x_{os.path.basename(args.file)}",
-                                         cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.sr_size)
-        self.compare_writer = cv2.VideoWriter(f"./video/compare_{args.scale_factor}x_{os.path.basename(args.file)}",
-                                              cv2.VideoWriter_fourcc(*"MPEG"), self.fps, self.pare_size)
+        self.sr_writer = cv2.VideoWriter(
+            os.path.join("video", f"sr_{args.upscale_factor}x_{os.path.basename(args.file)}"),
+            cv2.VideoWriter_fourcc(*"MPEG"),
+            self.fps,
+            self.sr_size)
+        self.compare_writer = cv2.VideoWriter(
+            os.path.join("video", f"compare_{args.upscale_factor}x_{os.path.basename(args.file)}"),
+            cv2.VideoWriter_fourcc(*"MPEG"),
+            self.fps,
+            self.pare_size)
 
     def run(self):
+        args = self.args
         # Set eval model.
         self.model.eval()
 
@@ -194,7 +222,7 @@ class Video(object):
         for _ in progress_bar:
             if success:
                 # Read img to tensor and transfer to the specified device for processing.
-                img = Image.open(self.args.lr)
+                img = Image.open(args.lr)
                 lr = process_image(img, self.device)
 
                 sr = inference(self.model, lr)
@@ -216,8 +244,7 @@ class Video(object):
                 compare_img = transforms.Resize((self.sr_size[1], self.sr_size[0]),
                                                 interpolation=Image.BICUBIC)(self.tensor2pil(raw_frame))
                 crop_compare_imgs = transforms.FiveCrop(size=compare_img.width // 5 - 9)(compare_img)
-                crop_compare_imgs = [np.asarray(transforms.Pad(padding=(0, 5, 10, 0))(img)) for img in
-                                     crop_compare_imgs]
+                crop_compare_imgs = [np.asarray(transforms.Pad((0, 5, 10, 0))(img)) for img in crop_compare_imgs]
                 compare_img = transforms.Pad(padding=(0, 0, 5, 5))(compare_img)
                 # concatenate all the pictures to one single picture
                 # 1. Mosaic the left and right images of the video.
@@ -235,9 +262,9 @@ class Video(object):
                 # save compare video
                 self.compare_writer.write(final_image)
 
-                if self.args.view:
+                if args.view:
                     # display video
-                    cv2.imshow("LR video convert HR video ", final_image)
+                    cv2.imshow("LR video convert SR video ", final_image)
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
 

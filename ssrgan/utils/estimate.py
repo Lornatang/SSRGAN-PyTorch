@@ -11,9 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+import math
+
 import cv2
 import lpips
-import torch
+import torch.nn as nn
+import torch.utils.data
 from sewar.full_ref import mse
 from sewar.full_ref import msssim
 from sewar.full_ref import psnr
@@ -21,12 +24,13 @@ from sewar.full_ref import rmse
 from sewar.full_ref import sam
 from sewar.full_ref import ssim
 from sewar.full_ref import vifp
+from tqdm import tqdm
 
 from .calculate_niqe import niqe
 from .transform import opencv2tensor
 
 __all__ = [
-    "image_quality_evaluation"
+    "image_quality_evaluation", "test_psnr", "test_gan"
 ]
 
 
@@ -63,3 +67,53 @@ def image_quality_evaluation(sr_filename: str, hr_filename: str, device: torch.d
     vifp_value = vifp(sr, hr)
     lpips_value = lpips_loss(sr_tensor, hr_tensor)
     return mse_value, rmse_value, psnr_value, ssim_value, msssim_value, niqe_value, sam_value, vifp_value, lpips_value
+
+
+def test_psnr(model: nn.Module, psnr_criterion: nn.MSELoss, dataloader: torch.utils.data.DataLoader,
+              device: torch.device = "cpu"):
+    # switch eval mode.
+    model.eval()
+    progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
+    total_psnr = 0.
+    for i, data in progress_bar:
+        # Move data to special device.
+        lr = data[0].to(device)
+        hr = data[2].to(device)
+
+        # Generating fake high resolution images from real low resolution images.
+        sr = model(lr)
+        # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
+        psnr = 10 * math.log10(1. / psnr_criterion(sr, hr).item())
+        total_psnr += psnr
+
+        progress_bar.set_description(f"PSNR: {psnr:.2f}dB.")
+
+    return total_psnr / len(dataloader)
+
+
+def test_gan(model: nn.Module, psnr_criterion: nn.MSELoss, lpips_criterion: lpips.LPIPS,
+             dataloader: torch.utils.data.DataLoader, device: torch.device = "cpu"):
+    # switch eval mode.
+    model.eval()
+    progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
+    total_psnr = 0.
+    total_lpips = 0.
+    for i, data in progress_bar:
+        # Move data to special device.
+        lr = data[0].to(device)
+        hr = data[2].to(device)
+
+        # Generating fake high resolution images from real low resolution images.
+        sr = model(lr)
+
+        # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
+        psnr = 10 * math.log10(1. / psnr_criterion(sr, hr).item())
+        # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
+        lpips = torch.mean(lpips_criterion(sr, hr)).item()
+
+        total_psnr += psnr
+        total_lpips += lpips
+
+        progress_bar.set_description(f"PSNR: {psnr:.2f}dB LPIPS: {lpips:.4f}.")
+
+    return total_psnr / len(dataloader), total_lpips / len(dataloader)

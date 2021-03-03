@@ -79,13 +79,13 @@ class Inference(object):
         image = Image.open(self.file_path)
 
         # Step 2: Check whether the image resolution meets the standard.
-        width, height = image.size
+        width, height = image.image_size
         correct_width, correct_height, width_blocks, height_blocks = resolution_dict[self.resolution_ratio]
 
-        if image.size[0] != correct_width or image.size[1] != correct_height:
+        if image.image_size[0] != correct_width or image.image_size[1] != correct_height:
             warnings.warn("Current image resolution is not supported! Auto adjust...")
             image = image.resize((correct_width, correct_height))
-            width, height = image.size
+            width, height = image.image_size
 
         # Step 3: Get low-resolution image area.
         lr_patch_width_size, lr_patch_height_size = int(width // width_blocks), int(height // height_blocks)
@@ -196,13 +196,13 @@ class SR(object):
         image = Image.open(self.filename)
 
         # Step 2: Check whether the image resolution meets the standard.
-        width, height = image.size
+        width, height = image.image_size
         correct_width, correct_height, width_blocks, height_blocks = resolution_dict[self.resolution_ratio]
 
-        if image.size[0] != correct_width or image.size[1] != correct_height:
+        if image.image_size[0] != correct_width or image.image_size[1] != correct_height:
             warnings.warn("Current image resolution is not supported! Auto adjust...")
             image = image.resize((correct_width, correct_height))
-            width, height = image.size
+            width, height = image.image_size
 
         # Step 3: Get low-resolution image area.
         lr_patch_width_size, lr_patch_height_size = int(width // width_blocks), int(height // height_blocks)

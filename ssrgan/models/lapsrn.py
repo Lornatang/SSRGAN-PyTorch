@@ -100,7 +100,7 @@ class LapSRN(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
             if isinstance(m, nn.ConvTranspose2d):
-                n, c, h, w = m.weight.data.size()
+                n, c, h, w = m.weight.data.image_size()
                 weight = get_upsample_filter(h)
                 m.weight.data = weight.view(1, 1, h, w).repeat(n, c, 1, 1)
                 if m.bias is not None:

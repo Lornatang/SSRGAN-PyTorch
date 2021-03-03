@@ -17,7 +17,7 @@ import os
 import shutil
 
 import cv2
-import torchvision.transforms
+import torchvision.transforms as transforms
 from PIL import Image
 
 __all__ = [
@@ -49,7 +49,7 @@ def center_crop(raw_img_dir=None, dst_img_dir=None, crop_img_size: int = 1944) -
     for filename in glob.glob(f"{raw_img_dir}/*"):
         img = Image.open(filename)
         # Call pytorch function to intercept the intermediate region directly.
-        img = torchvision.transforms.CenterCrop(crop_img_size)(img)
+        img = transforms.CenterCrop(crop_img_size)(img)
         img.save(f"{dst_img_dir}/{filename.split('/')[-1]}")
 
 

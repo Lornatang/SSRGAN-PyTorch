@@ -26,46 +26,40 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
-                                                 "technology for pathological microscopic images.")
-    # basic parameters
-    parser.add_argument("--dataroot", default="data/test", type=str,
-                        help="Path to datasets. (default:`data/test`)")
-    parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
-                        help="Number of data loading workers. (default:4)")
-    parser.add_argument("--outf", default="test", type=str, metavar="PATH",
-                        help="The location of the image in the evaluation process. (default: ``test``).")
-    parser.add_argument("--device", default="",
-                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
-    parser.add_argument("--quickly", dest="quickly", action="store_true",
-                        help="Only evaluation PSNR. It is very quickly.")
-
-    # model parameters
-    parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("data", metavar="DIR",
+                        help="path to dataset")
+    parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
                         choices=model_names,
                         help="model architecture: " +
                              " | ".join(model_names) +
-                             " (default: bionet)")
-    parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
-                        help="Low to high resolution scaling factor. (default:4).")
-    parser.add_argument("--model-path", default="", type=str, metavar="PATH",
-                        help="Path to latest checkpoint for model. (default: ````).")
-    parser.add_argument("--pretrained", dest="pretrained", action="store_true",
-                        help="Use pre-trained model.")
-
-    # test parameters
+                             " (default: dsgan)")
+    parser.add_argument("-j", "--workers", default=8, type=int, metavar="N",
+                        help="Number of data loading workers. (default:8)")
     parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                         help="mini-batch size (default: 16), this is the total "
                              "batch size of all GPUs on the current node when "
                              "using Data Parallel or Distributed Data Parallel.")
+    parser.add_argument("--image-size", type=int, default=128,
+                        help="Image size of real sample. (default:128).")
+    parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
+                        help="Low to high resolution scaling factor. (default:4).")
+    parser.add_argument("--model-path", default="weights/DSGAN.pth", type=str, metavar="PATH",
+                        help="Path to latest checkpoint for model. (default: ``weights/DSGAN.pth``).")
+    parser.add_argument("--pretrained", dest="pretrained", action="store_true",
+                        help="Use pre-trained model.")
+    parser.add_argument("--detail", dest="detail", action="store_true",
+                        help="Evaluate all indicators. It is very slow.")
+    parser.add_argument("--device", default="0",
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``0``).")
+
     args = parser.parse_args()
 
     print("##################################################\n")
     print("Run Testing Engine.\n")
     print(args)
 
-    create_folder(args.outf)
-    quickly = True if args.quickly else False
+    create_folder("benchmark")
 
     logger.info("TestEngine:")
     print("\tAPI version .......... 0.1.1")

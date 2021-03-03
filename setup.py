@@ -31,7 +31,7 @@ URL = "https://github.com/Lornatang/SSRGAN"
 EMAIL = "liu_changyu@dakewe.com"
 AUTHOR = "Liu Changyu"
 REQUIRES_PYTHON = ">=3.6.5"
-VERSION = "0.1.1"
+VERSION = "0.1.0"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -137,6 +137,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8"
     ],
     # $ setup.py publish support.
     cmdclass={

@@ -86,7 +86,7 @@ def imresize(img, scale, antialiasing=True):
     # input: img: CHW RGB [0,1]
     # output: CHW RGB [0,1] w/o round
 
-    in_C, in_H, in_W = img.size()
+    in_C, in_H, in_W = img.image_size()
     _, out_H, out_W = in_C, math.ceil(in_H * scale), math.ceil(in_W * scale)
     kernel_width = 4
 
@@ -112,17 +112,17 @@ def imresize(img, scale, antialiasing=True):
     img_aug.narrow(1, sym_len_Hs, in_H).copy_(img)
 
     sym_patch = img[:, :sym_len_Hs, :]
-    inv_idx = torch.arange(sym_patch.size(1) - 1, -1, -1).long()
+    inv_idx = torch.arange(sym_patch.image_size(1) - 1, -1, -1).long()
     sym_patch_inv = sym_patch.index_select(1, inv_idx)
     img_aug.narrow(1, 0, sym_len_Hs).copy_(sym_patch_inv)
 
     sym_patch = img[:, -sym_len_He:, :]
-    inv_idx = torch.arange(sym_patch.size(1) - 1, -1, -1).long()
+    inv_idx = torch.arange(sym_patch.image_size(1) - 1, -1, -1).long()
     sym_patch_inv = sym_patch.index_select(1, inv_idx)
     img_aug.narrow(1, sym_len_Hs + in_H, sym_len_He).copy_(sym_patch_inv)
 
     out_1 = torch.FloatTensor(in_C, out_H, in_W)
-    kernel_width = weights_H.size(1)
+    kernel_width = weights_H.image_size(1)
     for i in range(out_H):
         idx = int(indices_H[i][0])
         out_1[0, i, :] = img_aug[0, idx:idx + kernel_width, :].transpose(0, 1).mv(weights_H[i])
@@ -135,17 +135,17 @@ def imresize(img, scale, antialiasing=True):
     out_1_aug.narrow(2, sym_len_Ws, in_W).copy_(out_1)
 
     sym_patch = out_1[:, :, :sym_len_Ws]
-    inv_idx = torch.arange(sym_patch.size(2) - 1, -1, -1).long()
+    inv_idx = torch.arange(sym_patch.image_size(2) - 1, -1, -1).long()
     sym_patch_inv = sym_patch.index_select(2, inv_idx)
     out_1_aug.narrow(2, 0, sym_len_Ws).copy_(sym_patch_inv)
 
     sym_patch = out_1[:, :, -sym_len_We:]
-    inv_idx = torch.arange(sym_patch.size(2) - 1, -1, -1).long()
+    inv_idx = torch.arange(sym_patch.image_size(2) - 1, -1, -1).long()
     sym_patch_inv = sym_patch.index_select(2, inv_idx)
     out_1_aug.narrow(2, sym_len_Ws + in_W, sym_len_We).copy_(sym_patch_inv)
 
     out_2 = torch.FloatTensor(in_C, out_H, out_W)
-    kernel_width = weights_W.size(1)
+    kernel_width = weights_W.image_size(1)
     for i in range(out_W):
         idx = int(indices_W[i][0])
         out_2[0, :, i] = out_1_aug[0, :, idx:idx + kernel_width].mv(weights_W[i])

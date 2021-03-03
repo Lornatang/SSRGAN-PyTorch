@@ -35,7 +35,7 @@ def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
         >>> x = torch.randn(1, 64, 128, 128)
         >>> out = channel_shuffle(x, 4)
     """
-    batch_size, num_channels, height, width = x.data.size()
+    batch_size, num_channels, height, width = x.data.image_size()
     channels_per_group = num_channels // groups
 
     # reshape

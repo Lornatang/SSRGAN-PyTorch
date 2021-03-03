@@ -11,17 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .bionet import *
-# from .esrgan import *
-# from .inception import *
-# from .mobilenetv1 import *
-# from .mobilenetv2 import *
-# from .mobilenetv3 import *
-# from .lapsrn import *
-# from .rfb_esrgan import *
-# from .shufflenetv1 import *
-# from .shufflenetv2 import *
-# from .squeezenet import *
+from .discriminator import *
+from .dsgan import *
 from .srgan import *
-# from .u_net import *
-from .vgg import *

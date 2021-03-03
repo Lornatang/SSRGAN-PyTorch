@@ -26,64 +26,60 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
-                                                 "technology for pathological microscopic images.")
-    # basic parameters
-    parser.add_argument("--dataroot", type=str, default="data",
-                        help="Path to datasets. (default:`data`)")
-    parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
-                        help="Number of data loading workers. (default:4)")
-    parser.add_argument("--manualSeed", type=int, default=1111,
-                        help="Seed for initializing training. (default:1111)")
-    parser.add_argument("--device", default="",
-                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
-
-    # log parameters
-    parser.add_argument("-p", "--print-freq", default=10, type=int,
-                        metavar="N", help="Print frequency. (default: 10).")
-
-    # model parameters
-    parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
+    parser = argparse.ArgumentParser()
+    parser.add_argument("data", metavar="DIR",
+                        help="path to dataset")
+    parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
                         choices=model_names,
                         help="model architecture: " +
                              " | ".join(model_names) +
-                             " (default: bionet)")
+                             " (default: dsgan)")
+    parser.add_argument("-j", "--workers", default=8, type=int, metavar="N",
+                        help="Number of data loading workers. (default:8)")
+    parser.add_argument("--start-psnr-iter", default=0, type=int, metavar="N",
+                        help="manual iter number (useful on restarts)")
+    parser.add_argument("--psnr-iters", default=1000000, type=int, metavar="N",
+                        help="The number of iterations is needed in the training of PSNR model. (default:1000000)")
+    parser.add_argument("--start-iter", default=0, type=int, metavar="N",
+                        help="manual iter number (useful on restarts)")
+    parser.add_argument("--iters", default=400000, type=int, metavar="N",
+                        help="The training of srgan model requires the number of iterations. (default:400000)")
+    parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
+                        help="mini-batch size (default: 16), this is the total "
+                             "batch size of all GPUs on the current node when "
+                             "using Data Parallel or Distributed Data Parallel.")
+    parser.add_argument("--psnr-lr", type=float, default=0.0002,
+                        help="Learning rate. (default:0.0002)")
+    parser.add_argument("--lr", type=float, default=0.0001,
+                        help="Learning rate. (default:0.0001)")
+    parser.add_argument("--image-size", type=int, default=128,
+                        help="Image size of real sample. (default:128).")
     parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                         help="Low to high resolution scaling factor. (default:4).")
     parser.add_argument("--model-path", default="", type=str, metavar="PATH",
                         help="Path to latest checkpoint for model. (default: ````).")
     parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                         help="Use pre-trained model.")
-    parser.add_argument("--resumeD", default="", type=str, metavar="PATH",
+    parser.add_argument("--netP", default="", type=str, metavar="PATH",
+                        help="Path to latest psnr checkpoint. (default: ````).")
+    parser.add_argument("--netD", default="", type=str, metavar="PATH",
                         help="Path to latest discriminator checkpoint. (default: ````).")
-    parser.add_argument("--resumeG", default="", type=str, metavar="PATH",
+    parser.add_argument("--netG", default="", type=str, metavar="PATH",
                         help="Path to latest generator checkpoint. (default: ````).")
-
-    # training parameters
-    parser.add_argument("--start-epoch", default=0, type=int, metavar="N",
-                        help="manual epoch number (useful on restarts)")
-    parser.add_argument("--psnr-iters", default=1e6, type=int, metavar="N",
-                        help="The number of iterations is needed in the training of PSNR model. (default:1e6)")
-    parser.add_argument("--iters", default=4e5, type=int, metavar="N",
-                        help="The training of srgan model requires the number of iterations. (default:4e5)")
-    parser.add_argument("-b", "--batch-size", default=8, type=int, metavar="N",
-                        help="mini-batch size (default: 8), this is the total "
-                             "batch size of all GPUs on the current node when "
-                             "using Data Parallel or Distributed Data Parallel.")
-    parser.add_argument("--psnr-lr", type=float, default=2e-4,
-                        help="Learning rate for PSNR model. (default:2e-4)")
-    parser.add_argument("--lr", type=float, default=1e-4,
-                        help="Learning rate. (default:1e-4)")
+    parser.add_argument("--manualSeed", type=int, default=1111,
+                        help="Seed for initializing training. (default:1111)")
+    parser.add_argument("--device", default="",
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ````).")
     args = parser.parse_args()
 
     print("##################################################\n")
     print("Run Training Engine.\n")
     print(args)
 
-    create_folder("./output")
-    create_folder("./output/hr")
-    create_folder("./output/sr")
-    create_folder("./weights")
+    create_folder("run")
+    create_folder("run/hr")
+    create_folder("run/sr")
+    create_folder("weights")
 
     logger.info("TrainingEngine:")
     print("\tAPI version .......... 0.1.1")

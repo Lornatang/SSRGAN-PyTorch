@@ -26,39 +26,31 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
-                                                 "technology for pathological microscopic images.")
-
-    # basic parameters
+    parser = argparse.ArgumentParser()
     parser.add_argument("--file", type=str, required=True,
                         help="Test low resolution video name.")
-    parser.add_argument("--outf", default="video", type=str, metavar="PATH",
-                        help="The location of the image in the evaluation process. (default: ``video``).")
-    parser.add_argument("--device", default="0",
-                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``0``).")
-    parser.add_argument("--view", action="store_true",
-                        help="Super resolution real time to show.")
-
-    # model parameters
-    parser.add_argument("-a", "--arch", metavar="ARCH", default="bionet",
+    parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
                         choices=model_names,
                         help="model architecture: " +
                              " | ".join(model_names) +
-                             " (default: bionet)")
+                             " (default: dsgan)")
     parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                         help="Low to high resolution scaling factor. (default:4).")
-    parser.add_argument("--model-path", default="", type=str, metavar="PATH",
-                        help="Path to latest checkpoint for model. (default: ````).")
+    parser.add_argument("--model-path", default="weights/DSGAN.pth", type=str, metavar="PATH",
+                        help="Path to latest checkpoint for model. (default: ``weights/DSGAN.pth``).")
     parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                         help="Use pre-trained model.")
-
+    parser.add_argument("--view", dest="view", action="store_true",
+                        help="Super resolution real time to show.")
+    parser.add_argument("--device", default="0",
+                        help="device id i.e. `0` or `0,1` or `cpu`. (default: ``0``).")
     args = parser.parse_args()
 
     print("##################################################\n")
     print("Run Testing Engine.\n")
     print(args)
 
-    create_folder(args.outf)
+    create_folder("video")
 
     logger.info("TestEngine:")
     print("\tAPI version .......... 0.1.1")

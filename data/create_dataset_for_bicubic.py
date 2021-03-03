@@ -20,8 +20,8 @@ import torchvision.transforms as transforms
 from PIL import Image
 from tqdm import tqdm
 
-from ssrgan.dataset import check_image_file
-from ssrgan.utils import imresize
+from ssrgan import check_image_file
+from ssrgan import utils
 
 parser = argparse.ArgumentParser(description="Low resolution image generation using bicubic simple down sampling.")
 parser.add_argument("input-dir", type=str, required=True,
@@ -64,8 +64,8 @@ def process_for_lr():
         img = pil2tensor(img)
 
         # Remove noise
-        img = imresize(img, 1.0 / args.cleanup_factor, True)
-        _, w, h = img.size()
+        img = utils.imresize(img, 1.0 / args.cleanup_factor, True)
+        _, w, h = img.image_size()
         w = w - w % args.upscale_factor
         h = h - h % args.upscale_factor
         img = img[:, :w, :h]
@@ -75,7 +75,7 @@ def process_for_lr():
         img.save(os.path.join(args.hr_dir, os.path.basename(filename)), "bmp")
 
         # Simple down sampling.
-        img = imresize(img, 1.0 / args.upscale_factor, True)
+        img = utils.imresize(img, 1.0 / args.upscale_factor, True)
 
         # Save low resolution img
         img = tensor2pil(img)
@@ -94,7 +94,7 @@ def process_for_hr():
         img.save(os.path.join(args.hr_dir, os.path.basename(filename)), "bmp")
 
         # Simple down sampling.
-        img = imresize(img, 1.0 / args.upscale_factor, True)
+        img = utils.imresize(img, 1.0 / args.upscale_factor, True)
 
         # Save low resolution img
         img = tensor2pil(img)

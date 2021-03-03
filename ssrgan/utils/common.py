@@ -24,12 +24,21 @@ import ssrgan.models as models
 from .device import select_device
 
 __all__ = [
-    "configure", "create_folder", "inference", "init_torch_seeds", "save_checkpoint",
+    "create_folder", "configure", "inference", "init_torch_seeds", "save_checkpoint", "weights_init",
     "AverageMeter", "ProgressMeter"
 ]
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
+
+
+def create_folder(folder):
+    try:
+        os.makedirs(folder)
+        logger.info(f"Create `{os.path.join(os.getcwd(), folder)}` directory successful.")
+    except OSError:
+        logger.warning(f"Directory `{os.path.join(os.getcwd(), folder)}` already exists!")
+        pass
 
 
 def configure(args):
@@ -44,24 +53,15 @@ def configure(args):
     # Create model
     if args.pretrained:
         logger.info(f"Using pre-trained model `{args.arch}`")
-        model = models.__dict__[args.arch](pretrained=True, upscale_factor=args.upscale_factor).to(device)
+        model = models.__dict__[args.arch](pretrained=True).to(device)
     else:
         logger.info(f"Creating model `{args.arch}`")
-        model = models.__dict__[args.arch](upscale_factor=args.upscale_factor).to(device)
+        model = models.__dict__[args.arch]().to(device)
         if args.model_path:
             logger.info(f"You loaded the specified weight. Load weights from `{args.model_path}`")
             model.load_state_dict(torch.load(args.model_path, map_location=device), strict=False)
 
     return model, device
-
-
-def create_folder(folder):
-    try:
-        os.makedirs(folder)
-        logger.info(f"Create `{os.path.join(os.getcwd(), folder)}` directory successful.")
-    except OSError:
-        logger.warning(f"Directory `{os.path.join(os.getcwd(), folder)}` already exists!")
-        pass
 
 
 def inference(model, lr, statistical_time=False):
@@ -118,6 +118,16 @@ def save_checkpoint(state, is_best: bool, source_filename: str, target_filename:
     torch.save(state, source_filename)
     if is_best:
         torch.save(state["state_dict"], target_filename)
+
+
+# custom weights initialization called on netG and netD
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find("Conv") != -1:
+        torch.nn.init.normal_(m.weight, 0.0, 0.02)
+    elif classname.find("BatchNorm") != -1:
+        torch.nn.init.normal_(m.weight, 1.0, 0.02)
+        torch.nn.init.zeros_(m.bias)
 
 
 class AverageMeter(object):
