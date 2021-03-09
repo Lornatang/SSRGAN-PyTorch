@@ -44,7 +44,7 @@ def select_device(device: str = "", batch_size: int = 1) -> torch.device:
         if gpu_count > 1 and batch_size:  # check that batch_size is compatible with device_count.
             assert batch_size % gpu_count == 0, f"batch-size {batch_size} not multiple of GPU count {gpu_count}"
         x = [torch.cuda.get_device_properties(i) for i in range(gpu_count)]
-        s = "Using CUDA."
+        s = "Using CUDA "
         for i in range(0, gpu_count):
             if i == 1:
                 s = " " * len(s)

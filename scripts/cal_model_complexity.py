@@ -64,14 +64,14 @@ if __name__ == "__main__":
     cuda_time = time.time() - start_time
 
     flops, params = get_model_complexity_info(model, image_size, as_strings=True, print_per_layer_stat=False)
-    print(f"-----------------------------------------------------------------------")
-    print(f"                               Summary                                 ")
-    print(f"-----------------------------------------------------------------------")
-    print(f"|       Model       |    Params   |   FLOPs   |CPU Speed|GPU SPeed|")
-    print(f"-----------------------------------------------------------------------")
+    print(f"|---------------------------------------------------------------------|")
+    print(f"|                               Summary                               |")
+    print(f"|---------------------------------------------------------------------|")
+    print(f"|       Model       |    Params   |   FLOPs   | CPU Speed | GPU SPeed |")
+    print(f"|---------------------------------------------------------------------|")
     print(f"|{cpu_model.__class__.__name__.center(19):19}"
           f"|{params.center(13):13}"
           f"|{flops.center(11):11}"
-          f"|  {int(1 / cpu_time * args.batch_size)} it/s"
-          f"|  {int(1 / cuda_time * args.batch_size)} it/s|")
-    print(f"-----------------------------------------------------------------------")
+          f"|  {int(1 / cpu_time * args.batch_size)} it/s  "
+          f"|  {int(1 / cuda_time * args.batch_size)} it/s  |")
+    print(f"|---------------------------------------------------------------------|")

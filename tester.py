@@ -102,11 +102,12 @@ class Test(object):
             else:
                 mse_value = ((sr - hr) ** 2).data.mean()
                 psnr_value = 10 * math.log10(1. / mse_value)
-                ssim_value = ssim(hr, sr)
+                ssim_value = ssim(hr, sr).item()
                 total_psnr_value += psnr_value
                 total_ssim_value += ssim_value
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
-                                             f"PSNR: {psnr_value:.2f}dB SSIM: {ssim_value:.4f}.")
+                                             f"PSNR: {psnr_value:.2f}dB "
+                                             f"SSIM: {ssim_value:.4f}.")
 
             images = torch.cat([bicubic, sr, hr], dim=-1)
             vutils.save_image(images, os.path.join("benchmark", f"{i + 1}.bmp"), padding=10)
@@ -174,7 +175,7 @@ class Estimate(object):
                       f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
             else:
                 print(f"PSNR      {value[2]:.2f}\n"
-                      f"SSIM      {value[3][0]:.2f}\n"
+                      f"SSIM      {value[3][0]:.4f}\n"
                       f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
         else:
             sr = inference(self.model, lr)

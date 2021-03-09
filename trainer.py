@@ -11,16 +11,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import csv
 import logging
 import math
 import os
+import time
 
 import lpips
 import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 import ssrgan.models as models
@@ -30,7 +31,6 @@ from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator
 from ssrgan.utils.common import init_torch_seeds
 from ssrgan.utils.common import save_checkpoint
-from ssrgan.utils.common import weights_init
 from ssrgan.utils.device import select_device
 from ssrgan.utils.estimate import test_gan
 from ssrgan.utils.estimate import test_psnr
@@ -47,18 +47,20 @@ def train_psnr(epoch: int,
                total_iters: int,
                dataloader: torch.utils.data.DataLoader,
                model: nn.Module,
-               psnr_criterion: nn.L1Loss,
+               pixel_criterion: nn.L1Loss,
+               psnr_criterion: nn.MSELoss,
                optimizer: torch.optim.Adam,
-               scheduler: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts,
+               scheduler: torch.optim.lr_scheduler.ExponentialLR,
                scaler: amp.GradScaler,
+               writer: SummaryWriter,
                device: torch.device):
     # switch train mode.
     model.train()
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
     for i, (input, target) in progress_bar:
         # Move data to special device.
-        lr = input.to(device)
-        hr = target.to(device)
+        lr = input.to(device, non_blocking=True)
+        hr = target.to(device, non_blocking=True)
 
         optimizer.zero_grad()
         # Runs the forward pass with autocasting.
@@ -66,12 +68,12 @@ def train_psnr(epoch: int,
             # Generating fake high resolution images from real low resolution images.
             sr = model(lr)
             # The L1 Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-            loss = psnr_criterion(sr, hr)
+            pixel_loss = pixel_criterion(sr, hr)
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
         # Backward passes under autocast are not recommended.
         # Backward ops run in the same dtype autocast chose for corresponding forward ops.
-        scaler.scale(loss).backward()
+        scaler.scale(pixel_loss).backward()
 
         # scaler.step() first unscales the gradients of the optimizer's assigned params.
         # If these gradients do not contain infs or NaNs, optimizer.step() is then called,
@@ -82,14 +84,18 @@ def train_psnr(epoch: int,
         scaler.update()
 
         progress_bar.set_description(f"[{epoch + 1}/{total_epoch}][{i + 1}/{len(dataloader)}] "
-                                     f"L1 Loss: {loss.item():.6f}")
+                                     f"L1 Loss: {pixel_loss.item():.6f}")
 
         iters = i + epoch * len(dataloader) + 1
+        writer.add_scalar("Train/L1 Loss", pixel_loss.item(), iters)
+        writer.add_scalar("Train/PSNR", 10 * math.log10(1. / psnr_criterion(sr, hr).item()), iters)
+
         # The image is saved every 1000 epoch.
         if iters % 1000 == 0:
-            vutils.save_image(hr, os.path.join("run", "hr", f"BioNet_{iters}.bmp"))
-            sr = model(lr)
-            vutils.save_image(sr.detach(), os.path.join("run", "sr", f"BioNet_{iters}.bmp"))
+            vutils.save_image(hr, os.path.join("runs", "hr", f"DSNet_{iters}.bmp"))
+            with torch.no_grad():
+                sr = model(lr)
+            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"DSNet_{iters}.bmp"))
 
         if iters == int(total_iters):  # If the iteration is reached, exit.
             break
@@ -108,18 +114,19 @@ def train_gan(epoch: int,
               adversarial_criterion: nn.BCEWithLogitsLoss,
               discriminator_optimizer: torch.optim.Adam,
               generator_optimizer: torch.optim.Adam,
-              discriminator_scheduler: torch.optim.lr_scheduler,
-              generator_scheduler: torch.optim.lr_scheduler,
+              discriminator_scheduler: torch.optim.lr_scheduler.ExponentialLR,
+              generator_scheduler: torch.optim.lr_scheduler.ExponentialLR,
               scaler: amp.GradScaler,
+              writer: SummaryWriter,
               device: torch.device):
     # switch train mode.
     generator.train()
     discriminator.train()
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
     for i, (input, target) in progress_bar:
-        lr = input.to(device)
-        hr = target.to(device)
-        batch_size = lr.image_size(0)
+        lr = input.to(device, non_blocking=True)
+        hr = target.to(device, non_blocking=True)
+        batch_size = lr.size(0)
 
         # The real sample label is 1, and the generated sample label is 0.
         real_label = torch.full((batch_size, 1), 1, dtype=lr.dtype, device=device)
@@ -201,11 +208,19 @@ def train_gan(epoch: int,
                                      f"D(G(SR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
 
         iters = i + epoch * len(dataloader) + 1
+        writer.add_scalar("Train/D Loss", errD.item(), iters)
+        writer.add_scalar("Train/Pixel Loss", pixel_loss.item(), iters)
+        writer.add_scalar("Train/Perceptual Loss", perceptual_loss.item(), iters)
+        writer.add_scalar("Train/Adversarial Loss", adversarial_loss.item(), iters)
+        writer.add_scalar("Train/D(x)", D_x, iters)
+        writer.add_scalar("Train/D(G(SR1))", D_G_z1, iters)
+        writer.add_scalar("Train/D(G(SR2))", D_G_z2, iters)
+
         # The image is saved every 1000 epoch.
         if iters % 1000 == 0:
-            vutils.save_image(hr, os.path.join("run", "hr", f"DSGAN_{iters}.bmp"))
-            hr = generator(lr)
-            vutils.save_image(hr.detach(), os.path.join("run", "sr", f"DSGAN_{iters}.bmp"))
+            vutils.save_image(hr, os.path.join("runs", "hr", f"DSGAN_{iters}.bmp"))
+            sr = generator(lr)
+            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"DSGAN_{iters}.bmp"))
 
         if iters == int(total_iters):  # If the iteration is reached, exit.
             break
@@ -224,9 +239,11 @@ class Trainer(object):
 
         logger.info("Load training dataset")
         # Selection of appropriate treatment equipment.
-        train_dataset = CustomTrainDataset(root=os.path.join(args.data, "train"))
+        train_dataset = CustomTrainDataset(root=os.path.join(args.data, "train"),
+                                           sampler_frequency=args.sampler_frequency)
         test_dataset = CustomTestDataset(root=os.path.join(args.data, "test"),
-                                         image_size=args.image_size)
+                                         image_size=args.image_size,
+                                         sampler_frequency=args.sampler_frequency)
         self.train_dataloader = torch.utils.data.DataLoader(train_dataset,
                                                             batch_size=args.batch_size,
                                                             shuffle=True,
@@ -260,18 +277,12 @@ class Trainer(object):
         logger.info(f"Creating discriminator model")
         self.discriminator = discriminator().to(self.device)
 
-        self.generator = self.generator.apply(weights_init)
-        self.discriminator = self.discriminator.apply(weights_init)
-
         # Parameters of pre training model.
         self.start_psnr_epoch = math.floor(args.start_psnr_iter / len(self.train_dataloader))
         self.psnr_epochs = math.ceil(args.psnr_iters / len(self.train_dataloader))
-        psnr_epoch_indices = math.floor(self.psnr_epochs / 4)
         self.psnr_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.999))
-        self.psnr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(self.psnr_optimizer,
-                                                                                   T_0=psnr_epoch_indices,
-                                                                                   T_mult=1,
-                                                                                   eta_min=1e-7)
+        self.psnr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.psnr_optimizer,
+                                                                     gamma=0.95)
 
         logger.info(f"Pre-training model training parameters:\n"
                     f"\tIters is {args.psnr_iters}\n"
@@ -280,6 +291,10 @@ class Trainer(object):
                     f"\tLearning rate {args.lr}\n"
                     f"\tBetas (0.9, 0.999)")
 
+        # Create a SummaryWriter at the beginning of training.
+        self.psnr_writer = SummaryWriter(f"runs/DSNet_{int(time.time())}_logs")
+        self.gan_writer = SummaryWriter(f"runs/DSGAN_{int(time.time())}_logs")
+
         # Creates a GradScaler once at the beginning of training.
         self.scaler = amp.GradScaler()
         logger.info(f"Turn on mixed precision training.")
@@ -287,16 +302,12 @@ class Trainer(object):
         # Parameters of GAN training model.
         self.start_epoch = math.floor(args.start_iter / len(self.train_dataloader))
         self.epochs = math.ceil(args.iters / len(self.train_dataloader))
-        interval_epoch = math.ceil(self.epochs / 8)
-        epoch_indices = [interval_epoch, interval_epoch * 2, interval_epoch * 4, interval_epoch * 6]
         self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=args.lr, betas=(0.9, 0.999))
         self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.lr, betas=(0.9, 0.999))
-        self.discriminator_scheduler = torch.optim.lr_scheduler.MultiStepLR(self.discriminator_optimizer,
-                                                                            milestones=epoch_indices,
-                                                                            gamma=0.5)
-        self.generator_scheduler = torch.optim.lr_scheduler.MultiStepLR(self.generator_optimizer,
-                                                                        milestones=epoch_indices,
-                                                                        gamma=0.5)
+        self.discriminator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.discriminator_optimizer,
+                                                                              gamma=0.95)
+        self.generator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.generator_optimizer,
+                                                                          gamma=0.95)
         logger.info(f"All model training parameters:\n"
                     f"\tIters is {args.iters}\n"
                     f"\tEpoch is {self.epochs}\n"
@@ -335,12 +346,6 @@ class Trainer(object):
         logger.info("Staring training PSNR model")
         logger.info(f"Training for {args.psnr_iters} iters")
 
-        # Writer train PSNR model log.
-        if self.args.start_psnr_iter == 0:
-            with open(f"BioNet.csv", "w+") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Iter", "PSNR"])
-
         if args.start_psnr_iter < args.psnr_iters:
             for psnr_epoch in range(self.start_psnr_epoch, self.psnr_epochs):
                 # Train epoch.
@@ -349,10 +354,12 @@ class Trainer(object):
                            total_iters=args.psnr_iters,
                            dataloader=self.train_dataloader,
                            model=self.generator,
-                           psnr_criterion=self.pixel_criterion,
+                           pixel_criterion=self.pixel_criterion,
+                           psnr_criterion=self.psnr_criterion,
                            optimizer=self.psnr_optimizer,
                            scheduler=self.psnr_scheduler,
                            scaler=self.scaler,
+                           writer=self.psnr_writer,
                            device=self.device)
 
                 # Test for every epoch.
@@ -361,6 +368,7 @@ class Trainer(object):
                                  dataloader=self.test_dataloader,
                                  device=self.device)
                 iters = (psnr_epoch + 1) * len(self.train_dataloader)
+                self.psnr_writer.add_scalar("Test/PSNR", psnr, psnr_epoch)
 
                 # remember best psnr and save checkpoint
                 is_best = psnr > best_psnr
@@ -373,18 +381,14 @@ class Trainer(object):
                      "best_psnr": best_psnr,
                      "optimizer": self.psnr_optimizer.state_dict()
                      }, is_best,
-                    os.path.join("weights", f"BioNet_iter_{iters}.pth"),
-                    os.path.join("weights", f"BioNet.pth"))
-
-                # Writer training log
-                with open(f"BioNet.csv", "a+") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([iters, psnr])
+                    os.path.join("weights", f"RRDBNet_iter_{iters}.pth"),
+                    os.path.join("weights", f"RRDBNet.pth"))
         else:
             logger.info("The weight of pre training model is found.")
 
         # Load best generator model weight.
-        self.generator.load_state_dict(torch.load(os.path.join("weights", f"BioNet.pth"), self.device))
+        self.generator.load_state_dict(
+            torch.load(os.path.join("weights", f"DSNet.pth"), self.device))
 
         # Loading SRGAN training model.
         if args.netG != "":
@@ -392,12 +396,6 @@ class Trainer(object):
             self.args.start_psnr_iter = checkpoint["iter"]
             best_lpips = checkpoint["best_lpips"]
             self.generator.load_state_dict(checkpoint["state_dict"])
-
-        # Writer train GAN model log.
-        if args.start_iter == 0:
-            with open(f"DSGAN.csv", "w+") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Iter", "PSNR", "LPIPS"])
 
         if args.start_iter < args.iters:
             for epoch in range(self.start_epoch, self.epochs):
@@ -416,11 +414,17 @@ class Trainer(object):
                           discriminator_scheduler=self.discriminator_scheduler,
                           generator_scheduler=self.generator_scheduler,
                           scaler=self.scaler,
+                          writer=self.gan_writer,
                           device=self.device)
                 # Test for every epoch.
-                psnr, lpips = test_gan(self.generator, self.psnr_criterion, self.lpips_criterion, self.test_dataloader,
-                                       self.device)
+                psnr, lpips = test_gan(model=self.generator,
+                                       psnr_criterion=self.psnr_criterion,
+                                       lpips_criterion=self.lpips_criterion,
+                                       dataloader=self.test_dataloader,
+                                       device=self.device)
                 iters = (epoch + 1) * len(self.train_dataloader)
+                self.gan_writer.add_scalar("Test/PSNR", psnr, epoch)
+                self.gan_writer.add_scalar("Test/LPIPS", lpips, epoch)
 
                 # remember best psnr and save checkpoint
                 is_best = lpips < best_lpips
@@ -428,7 +432,7 @@ class Trainer(object):
                 best_lpips = min(lpips, best_lpips)
 
                 # The model is saved every 1 epoch.
-                torch.save(self.discriminator.state_dict(), "Discriminator.pth")
+                torch.save(self.discriminator.state_dict(), os.path.join("weights", "Discriminator.pth"))
                 save_checkpoint(
                     {"iter": iters,
                      "state_dict": self.generator.state_dict(),
@@ -438,10 +442,5 @@ class Trainer(object):
                      }, is_best,
                     os.path.join("weights", f"DSGAN_iter_{iters}.pth"),
                     os.path.join("weights", f"DSGAN.pth"))
-
-                # Writer training log
-                with open(f"DSGAN.csv", "a+") as f:
-                    writer = csv.writer(f)
-                    writer.writerow([iters, psnr, lpips])
         else:
             logger.info("The weight of GAN training model is found.")

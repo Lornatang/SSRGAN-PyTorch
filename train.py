@@ -34,20 +34,25 @@ if __name__ == "__main__":
                         help="model architecture: " +
                              " | ".join(model_names) +
                              " (default: dsgan)")
-    parser.add_argument("-j", "--workers", default=8, type=int, metavar="N",
-                        help="Number of data loading workers. (default:8)")
+    parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
+                        help="Number of data loading workers. (default:4)")
     parser.add_argument("--start-psnr-iter", default=0, type=int, metavar="N",
                         help="manual iter number (useful on restarts)")
     parser.add_argument("--psnr-iters", default=1000000, type=int, metavar="N",
-                        help="The number of iterations is needed in the training of PSNR model. (default:1000000)")
+                        help="The number of iterations is needed in the training "
+                             "of PSNR model. (default:1000000)")
     parser.add_argument("--start-iter", default=0, type=int, metavar="N",
                         help="manual iter number (useful on restarts)")
     parser.add_argument("--iters", default=400000, type=int, metavar="N",
-                        help="The training of srgan model requires the number of iterations. (default:400000)")
+                        help="The training of srgan model requires the number "
+                             "of iterations. (default:400000)")
     parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
                         help="mini-batch size (default: 16), this is the total "
                              "batch size of all GPUs on the current node when "
                              "using Data Parallel or Distributed Data Parallel.")
+    parser.add_argument("--sampler-frequency", default=1, type=int, metavar="N",
+                        help="If there are many datasets, this method can be used "
+                             "to increase the number of epochs. (default:1)")
     parser.add_argument("--psnr-lr", type=float, default=0.0002,
                         help="Learning rate. (default:0.0002)")
     parser.add_argument("--lr", type=float, default=0.0001,
@@ -76,9 +81,9 @@ if __name__ == "__main__":
     print("Run Training Engine.\n")
     print(args)
 
-    create_folder("run")
-    create_folder("run/hr")
-    create_folder("run/sr")
+    create_folder("runs")
+    create_folder("runs/hr")
+    create_folder("runs/sr")
     create_folder("weights")
 
     logger.info("TrainingEngine:")
