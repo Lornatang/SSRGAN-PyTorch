@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import ssrgan.models as models
 from ssrgan.dataset import CustomTestDataset
 from ssrgan.dataset import CustomTrainDataset
 from ssrgan.loss import VGGLoss
-from ssrgan.models.discriminator import discriminator
+from ssrgan.models.discriminator import discriminator_for_vgg
 from ssrgan.utils.common import init_torch_seeds
 from ssrgan.utils.common import save_checkpoint
 from ssrgan.utils.device import select_device
@@ -57,10 +57,10 @@ def train_psnr(epoch: int,
     # switch train mode.
     model.train()
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-    for i, (input, target) in progress_bar:
+    for i, (lr, hr) in progress_bar:
         # Move data to special device.
-        lr = input.to(device, non_blocking=True)
-        hr = target.to(device, non_blocking=True)
+        lr = lr.to(device, non_blocking=True)
+        hr = hr.to(device, non_blocking=True)
 
         optimizer.zero_grad()
         # Runs the forward pass with autocasting.
@@ -123,9 +123,9 @@ def train_gan(epoch: int,
     generator.train()
     discriminator.train()
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-    for i, (input, target) in progress_bar:
-        lr = input.to(device, non_blocking=True)
-        hr = target.to(device, non_blocking=True)
+    for i, (lr, hr) in progress_bar:
+        lr = lr.to(device, non_blocking=True)
+        hr = hr.to(device, non_blocking=True)
         batch_size = lr.size(0)
 
         # The real sample label is 1, and the generated sample label is 0.
@@ -147,17 +147,17 @@ def train_gan(epoch: int,
             fake_output = discriminator(sr.detach())
 
             # Adversarial loss for real and fake images (relativistic average GAN)
-            errD_real = adversarial_criterion(real_output - torch.mean(fake_output), real_label)
-            errD_fake = adversarial_criterion(fake_output - torch.mean(real_output), fake_label)
+            d_loss_real = adversarial_criterion(real_output - torch.mean(fake_output), real_label)
+            d_loss_fake = adversarial_criterion(fake_output - torch.mean(real_output), fake_label)
 
-            errD = errD_fake + errD_real
-            D_x = real_output.mean().item()
-            D_G_z1 = fake_output.mean().item()
+            d_loss = d_loss_fake + d_loss_real
+            d_x = real_output.mean().item()
+            d_g_z1 = fake_output.mean().item()
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
         # Backward passes under autocast are not recommended.
         # Backward ops run in the same dtype autocast chose for corresponding forward ops.
-        scaler.scale(errD).backward()
+        scaler.scale(d_loss).backward()
 
         # scaler.step() first unscales the gradients of the optimizer's assigned params.
         # If these gradients do not contain infs or NaNs, optimizer.step() is then called,
@@ -174,7 +174,7 @@ def train_gan(epoch: int,
         generator_optimizer.zero_grad()
         # Runs the forward pass with autocasting.
         with amp.autocast():
-            # The pixel-wise MSE loss is calculated.
+            # The pixel-wise L1 loss is calculated.
             pixel_loss = pixel_criterion(sr, hr)
             # According to the feature map, the root mean square error is regarded as the content loss.
             perceptual_loss = perceptual_criterion(sr, hr)
@@ -183,13 +183,13 @@ def train_gan(epoch: int,
             fake_output = discriminator(sr)  # Train fake image.
             # Adversarial loss (relativistic average GAN)
             adversarial_loss = adversarial_criterion(fake_output - torch.mean(real_output), real_label)
-            errG = perceptual_loss + 0.005 * adversarial_loss + 0.01 * pixel_loss
-            D_G_z2 = fake_output.mean().item()
+            g_loss = 2 * pixel_loss + 0.5 * perceptual_loss + 0.01 * adversarial_loss
+            d_g_z2 = fake_output.mean().item()
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
         # Backward passes under autocast are not recommended.
         # Backward ops run in the same dtype autocast chose for corresponding forward ops.
-        scaler.scale(errG).backward()
+        scaler.scale(g_loss).backward()
 
         # scaler.step() first unscales the gradients of the optimizer's assigned params.
         # If these gradients do not contain infs or NaNs, optimizer.step() is then called,
@@ -200,21 +200,23 @@ def train_gan(epoch: int,
         scaler.update()
 
         progress_bar.set_description(f"[{epoch + 1}/{total_epoch}][{i + 1}/{len(dataloader)}] "
-                                     f"D Loss: {errD.item():.6f} "
+                                     f"D Loss: {d_loss.item():.6f} "
+                                     f"G Loss: {g_loss.item():.6f} "
                                      f"Pixel Loss: {pixel_loss.item():.6f} "
                                      f"Perceptual Loss: {perceptual_loss.item():.6f} "
                                      f"Adversarial Loss: {adversarial_loss.item():.6f} "
-                                     f"D(HR): {D_x:.6f} "
-                                     f"D(G(SR)): {D_G_z1:.6f}/{D_G_z2:.6f}")
+                                     f"D(HR): {d_x:.6f} "
+                                     f"D(G(SR)): {d_g_z1:.6f}/{d_g_z2:.6f}")
 
         iters = i + epoch * len(dataloader) + 1
-        writer.add_scalar("Train/D Loss", errD.item(), iters)
+        writer.add_scalar("Train/D Loss", d_loss.item(), iters)
+        writer.add_scalar("Train/G Loss", g_loss.item(), iters)
         writer.add_scalar("Train/Pixel Loss", pixel_loss.item(), iters)
         writer.add_scalar("Train/Perceptual Loss", perceptual_loss.item(), iters)
         writer.add_scalar("Train/Adversarial Loss", adversarial_loss.item(), iters)
-        writer.add_scalar("Train/D(x)", D_x, iters)
-        writer.add_scalar("Train/D(G(SR1))", D_G_z1, iters)
-        writer.add_scalar("Train/D(G(SR2))", D_G_z2, iters)
+        writer.add_scalar("Train/D(x)", d_x, iters)
+        writer.add_scalar("Train/D(G(SR1))", d_g_z1, iters)
+        writer.add_scalar("Train/D(G(SR2))", d_g_z2, iters)
 
         # The image is saved every 1000 epoch.
         if iters % 1000 == 0:
@@ -267,7 +269,7 @@ class Trainer(object):
                     f"\tLoad dataset to CUDA")
 
         # Construct network architecture model of generator and discriminator.
-        self.device = select_device(args.device, batch_size=1)
+        self.device = select_device(args.device, batch_size=args.batch_size)
         if args.pretrained:
             logger.info(f"Using pre-trained model `{args.arch}`")
             self.generator = models.__dict__[args.arch](pretrained=True).to(self.device)
@@ -275,12 +277,12 @@ class Trainer(object):
             logger.info(f"Creating model `{args.arch}`")
             self.generator = models.__dict__[args.arch]().to(self.device)
         logger.info(f"Creating discriminator model")
-        self.discriminator = discriminator().to(self.device)
+        self.discriminator = discriminator_for_vgg().to(self.device)
 
         # Parameters of pre training model.
         self.start_psnr_epoch = math.floor(args.start_psnr_iter / len(self.train_dataloader))
         self.psnr_epochs = math.ceil(args.psnr_iters / len(self.train_dataloader))
-        self.psnr_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.999))
+        self.psnr_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.99))
         self.psnr_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.psnr_optimizer,
                                                                      gamma=0.95)
 
@@ -289,7 +291,7 @@ class Trainer(object):
                     f"\tEpoch is {self.psnr_epochs}\n"
                     f"\tOptimizer Adam\n"
                     f"\tLearning rate {args.lr}\n"
-                    f"\tBetas (0.9, 0.999)")
+                    f"\tBetas (0.9, 0.99)")
 
         # Create a SummaryWriter at the beginning of training.
         self.psnr_writer = SummaryWriter(f"runs/DSNet_{int(time.time())}_logs")
@@ -302,8 +304,8 @@ class Trainer(object):
         # Parameters of GAN training model.
         self.start_epoch = math.floor(args.start_iter / len(self.train_dataloader))
         self.epochs = math.ceil(args.iters / len(self.train_dataloader))
-        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=args.lr, betas=(0.9, 0.999))
-        self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.lr, betas=(0.9, 0.999))
+        self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=args.lr, betas=(0.9, 0.99))
+        self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.lr, betas=(0.9, 0.99))
         self.discriminator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.discriminator_optimizer,
                                                                               gamma=0.95)
         self.generator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.generator_optimizer,
@@ -313,12 +315,12 @@ class Trainer(object):
                     f"\tEpoch is {self.epochs}\n"
                     f"\tOptimizer is Adam\n"
                     f"\tLearning rate is {args.lr}\n"
-                    f"\tBetas is (0.9, 0.999)\n"
-                    f"\tScheduler is MultiStepLR")
+                    f"\tBetas is (0.9, 0.99)\n"
+                    f"\tScheduler is ExponentialLR")
 
         # We use VGG5.4 as our feature extraction method by default.
         self.perceptual_criterion = VGGLoss().to(self.device)
-        # Loss = perceptual loss + 0.005 * adversarial loss + 0.01 * pixel loss
+        # Loss = 2 * pixel loss + 0.5 * perceptual loss + 0.01 * adversarial loss
         self.pixel_criterion = nn.L1Loss().to(self.device)
         self.adversarial_criterion = nn.BCEWithLogitsLoss().to(self.device)
         # LPIPS Evaluating.
@@ -363,16 +365,16 @@ class Trainer(object):
                            device=self.device)
 
                 # Test for every epoch.
-                psnr = test_psnr(model=self.generator,
-                                 psnr_criterion=self.psnr_criterion,
-                                 dataloader=self.test_dataloader,
-                                 device=self.device)
+                psnr_value = test_psnr(model=self.generator,
+                                       psnr_criterion=self.psnr_criterion,
+                                       dataloader=self.test_dataloader,
+                                       device=self.device)
                 iters = (psnr_epoch + 1) * len(self.train_dataloader)
-                self.psnr_writer.add_scalar("Test/PSNR", psnr, psnr_epoch)
+                self.psnr_writer.add_scalar("Test/PSNR", psnr_value, psnr_epoch)
 
                 # remember best psnr and save checkpoint
-                is_best = psnr > best_psnr
-                best_psnr = max(psnr, best_psnr)
+                is_best = psnr_value > best_psnr
+                best_psnr = max(psnr_value, best_psnr)
 
                 # The model is saved every 1 epoch.
                 save_checkpoint(
@@ -381,14 +383,13 @@ class Trainer(object):
                      "best_psnr": best_psnr,
                      "optimizer": self.psnr_optimizer.state_dict()
                      }, is_best,
-                    os.path.join("weights", f"RRDBNet_iter_{iters}.pth"),
-                    os.path.join("weights", f"RRDBNet.pth"))
+                    os.path.join("weights", f"DSNet_iter_{iters}.pth"),
+                    os.path.join("weights", f"DSNet.pth"))
         else:
             logger.info("The weight of pre training model is found.")
 
         # Load best generator model weight.
-        self.generator.load_state_dict(
-            torch.load(os.path.join("weights", f"DSNet.pth"), self.device))
+        self.generator.load_state_dict(torch.load(os.path.join("weights", f"DSNet.pth"), self.device))
 
         # Loading SRGAN training model.
         if args.netG != "":
@@ -417,19 +418,19 @@ class Trainer(object):
                           writer=self.gan_writer,
                           device=self.device)
                 # Test for every epoch.
-                psnr, lpips = test_gan(model=self.generator,
-                                       psnr_criterion=self.psnr_criterion,
-                                       lpips_criterion=self.lpips_criterion,
-                                       dataloader=self.test_dataloader,
-                                       device=self.device)
+                psnr_value, lpips_value = test_gan(model=self.generator,
+                                                   psnr_criterion=self.psnr_criterion,
+                                                   lpips_criterion=self.lpips_criterion,
+                                                   dataloader=self.test_dataloader,
+                                                   device=self.device)
                 iters = (epoch + 1) * len(self.train_dataloader)
-                self.gan_writer.add_scalar("Test/PSNR", psnr, epoch)
-                self.gan_writer.add_scalar("Test/LPIPS", lpips, epoch)
+                self.gan_writer.add_scalar("Test/PSNR", psnr_value, epoch)
+                self.gan_writer.add_scalar("Test/LPIPS", lpips_value, epoch)
 
                 # remember best psnr and save checkpoint
-                is_best = lpips < best_lpips
-                best_psnr = max(psnr, best_psnr)
-                best_lpips = min(lpips, best_lpips)
+                is_best = lpips_value < best_lpips
+                best_psnr = max(psnr_value, best_psnr)
+                best_lpips = min(lpips_value, best_lpips)
 
                 # The model is saved every 1 epoch.
                 torch.save(self.discriminator.state_dict(), os.path.join("weights", "Discriminator.pth"))

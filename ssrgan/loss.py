@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -97,8 +97,8 @@ class LPIPSLoss(torch.nn.Module):
         super(LPIPSLoss, self).__init__()
         self.criterion = lpips.LPIPS(net=net).eval()
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        lpips_loss = self.criterion(input, target)
+    def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        lpips_loss = self.criterion(source, target)
 
         return lpips_loss
 
@@ -116,14 +116,14 @@ class TVLoss(torch.nn.Module):
         super(TVLoss, self).__init__()
         self.weight = weight
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        batch_size = input.size()[0]
-        h_x = input.size()[2]
-        w_x = input.size()[3]
-        count_h = self.tensor_size(input[:, :, 1:, :])
-        count_w = self.tensor_size(input[:, :, :, 1:])
-        h_tv = torch.pow((input[:, :, 1:, :] - input[:, :, :h_x - 1, :]), 2).sum()
-        w_tv = torch.pow((input[:, :, :, 1:] - input[:, :, :, :w_x - 1]), 2).sum()
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size = x.size()[0]
+        h_x = x.size()[2]
+        w_x = x.size()[3]
+        count_h = self.tensor_size(x[:, :, 1:, :])
+        count_w = self.tensor_size(x[:, :, :, 1:])
+        h_tv = torch.pow((x[:, :, 1:, :] - x[:, :, :h_x - 1, :]), 2).sum()
+        w_tv = torch.pow((x[:, :, :, 1:] - x[:, :, :, :w_x - 1]), 2).sum()
         tv_loss = self.weight * 2 * (h_tv / count_h + w_tv / count_w) / batch_size
 
         return tv_loss
@@ -199,7 +199,7 @@ class VGGLoss(torch.nn.Module):
         for name, param in self.features.named_parameters():
             param.requires_grad = False
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        vgg_loss = torch.nn.functional.l1_loss(self.features(input), self.features(target))
+    def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        vgg_loss = torch.nn.functional.l1_loss(self.features(source), self.features(target))
 
         return vgg_loss

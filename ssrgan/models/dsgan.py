@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -70,13 +70,13 @@ class SymmetricBlock(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Down sampling.
-        out = self.down(input)
+        out = self.down(x)
         # Up sampling.
         out = self.up(out)
 
-        return out + input
+        return out + x
 
 
 class DepthwiseBlock(nn.Module):
@@ -116,15 +116,15 @@ class DepthwiseBlock(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Expansion convolution
-        out = self.pointwise(input)
+        out = self.pointwise(x)
         # DepthWise convolution
         out = self.depthwise(out)
         # Projection convolution
         out = self.pointwise_linear(out)
 
-        return out + input
+        return out + x
 
 
 class InceptionBlock(nn.Module):
@@ -187,13 +187,13 @@ class InceptionBlock(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        shortcut = self.shortcut(input)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        shortcut = self.shortcut(x)
 
-        branch1 = self.branch1(input)
-        branch2 = self.branch2(input)
-        branch3 = self.branch3(input)
-        branch4 = self.branch4(input)
+        branch1 = self.branch1(x)
+        branch2 = self.branch2(x)
+        branch3 = self.branch3(x)
+        branch4 = self.branch4(x)
 
         out = torch.cat([branch1, branch2, branch3, branch4], dim=1)
         out = self.conv1x1(out)
@@ -252,9 +252,9 @@ class Generator(nn.Module):
         # Final output layer.
         self.conv4 = nn.Conv2d(32, 3, kernel_size=3, stride=1, padding=1)
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # First conv layer.
-        conv1 = self.conv1(input)
+        conv1 = self.conv1(x)
 
         # MobileNet trunk.
         trunk_a = self.trunk_a(conv1)

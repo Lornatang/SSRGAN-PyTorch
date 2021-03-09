@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -44,10 +44,10 @@ if __name__ == "__main__":
     parser.add_argument("--start-iter", default=0, type=int, metavar="N",
                         help="manual iter number (useful on restarts)")
     parser.add_argument("--iters", default=400000, type=int, metavar="N",
-                        help="The training of srgan model requires the number "
+                        help="The training of dsgan model requires the number "
                              "of iterations. (default:400000)")
-    parser.add_argument("-b", "--batch-size", default=16, type=int, metavar="N",
-                        help="mini-batch size (default: 16), this is the total "
+    parser.add_argument("-b", "--batch-size", default=4, type=int, metavar="N",
+                        help="mini-batch size (default: 4), this is the total "
                              "batch size of all GPUs on the current node when "
                              "using Data Parallel or Distributed Data Parallel.")
     parser.add_argument("--sampler-frequency", default=1, type=int, metavar="N",
@@ -57,8 +57,8 @@ if __name__ == "__main__":
                         help="Learning rate. (default:0.0002)")
     parser.add_argument("--lr", type=float, default=0.0001,
                         help="Learning rate. (default:0.0001)")
-    parser.add_argument("--image-size", type=int, default=128,
-                        help="Image size of real sample. (default:128).")
+    parser.add_argument("--image-size", type=int, default=256,
+                        help="Image size of high resolution image. (default:256).")
     parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                         help="Low to high resolution scaling factor. (default:4).")
     parser.add_argument("--model-path", default="", type=str, metavar="PATH",

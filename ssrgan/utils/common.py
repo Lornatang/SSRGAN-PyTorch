@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -99,19 +99,11 @@ def init_torch_seeds(seed: int = 0):
     """
 
     # Speed-reproducibility tradeoff https://pytorch.org/docs/stable/notes/randomness.html
-    if seed == 0:  # slower, more reproducible
-        cudnn.deterministic = True
-        cudnn.benchmark = False
-    else:  # faster, less reproducible
-        cudnn.deterministic = False
-        cudnn.benchmark = True
-
-    logger.info("Initialize random seed.")
-    np.random.seed(seed)
-    random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if seed == 0:  # slower, more reproducible
+        cudnn.benchmark, cudnn.deterministic = False, True
+    else:  # faster, less reproducible
+        cudnn.benchmark, cudnn.deterministic = True, False
 
 
 def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):

@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -15,11 +15,11 @@ import torch
 import torch.nn as nn
 
 
-class Discriminator(nn.Module):
+class DiscriminatorForVGG(nn.Module):
     r"""The main architecture of the discriminator. Similar to VGG structure."""
 
     def __init__(self):
-        super(Discriminator, self).__init__()
+        super(DiscriminatorForVGG, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),  # input is (3) x 256 x 256
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
@@ -75,9 +75,9 @@ class Discriminator(nn.Module):
         return out
 
 
-def discriminator() -> Discriminator:
+def discriminator_for_vgg() -> DiscriminatorForVGG:
     r"""GAN model architecture from the
     `"One weird trick..." <https://arxiv.org/abs/2021.00000>`_ paper.
     """
-    model = Discriminator()
+    model = DiscriminatorForVGG()
     return model

@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -43,24 +43,23 @@ def check_image_file(filename):
 class BaseTrainDataset(torch.utils.data.dataset.Dataset):
     """An abstract class representing a :class:`Dataset`."""
 
-    def __init__(self, root: str, image_size: int = 128, upscale_factor: int = 4):
+    def __init__(self, root: str, image_size: int = 256, upscale_factor: int = 4):
         """
         Args:
             root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 128).
+            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 256).
             upscale_factor (optional, int): Image magnification. (Default: 4).
         """
         super(BaseTrainDataset, self).__init__()
         self.filenames = [os.path.join(root, x) for x in os.listdir(root) if check_image_file(x)]
 
-        self.input_transforms = transforms.Compose([
+        self.lr_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size // upscale_factor, image_size // upscale_factor),
-                              interpolation=Image.BICUBIC),
+            transforms.Resize(image_size // upscale_factor, interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
-        self.target_transforms = transforms.Compose([
-            transforms.RandomCrop((image_size, image_size)),
+        self.hr_transforms = transforms.Compose([
+            transforms.RandomCrop(image_size),
             transforms.ToTensor()
         ])
 
@@ -73,10 +72,10 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        target = self.target_transforms(Image.open(self.filenames[index]))
-        input = self.input_transforms(target)
+        hr = self.hr_transforms(Image.open(self.filenames[index]))
+        lr = self.lr_transforms(hr)
 
-        return input, target
+        return lr, hr
 
     def __len__(self):
         return len(self.filenames)
@@ -85,29 +84,28 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
 class BaseTestDataset(torch.utils.data.dataset.Dataset):
     """An abstract class representing a :class:`Dataset`."""
 
-    def __init__(self, root: str, image_size: int = 128, upscale_factor: int = 4):
+    def __init__(self, root: str, image_size: int = 256, upscale_factor: int = 4):
         """
         Args:
             root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 128).
+            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 256).
             upscale_factor (optional, int): Image magnification. (Default: 4).
         """
         super(BaseTestDataset, self).__init__()
         self.filenames = [os.path.join(root, x) for x in os.listdir(root) if check_image_file(x)]
 
-        self.input_transforms = transforms.Compose([
+        self.lr_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size // upscale_factor, image_size // upscale_factor),
-                              interpolation=Image.BICUBIC),
+            transforms.Resize(image_size // upscale_factor, interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size, image_size), interpolation=Image.BICUBIC),
+            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
-        self.target_transforms = transforms.Compose([
-            transforms.RandomCrop((image_size, image_size)),
+        self.hr_transforms = transforms.Compose([
+            transforms.RandomCrop(image_size),
             transforms.ToTensor()
         ])
 
@@ -120,11 +118,11 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        target = self.target_transforms(Image.open(self.filenames[index]))
-        input = self.input_transforms(target)
-        bicubic = self.bicubic_transforms(input)
+        hr = self.hr_transforms(Image.open(self.filenames[index]))
+        lr = self.lr_transforms(hr)
+        bicubic = self.bicubic_transforms(lr)
 
-        return input, bicubic, target
+        return lr, bicubic, hr
 
     def __len__(self):
         return len(self.filenames)
@@ -142,12 +140,12 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
                 the number of epochs. (Default: 1).
         """
         super(CustomTrainDataset, self).__init__()
-        input_dir = os.path.join(root, "input")
-        target_dir = os.path.join(root, "target")
-        self.filenames = os.listdir(input_dir)
+        lr_dir = os.path.join(root, "input")
+        hr_dir = os.path.join(root, "target")
+        self.filenames = os.listdir(lr_dir)
         self.sampler_filenames = random.sample(self.filenames, len(self.filenames) // sampler_frequency)
-        self.input_filenames = [os.path.join(input_dir, x) for x in self.sampler_filenames if check_image_file(x)]
-        self.target_filenames = [os.path.join(target_dir, x) for x in self.sampler_filenames if check_image_file(x)]
+        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
+        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
 
         self.transforms = transforms.ToTensor()
 
@@ -160,10 +158,10 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        input = self.transforms(Image.open(self.input_filenames[index]))
-        target = self.transforms(Image.open(self.target_filenames[index]))
+        lr = self.transforms(Image.open(self.lr_filenames[index]))
+        hr = self.transforms(Image.open(self.hr_filenames[index]))
 
-        return input, target
+        return lr, hr
 
     def __len__(self):
         return len(self.sampler_filenames)
@@ -182,17 +180,17 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
                 the number of epochs. (Default: 1).
         """
         super(CustomTestDataset, self).__init__()
-        input_dir = os.path.join(root, "input")
-        target_dir = os.path.join(root, "target")
-        self.filenames = os.listdir(input_dir)
+        lr_dir = os.path.join(root, "input")
+        hr_dir = os.path.join(root, "target")
+        self.filenames = os.listdir(lr_dir)
         self.sampler_filenames = random.sample(self.filenames, len(self.filenames) // sampler_frequency)
-        self.input_filenames = [os.path.join(input_dir, x) for x in self.sampler_filenames if check_image_file(x)]
-        self.target_filenames = [os.path.join(target_dir, x) for x in self.sampler_filenames if check_image_file(x)]
+        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
+        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
 
         self.transforms = transforms.ToTensor()
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size, image_size), interpolation=Image.BICUBIC),
+            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
 
@@ -205,11 +203,11 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        input = self.transforms(Image.open(self.input_filenames[index]))
-        bicubic = self.bicubic_transforms(input)
-        target = self.transforms(Image.open(self.target_filenames[index]))
+        lr = self.transforms(Image.open(self.lr_filenames[index]))
+        bicubic = self.bicubic_transforms(lr)
+        hr = self.transforms(Image.open(self.hr_filenames[index]))
 
-        return input, bicubic, target
+        return lr, bicubic, hr
 
     def __len__(self):
         return len(self.sampler_filenames)
