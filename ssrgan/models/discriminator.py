@@ -67,8 +67,8 @@ class DiscriminatorForVGG(nn.Module):
             nn.Linear(100, 1)
         )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        out = self.features(input)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.features(x)
         out = torch.flatten(out, 1)
         out = self.classifier(out)
 
