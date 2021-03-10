@@ -14,7 +14,6 @@
 import logging
 import math
 import os
-import time
 
 import lpips
 import torch.cuda.amp as amp
@@ -183,7 +182,7 @@ def train_gan(epoch: int,
             fake_output = discriminator(sr)  # Train fake image.
             # Adversarial loss (relativistic average GAN)
             adversarial_loss = adversarial_criterion(fake_output - torch.mean(real_output), real_label)
-            g_loss = 2 * pixel_loss + 0.5 * perceptual_loss + 0.01 * adversarial_loss
+            g_loss = 5 * pixel_loss + 2 * perceptual_loss + 0.001 * adversarial_loss
             d_g_z2 = fake_output.mean().item()
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
@@ -293,10 +292,6 @@ class Trainer(object):
                     f"\tLearning rate {args.lr}\n"
                     f"\tBetas (0.9, 0.99)")
 
-        # Create a SummaryWriter at the beginning of training.
-        self.psnr_writer = SummaryWriter(f"runs/DSNet_{int(time.time())}_logs")
-        self.gan_writer = SummaryWriter(f"runs/DSGAN_{int(time.time())}_logs")
-
         # Creates a GradScaler once at the beginning of training.
         self.scaler = amp.GradScaler()
         logger.info(f"Turn on mixed precision training.")
@@ -306,10 +301,8 @@ class Trainer(object):
         self.epochs = math.ceil(args.iters / len(self.train_dataloader))
         self.discriminator_optimizer = torch.optim.Adam(self.discriminator.parameters(), lr=args.lr, betas=(0.9, 0.99))
         self.generator_optimizer = torch.optim.Adam(self.generator.parameters(), lr=args.lr, betas=(0.9, 0.99))
-        self.discriminator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.discriminator_optimizer,
-                                                                              gamma=0.95)
-        self.generator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.generator_optimizer,
-                                                                          gamma=0.95)
+        self.discriminator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.discriminator_optimizer, gamma=0.95)
+        self.generator_scheduler = torch.optim.lr_scheduler.ExponentialLR(self.generator_optimizer, gamma=0.95)
         logger.info(f"All model training parameters:\n"
                     f"\tIters is {args.iters}\n"
                     f"\tEpoch is {self.epochs}\n"
@@ -320,7 +313,7 @@ class Trainer(object):
 
         # We use VGG5.4 as our feature extraction method by default.
         self.perceptual_criterion = VGGLoss().to(self.device)
-        # Loss = 2 * pixel loss + 0.5 * perceptual loss + 0.01 * adversarial loss
+        # Loss = 5 * pixel loss + 2 * perceptual loss + 0.001 * adversarial loss
         self.pixel_criterion = nn.L1Loss().to(self.device)
         self.adversarial_criterion = nn.BCEWithLogitsLoss().to(self.device)
         # LPIPS Evaluating.
@@ -331,6 +324,10 @@ class Trainer(object):
                     f"\tPixel loss is L1Loss\n"
                     f"\tPerceptual loss is VGGLoss\n"
                     f"\tAdversarial loss is BCEWithLogitsLoss")
+
+        # Create a SummaryWriter at the beginning of training.
+        self.psnr_writer = SummaryWriter(f"runs/DSNet_bs{args.batch}_epoch{self.psnr_epochs}_logs")
+        self.gan_writer = SummaryWriter(f"runs/DSGAN_bs{args.batch}_epoch{self.epochs}_logs")
 
     def run(self):
         args = self.args
@@ -370,7 +367,7 @@ class Trainer(object):
                                        dataloader=self.test_dataloader,
                                        device=self.device)
                 iters = (psnr_epoch + 1) * len(self.train_dataloader)
-                self.psnr_writer.add_scalar("Test/PSNR", psnr_value, psnr_epoch)
+                self.psnr_writer.add_scalar("Test/PSNR", psnr_value, psnr_epoch + 1)
 
                 # remember best psnr and save checkpoint
                 is_best = psnr_value > best_psnr
