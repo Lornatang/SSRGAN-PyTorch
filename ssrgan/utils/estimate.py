@@ -22,11 +22,11 @@ from sewar.full_ref import msssim
 from sewar.full_ref import psnr
 from sewar.full_ref import rmse
 from sewar.full_ref import sam
-from sewar.full_ref import ssim
 from sewar.full_ref import vifp
 from tqdm import tqdm
 
 from .calculate_niqe import niqe
+from .calculate_ssim import ssim
 from .transform import opencv2tensor
 
 __all__ = [
@@ -60,7 +60,7 @@ def image_quality_evaluation(sr_filename: str, hr_filename: str, device: torch.d
     mse_value = mse(sr, hr)
     rmse_value = rmse(sr, hr)
     psnr_value = psnr(sr, hr)
-    ssim_value = ssim(sr, hr)
+    ssim_value = ssim(sr_tensor, hr_tensor)
     msssim_value = msssim(sr, hr)
     niqe_value = niqe(sr_filename)
     sam_value = sam(sr, hr)
@@ -74,7 +74,7 @@ def test_psnr(model: nn.Module, psnr_criterion: nn.MSELoss, dataloader: torch.ut
     # switch eval mode.
     model.eval()
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-    total_psnr = 0.
+    total_psnr_value = 0.
     for i, data in progress_bar:
         # Move data to special device.
         lr = data[0].to(device)
@@ -84,12 +84,12 @@ def test_psnr(model: nn.Module, psnr_criterion: nn.MSELoss, dataloader: torch.ut
             sr = model(lr)
 
         # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-        psnr = 10 * math.log10(1. / psnr_criterion(sr, hr).item())
-        total_psnr += psnr
+        psnr_value = 10 * math.log10(1. / psnr_criterion(sr, hr).item())
+        total_psnr_value += psnr_value
 
-        progress_bar.set_description(f"PSNR: {psnr:.2f}dB.")
+        progress_bar.set_description(f"PSNR: {psnr_value:.2f}dB.")
 
-    return total_psnr / len(dataloader)
+    return total_psnr_value / len(dataloader)
 
 
 def test_gan(model: nn.Module, psnr_criterion: nn.MSELoss, lpips_criterion: lpips.LPIPS,
@@ -97,8 +97,8 @@ def test_gan(model: nn.Module, psnr_criterion: nn.MSELoss, lpips_criterion: lpip
     # switch eval mode.
     model.eval()
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-    total_psnr = 0.
-    total_lpips = 0.
+    total_psnr_value = 0.
+    total_lpips_value = 0.
     for i, data in progress_bar:
         # Move data to special device.
         lr = data[0].to(device)
@@ -108,13 +108,13 @@ def test_gan(model: nn.Module, psnr_criterion: nn.MSELoss, lpips_criterion: lpip
             sr = model(lr)
 
         # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-        psnr = 10 * math.log10(1. / psnr_criterion(sr, hr).item())
+        psnr_value = 10 * math.log10(1. / psnr_criterion(sr, hr).item())
         # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
-        lpips = torch.mean(lpips_criterion(sr, hr)).item()
+        lpips_value = torch.mean(lpips_criterion(sr, hr)).item()
 
-        total_psnr += psnr
-        total_lpips += lpips
+        total_psnr_value += psnr_value
+        total_lpips_value += lpips_value
 
-        progress_bar.set_description(f"PSNR: {psnr:.2f}dB LPIPS: {lpips:.4f}.")
+        progress_bar.set_description(f"PSNR: {psnr_value:.2f}dB LPIPS: {lpips_value:.4f}.")
 
-    return total_psnr / len(dataloader), total_lpips / len(dataloader)
+    return total_psnr_value / len(dataloader), total_lpips_value / len(dataloader)
