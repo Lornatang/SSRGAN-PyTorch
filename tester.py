@@ -98,7 +98,7 @@ class Test(object):
                 total_lpips_value += value[8].item()
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
                                              f"PSNR: {value[2]:.2f}dB "
-                                             f"SSIM: {value[3][0]:.4f}")
+                                             f"SSIM: {value[3][0]:.2f}")
             else:
                 mse_value = ((sr - hr) ** 2).data.mean()
                 psnr_value = 10 * math.log10(1. / mse_value)
@@ -107,7 +107,7 @@ class Test(object):
                 total_ssim_value += ssim_value
                 progress_bar.set_description(f"[{i + 1}/{len(self.dataloader)}] "
                                              f"PSNR: {psnr_value:.2f}dB "
-                                             f"SSIM: {ssim_value:.4f}.")
+                                             f"SSIM: {ssim_value:.2f}.")
 
             images = torch.cat([bicubic, sr, hr], dim=-1)
             vutils.save_image(images, os.path.join("benchmark", f"{i + 1}.bmp"), padding=10)
@@ -119,15 +119,15 @@ class Test(object):
             print(f"MSE       {total_mse_value / len(self.dataloader):.2f}\n"
                   f"RMSE      {total_rmse_value / len(self.dataloader):.2f}\n"
                   f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"SSIM      {total_ssim_value / len(self.dataloader):.4f}\n"
-                  f"MS-SSIM   {total_mssim_value / len(self.dataloader):.4f}\n"
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.2f}\n"
+                  f"MS-SSIM   {total_mssim_value / len(self.dataloader):.2f}\n"
                   f"NIQE      {total_niqe_value / len(self.dataloader):.2f}\n"
-                  f"SAM       {total_sam_value / len(self.dataloader):.4f}\n"
-                  f"VIF       {total_vif_value / len(self.dataloader):.4f}\n"
-                  f"LPIPS     {total_lpips_value / len(self.dataloader):.4f}\n")
+                  f"SAM       {total_sam_value / len(self.dataloader):.2f}\n"
+                  f"VIF       {total_vif_value / len(self.dataloader):.2f}\n"
+                  f"LPIPS     {total_lpips_value / len(self.dataloader):.2f}\n")
         else:
             print(f"PSNR      {total_psnr_value / len(self.dataloader):.2f}\n"
-                  f"SSIM      {total_ssim_value / len(self.dataloader):.4f}\n")
+                  f"SSIM      {total_ssim_value / len(self.dataloader):.2f}\n")
 
 
 class Estimate(object):
@@ -166,16 +166,16 @@ class Estimate(object):
                 print(f"MSE       {value[0]:.2f}\n"
                       f"RMSE      {value[1]:.2f}\n"
                       f"PSNR      {value[2]:.2f}\n"
-                      f"SSIM      {value[3][0]:.4f}\n"
-                      f"MS-SSIM   {value[4].real:.4f}\n"
+                      f"SSIM      {value[3][0]:.2f}\n"
+                      f"MS-SSIM   {value[4].real:.2f}\n"
                       f"NIQE      {value[5]:.2f}\n"
-                      f"SAM       {value[6]:.4f}\n"
-                      f"VIF       {value[7]:.4f}\n"
-                      f"LPIPS     {value[8].item():.4f}\n"
+                      f"SAM       {value[6]:.2f}\n"
+                      f"VIF       {value[7]:.2f}\n"
+                      f"LPIPS     {value[8].item():.2f}\n"
                       f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
             else:
                 print(f"PSNR      {value[2]:.2f}\n"
-                      f"SSIM      {value[3][0]:.4f}\n"
+                      f"SSIM      {value[3][0]:.2f}\n"
                       f"Use time: {use_time * 1000:.2f}ms | {use_time:.4f}s")
         else:
             sr = inference(self.model, lr)
