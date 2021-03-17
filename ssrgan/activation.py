@@ -15,8 +15,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch import Tensor
-
 __all__ = [
     "FReLU", "HSigmoid", "HSwish", "Mish", "Sine", "Swish"
 ]
@@ -30,20 +28,20 @@ class FReLU(nn.Module):
     Examples:
         >>> channels = 64
         >>> frelu = FReLU(channels)
-        >>> input = torch.randn(1, channels, 64, 64)
-        >>> output = frelu(input)
+        >>> x = torch.randn(1, channels, 64, 64)
+        >>> output = frelu(x)
     """
 
-    def __init__(self, channels):
+    def __init__(self, channels: int) -> None:
         super().__init__()
         self.FReLU = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels, bias=False),
             nn.BatchNorm2d(channels)
         )
 
-    def forward(self, input: Tensor):
-        out = self.FReLU(input)
-        return torch.max(input, out)
+    def forward(self, x: torch.Tensor):
+        out = self.FReLU(x)
+        return torch.max(x, out)
 
 
 class HSigmoid(nn.Module):
@@ -53,13 +51,13 @@ class HSigmoid(nn.Module):
 
     Examples:
         >>> m = Mish()
-        >>> input = torch.randn(2)
-        >>> output = m(input)
+        >>> x = torch.randn(2)
+        >>> output = m(x)
     """
 
     @staticmethod
-    def forward(input: Tensor) -> Tensor:
-        return F.relu6(input + 3, inplace=True) / 6.
+    def forward(x: torch.Tensor) -> torch.Tensor:
+        return F.relu6(x + 3, inplace=True) / 6.
 
 
 class HSwish(nn.Module):
@@ -69,13 +67,13 @@ class HSwish(nn.Module):
 
     Examples:
         >>> m = Mish()
-        >>> input = torch.randn(2)
-        >>> output = m(input)
+        >>> x = torch.randn(2)
+        >>> output = m(x)
     """
 
     @staticmethod
-    def forward(input: Tensor) -> Tensor:
-        return input * F.relu6(input + 3, inplace=True) / 6.
+    def forward(x: torch.Tensor) -> torch.Tensor:
+        return x * F.relu6(x + 3, inplace=True) / 6.
 
 
 class Mish(nn.Module):
@@ -87,19 +85,19 @@ class Mish(nn.Module):
         mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))
 
     Shape:
-        - Input: (N, *) where * means, any number of additional.
+        - x: (N, *) where * means, any number of additional.
           dimensions
-        - Output: (N, *), same shape as the input.
+        - Output: (N, *), same shape as the x.
 
     Examples:
         >>> m = Mish()
-        >>> input = torch.randn(2)
-        >>> output = m(input)
+        >>> x = torch.randn(2)
+        >>> output = m(x)
     """
 
     @staticmethod
-    def forward(input: Tensor) -> Tensor:
-        return input * (torch.tanh(F.softplus(input)))
+    def forward(x: torch.Tensor) -> torch.Tensor:
+        return x * (torch.tanh(F.softplus(x)))
 
 
 class Sine(nn.Module):
@@ -109,14 +107,14 @@ class Sine(nn.Module):
 
     Examples:
         >>> m = Sine()
-        >>> input = torch.randn(2)
-        >>> output = m(input)
+        >>> x = torch.randn(2)
+        >>> output = m(x)
     """
 
     @staticmethod
-    def forward(input: Tensor) -> Tensor:
+    def forward(x: torch.Tensor) -> torch.Tensor:
         # See paper sec. 3.2, final paragraph, and supplement Sec. 1.5 for discussion of factor 30.
-        return torch.sin(30 * input)
+        return torch.sin(30 * x)
 
 
 class Swish(nn.Module):
@@ -126,10 +124,10 @@ class Swish(nn.Module):
 
     Examples:
         >>> m = Swish()
-        >>> input = torch.randn(2)
-        >>> output = m(input)
+        >>> x = torch.randn(2)
+        >>> output = m(x)
     """
 
     @staticmethod
-    def forward(input: Tensor) -> Tensor:
-        return input * F.sigmoid(input)
+    def forward(x: torch.Tensor) -> torch.Tensor:
+        return x * F.sigmoid(x)

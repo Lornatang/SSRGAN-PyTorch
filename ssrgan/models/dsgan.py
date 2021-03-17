@@ -22,7 +22,7 @@ model_urls = {
 }
 
 
-class SymmetricBlock(nn.Module):
+class Symmetric(nn.Module):
     r""" U-shaped network.
 
     `"U-Net: Convolutional Networks for Biomedical
@@ -30,37 +30,36 @@ class SymmetricBlock(nn.Module):
 
     """
 
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+    def __init__(self, channels: int) -> None:
         r""" Modules introduced in U-Net paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
+            channels (int): Number of channels in the input image.
         """
-        super(SymmetricBlock, self).__init__()
+        super(Symmetric, self).__init__()
 
         # Down sampling.
         self.down = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=1),
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels),
             Mish(),
-            nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(channels, channels // 2, kernel_size=1, stride=1, padding=0),
             Mish(),
-            nn.Conv2d(in_channels // 2, in_channels // 2, kernel_size=3, stride=1, padding=1, groups=in_channels // 2),
+            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1, groups=channels // 2),
             Mish(),
-            nn.Conv2d(in_channels // 2, in_channels // 4, kernel_size=1, stride=1, padding=0)
+            nn.Conv2d(channels // 2, channels // 4, kernel_size=1, stride=1, padding=0)
         )
 
         # Up sampling.
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
-            nn.Conv2d(in_channels // 4, in_channels // 4, kernel_size=3, stride=1, padding=1, groups=in_channels // 4),
+            nn.Conv2d(channels // 4, channels // 4, kernel_size=3, stride=1, padding=1, groups=channels // 4),
             Mish(),
-            nn.Conv2d(in_channels // 4, in_channels // 2, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(channels // 4, channels // 2, kernel_size=1, stride=1, padding=0),
             Mish(),
-            nn.Conv2d(in_channels // 2, in_channels // 2, kernel_size=3, stride=1, padding=1, groups=in_channels // 2),
+            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1, groups=channels // 2),
             Mish(),
-            nn.Conv2d(in_channels // 2, out_channels, kernel_size=1, stride=1, padding=0)
+            nn.Conv2d(channels // 2, channels, kernel_size=1, stride=1, padding=0)
         )
 
         for m in self.modules():
@@ -79,35 +78,34 @@ class SymmetricBlock(nn.Module):
         return out + x
 
 
-class DepthwiseBlock(nn.Module):
+class DepthWise(nn.Module):
     r""" Improved convolution method based on MobileNet-v2 version.
 
     `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/abs/1801.04381>`_ paper.
     """
 
-    def __init__(self, in_channels: int, out_channels: int) -> None:
+    def __init__(self, channels: int) -> None:
         r""" Modules introduced in MobileNetV2 paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
+            channels (int): Number of channels in the input image.
         """
-        super(DepthwiseBlock, self).__init__()
+        super(DepthWise, self).__init__()
 
         # pw
         self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
             Mish(),
         )
 
         # dw
         self.depthwise = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1, groups=in_channels),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels),
             Mish(),
         )
 
         # pw-linear
-        self.pointwise_linear = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.pointwise_linear = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -127,48 +125,45 @@ class DepthwiseBlock(nn.Module):
         return out + x
 
 
-class InceptionBlock(nn.Module):
+class InceptionX(nn.Module):
     r""" Base on InceptionV4
 
     `"Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning
     " <https://arxiv.org/pdf/1602.07261.pdf>`_ paper.
-
     """
 
-    def __init__(self, in_channels: int, out_channels: int, non_linearity: bool = True) -> None:
+    def __init__(self, channels: int) -> None:
         r""" Modules introduced in InceptionX paper.
 
         Args:
-            in_channels (int): Number of channels in the input image.
-            out_channels (int): Number of channels produced by the convolution.
-            non_linearity (optional, bool): Does the last layer use nonlinear activation. (Default: ``True``).
+            channels (int): Number of channels in the input image.
         """
-        super(InceptionBlock, self).__init__()
-        branch_features = int(in_channels // 4)
+        super(InceptionX, self).__init__()
+        branch_features = int(channels // 4)
 
-        self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.shortcut = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0)
 
         self.branch1 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3),
         )
         self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3),
         )
         self.branch3 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3),
         )
         self.branch4 = nn.Sequential(
-            nn.Conv2d(in_channels, branch_features, kernel_size=1, stride=1, padding=0),
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
             Mish(),
@@ -178,7 +173,6 @@ class InceptionBlock(nn.Module):
         )
 
         self.conv1x1 = nn.Conv2d(branch_features * 4, branch_features * 4, kernel_size=1, stride=1, padding=0)
-        self.Mish = Mish() if non_linearity else None
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -198,11 +192,7 @@ class InceptionBlock(nn.Module):
         out = torch.cat([branch1, branch2, branch3, branch4], dim=1)
         out = self.conv1x1(out)
 
-        out = out + shortcut
-        if self.Mish is not None:
-            out = self.Mish(out)
-
-        return out
+        return out + shortcut
 
 
 class Generator(nn.Module):
@@ -215,20 +205,20 @@ class Generator(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
 
         self.trunk_a = nn.Sequential(
-            DepthwiseBlock(32, 32),
-            DepthwiseBlock(32, 32)
+            DepthWise(32),
+            DepthWise(32)
         )
         self.trunk_b = nn.Sequential(
-            SymmetricBlock(32, 32),
-            SymmetricBlock(32, 32)
+            Symmetric(32),
+            Symmetric(32)
         )
         self.trunk_c = nn.Sequential(
-            DepthwiseBlock(32, 32),
-            DepthwiseBlock(32, 32)
+            DepthWise(32),
+            DepthWise(32)
         )
         self.trunk_d = nn.Sequential(
-            InceptionBlock(32, 32),
-            InceptionBlock(32, 32)
+            InceptionX(32),
+            InceptionX(32)
         )
 
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
@@ -236,11 +226,11 @@ class Generator(nn.Module):
         # Upsampling layers
         self.upsampling = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="nearest"),
-            SymmetricBlock(32, 32),
+            Symmetric(32),
             nn.Conv2d(32, 128, kernel_size=3, stride=1, padding=1),
             Mish(),
             nn.PixelShuffle(upscale_factor=2),
-            SymmetricBlock(32, 32)
+            Symmetric(32)
         )
 
         # Next conv layer

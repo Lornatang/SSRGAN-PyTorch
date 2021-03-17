@@ -65,7 +65,7 @@ def process_for_lr():
 
         # Remove noise
         img = utils.imresize(img, 1.0 / args.cleanup_factor, True)
-        _, w, h = img.image_size()
+        _, w, h = img.size()
         w = w - w % args.upscale_factor
         h = h - h % args.upscale_factor
         img = img[:, :w, :h]

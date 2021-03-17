@@ -12,95 +12,13 @@
 # limitations under the License.
 # ==============================================================================
 """It mainly implements all the losses used in the model."""
-import lpips
 import torch
 import torch.nn.functional
 import torchvision
 
 __all__ = [
-    "LPIPSLoss", "TVLoss", "VGGLoss"
+    "TVLoss", "VGGLoss"
 ]
-
-
-class LPIPSLoss(torch.nn.Module):
-    r"""The loss value between two images is calculated based on LPIPS.
-
-    `"The Unreasonable Effectiveness of Deep Features as a Perceptual Metric" <https://arxiv.org/pdf/1801.03924.pdf>`_
-
-    Compared with most VGg based loss, it can't achieve good visual effect at large resolution,
-    at least in human visual system. So we adopt a perceptual loss based approach.
-    """
-
-    def __init__(self, net="vgg") -> None:
-        """
-
-        Args:
-            net (str): Which kind of network to build neural network based on, AlexNet or VGG (Default: ``vgg``).
-
-        Notes:
-            AlexNet(
-              (0): Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2))
-              (1): ReLU(inplace=True)
-              (2): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False)
-              (3): Conv2d(64, 192, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
-              (4): ReLU(inplace=True)
-              (5): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False)
-              (6): Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (7): ReLU(inplace=True)
-              (8): Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (9): ReLU(inplace=True)
-              (10): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (11): ReLU(inplace=True)
-              (12): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False)
-            )
-
-            VGG(
-              (0): Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (1): ReLU(inplace=True)
-              (2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (3): ReLU(inplace=True)
-              (4): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-              (5): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (6): ReLU(inplace=True)
-              (7): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (8): ReLU(inplace=True)
-              (9): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-              (10): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (11): ReLU(inplace=True)
-              (12): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (13): ReLU(inplace=True)
-              (14): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (15): ReLU(inplace=True)
-              (16): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (17): ReLU(inplace=True)
-              (18): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-              (19): Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (20): ReLU(inplace=True)
-              (21): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (22): ReLU(inplace=True)
-              (23): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (24): ReLU(inplace=True)
-              (25): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (26): ReLU(inplace=True)
-              (27): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-              (28): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (29): ReLU(inplace=True)
-              (30): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (31): ReLU(inplace=True)
-              (32): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (33): ReLU(inplace=True)
-              (34): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-              (35): ReLU(inplace=True)
-              (36): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
-            )
-        """
-        super(LPIPSLoss, self).__init__()
-        self.criterion = lpips.LPIPS(net=net).eval()
-
-    def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        lpips_loss = self.criterion(source, target)
-
-        return lpips_loss
 
 
 # Source from `https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py`

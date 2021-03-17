@@ -17,6 +17,7 @@ import random
 import torch.utils.data.dataset
 import torchvision.transforms as transforms
 from PIL import Image
+from torchvision.transforms import InterpolationMode as mode
 
 __all__ = [
     "check_image_file",
@@ -43,11 +44,11 @@ def check_image_file(filename):
 class BaseTrainDataset(torch.utils.data.dataset.Dataset):
     """An abstract class representing a :class:`Dataset`."""
 
-    def __init__(self, root: str, image_size: int = 256, upscale_factor: int = 4):
+    def __init__(self, root: str, image_size: int = 96, upscale_factor: int = 4):
         """
         Args:
             root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 256).
+            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 96).
             upscale_factor (optional, int): Image magnification. (Default: 4).
         """
         super(BaseTrainDataset, self).__init__()
@@ -55,11 +56,11 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
 
         self.lr_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(image_size // upscale_factor, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.Resize((image_size // upscale_factor, image_size // upscale_factor), interpolation=mode.BICUBIC),
             transforms.ToTensor()
         ])
         self.hr_transforms = transforms.Compose([
-            transforms.RandomCrop(image_size),
+            transforms.RandomCrop((image_size, image_size)),
             transforms.ToTensor()
         ])
 
@@ -72,7 +73,7 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        hr = self.hr_transforms(Image.open(self.filenames[index]))
+        hr = self.hr_transforms(Image.open(self.filenames[index]).convert("RGB"))
         lr = self.lr_transforms(hr)
 
         return lr, hr
@@ -84,11 +85,11 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
 class BaseTestDataset(torch.utils.data.dataset.Dataset):
     """An abstract class representing a :class:`Dataset`."""
 
-    def __init__(self, root: str, image_size: int = 256, upscale_factor: int = 4):
+    def __init__(self, root: str, image_size: int = 96, upscale_factor: int = 4):
         """
         Args:
             root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 256).
+            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 96).
             upscale_factor (optional, int): Image magnification. (Default: 4).
         """
         super(BaseTestDataset, self).__init__()
@@ -96,16 +97,16 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
 
         self.lr_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(image_size // upscale_factor, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.Resize((image_size // upscale_factor, image_size // upscale_factor), interpolation=mode.BICUBIC),
             transforms.ToTensor()
         ])
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.Resize((image_size, image_size), interpolation=mode.BICUBIC),
             transforms.ToTensor()
         ])
         self.hr_transforms = transforms.Compose([
-            transforms.RandomCrop(image_size),
+            transforms.RandomCrop((image_size, image_size)),
             transforms.ToTensor()
         ])
 
@@ -118,7 +119,7 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        hr = self.hr_transforms(Image.open(self.filenames[index]))
+        hr = self.hr_transforms(Image.open(self.filenames[index]).convert("RGB"))
         lr = self.lr_transforms(hr)
         bicubic = self.bicubic_transforms(lr)
 
@@ -190,7 +191,7 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         self.transforms = transforms.ToTensor()
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize(image_size, interpolation=transforms.InterpolationMode.BICUBIC),
+            transforms.Resize((image_size, image_size), interpolation=mode.BICUBIC),
             transforms.ToTensor()
         ])
 

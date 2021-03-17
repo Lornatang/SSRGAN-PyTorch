@@ -30,7 +30,7 @@ DESCRIPTION = "Research and application of GAN based super resolution technology
 URL = "https://github.com/Lornatang/SSRGAN"
 EMAIL = "liu_changyu@dakewe.com"
 AUTHOR = "Liu Changyu"
-REQUIRES_PYTHON = ">=3.6.5"
+REQUIRES_PYTHON = ">=3.8.0"
 VERSION = "0.1.0"
 
 # What packages are required for this module to be executed?
