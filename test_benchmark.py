@@ -237,7 +237,7 @@ def main_worker(gpu, ngpus_per_node, args):
           f"PSNR      {total_psnr_value / len(dataloader):.2f}\n"
           f"SSIM      {total_ssim_value / len(dataloader):.4f}\n"
           f"LPIPS     {total_lpips_value / len(dataloader):.4f}\n"
-          f"GMSD      {total_ssim_value}")
+          f"GMSD      {total_gmsd_value / len(dataloader):.4f}")
 
 
 if __name__ == "__main__":
