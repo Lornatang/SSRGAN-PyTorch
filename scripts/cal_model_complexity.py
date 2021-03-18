@@ -14,64 +14,73 @@
 import argparse
 import time
 
+import prettytable as pt
 import torch
 from ptflops import get_model_complexity_info
 
 import ssrgan.models as models
-from ssrgan.utils import select_device
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Research and application of GAN based super resolution "
-                                                 "technology for pathological microscopic images.")
-    # model parameters
-    parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
-                        choices=model_names,
-                        help="model architecture: " +
-                             " | ".join(model_names) +
-                             " (Default: ``dsgan``)")
-    parser.add_argument("-b", "--batch-size", type=int, default=12,
-                        help="When calculating full memory inference speed. (Default: 12).")
-    parser.add_argument("-i", "--image-size", type=int, default=64,
-                        help="Image size of sample. (Default: 64).")
+parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
+parser.add_argument("-b", "--batch-size", type=int, default=16,
+                    help="When calculating full memory inference speed. (default: 16)")
+parser.add_argument("-i", "--image-size", type=int, default=64,
+                    help="Image size of low-resolution. (Default: 64).")
+parser.add_argument("--gpu", default=None, type=int,
+                    help="GPU id to use.")
+
+
+def inference(arch, cpu_data, cuda_data, args):
+    cpu_model = models.__dict__[arch]()
+
+    # Cal flops and parameters.
+    flops, params = get_model_complexity_info(model=cpu_model,
+                                              input_res=(3, args.image_size, args.image_size),
+                                              print_per_layer_stat=False)
+
+    if args.gpu is not None:
+        start_time = time.time()
+        _ = cpu_model(cpu_data)
+        cpu_time = int(1 / (time.time() - start_time) * args.batch_size)
+
+        cuda_model = cpu_model.cuda(args.gpu)
+
+        start_time = time.time()
+        _ = cuda_model(cuda_data)
+        cuda_time = int(1 / (time.time() - start_time) * args.batch_size)
+
+        return params, flops, cpu_time, cuda_time
+    else:
+        start_time = time.time()
+        _ = cpu_model(cpu_data)
+        cpu_time = int(1 / (time.time() - start_time) * args.batch_size)
+
+        return params, flops, cpu_time
+
+
+def main():
     args = parser.parse_args()
+    tb = pt.PrettyTable()
 
-    cpu_device = select_device("cpu")
-    cuda_device = select_device("1")
+    cpu_data = torch.randn([args.batch_size, 3, args.image_size, args.image_size])
+    if args.gpu is not None:
+        cuda_data = cpu_data.cuda(args.gpu)
+    else:
+        cuda_data = None
 
-    image_size = (3, args.image_size, args.image_size)
-    batch_size = args.batch_size
-    inputs = torch.randn(batch_size, 3, args.image_size, args.image_size)
+    print(f"|----------------------------------------------------------|")
+    print(f"|                        Summary                           |")
+    tb.field_names = ["Model", "Params", "FLOPs", "CPU Speed", "GPU Speed"]
 
-    # Create cpu model and gpu model.
-    model = models.__dict__[args.arch]()
+    for i in range(len(model_names)):
+        value = inference(model_names[i], cpu_data, cuda_data, args)
+        tb.add_row([model_names[i], value[0], value[1], f"{value[2]} it/s", f"{value[3]} it/s"])
 
-    # Cal cpu forward time.
-    cpu_data = inputs.to(cpu_device)
-    cpu_model = model.to(cpu_device)
-    start_time = time.time()
-    _ = cpu_model(cpu_data)
-    cpu_time = time.time() - start_time
+    print(tb)
 
-    # Cal gpu forward time.
-    cuda_data = inputs.to(cuda_device)
-    cuda_model = model.to(cuda_device)
-    start_time = time.time()
-    _ = cuda_model(cuda_data)
-    cuda_time = time.time() - start_time
 
-    flops, params = get_model_complexity_info(model, image_size, as_strings=True, print_per_layer_stat=False)
-    print(f"|---------------------------------------------------------------------|")
-    print(f"|                               Summary                               |")
-    print(f"|---------------------------------------------------------------------|")
-    print(f"|       Model       |    Params   |   FLOPs   | CPU Speed | GPU SPeed |")
-    print(f"|---------------------------------------------------------------------|")
-    print(f"|{cpu_model.__class__.__name__.center(19):19}"
-          f"|{params.center(13):13}"
-          f"|{flops.center(11):11}"
-          f"|  {int(1 / cpu_time * args.batch_size)} it/s  "
-          f"|  {int(1 / cuda_time * args.batch_size)} it/s  |")
-    print(f"|---------------------------------------------------------------------|")
+if __name__ == "__main__":
+    main()

@@ -12,3 +12,8 @@
 # limitations under the License.
 # ==============================================================================
 from .dsgan import dsgan
+from .esrgan import esrgan16
+from .esrgan import esrgan23
+from .srgan import srgan
+from .srgan import srgan_2x2
+from .srgan import srgan_8x8
