@@ -78,13 +78,11 @@ def test_psnr(model: nn.Module, dataloader: torch.utils.data.DataLoader, gpu: in
             sr = model(lr)
 
         # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-        psnr_value = 10 * torch.log10(1. / mse_loss(sr, hr))
-        ssim_value = ssim_loss(sr, hr)
+        total_psnr_value += 10 * torch.log10(1. / mse_loss(sr, hr))
+        total_ssim_value += ssim_loss(sr, hr)
 
-        total_psnr_value += psnr_value
-        total_ssim_value += ssim_value
-
-        progress_bar.set_description(f"PSNR: {psnr_value:.2f}dB SSIM: {ssim_value:.4f}.")
+        progress_bar.set_description(f"PSNR: {total_psnr_value / (i + 1):.2f} "
+                                     f"SSIM: {total_ssim_value / (i + 1):.4f}")
 
     out = total_psnr_value / total, total_ssim_value / total
 
@@ -119,17 +117,15 @@ def test_gan(model: nn.Module, dataloader: torch.utils.data.DataLoader, gpu: int
             sr = model(lr)
 
         # The SSIM of the generated fake high-resolution image and real high-resolution image is calculated.
-        ssim_value = ssim_loss(sr, hr)
+        total_ssim_value += ssim_loss(sr, hr)
         # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
-        lpips_value = lpips_loss(sr, hr)
+        total_lpips_value += lpips_loss(sr, hr)
         # The GMSD of the generated fake high-resolution image and real high-resolution image is calculated.
-        gmsd_value = gmsd_loss(sr, hr)
+        total_gmsd_value += gmsd_loss(sr, hr)
 
-        total_ssim_value += ssim_value
-        total_lpips_value += lpips_value
-        total_gmsd_value += gmsd_value
-
-        progress_bar.set_description(f"SSIM: {ssim_value:.4f} LPIPS: {lpips_value:.4f} GMSD: {gmsd_value:.4f}.")
+        progress_bar.set_description(f"SSIM: {total_ssim_value / (i + 1):.4f} "
+                                     f"LPIPS: {total_lpips_value / (i + 1):.4f} "
+                                     f"GMSD: {total_gmsd_value / (i + 1):.4f}")
 
     out = total_ssim_value / total, total_lpips_value / total, total_gmsd_value / total
 
