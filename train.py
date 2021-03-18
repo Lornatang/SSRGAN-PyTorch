@@ -38,7 +38,6 @@ from ssrgan.dataset import CustomTrainDataset
 from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator_for_vgg
 from ssrgan.utils.common import create_folder
-from ssrgan.utils.common import save_checkpoint
 from ssrgan.utils.estimate import test_gan
 from ssrgan.utils.estimate import test_psnr
 
@@ -381,12 +380,12 @@ def main_worker(gpu, ngpus_per_node, args):
             save_checkpoint(
                 {"epoch": epoch + 1,
                  "arch": args.arch,
-                 "state_dict": generator.state_dict(),
+                 "state_dict": generator.module.state_dict() if args.multiprocessing_distributed else generator.state_dict(),
                  "best_psnr": best_psnr_value,
-                 "optimizer": psnr_optimizer.state_dict()
+                 "optimizer": psnr_optimizer.state_dict(),
                  }, is_best,
                 os.path.join("weights", f"DSNet_epoch{epoch}.pth"),
-                os.path.join("weights", f"DSNet.pth"))
+                os.path.join("weights", f"DSNet_bs{args.batch_size}.pth"))
 
     for epoch in range(args.start_gan_epoch, args.gan_epochs):
         if args.distributed:
@@ -426,21 +425,21 @@ def main_worker(gpu, ngpus_per_node, args):
             save_checkpoint(
                 {"epoch": epoch + 1,
                  "arch": "vgg",
-                 "state_dict": discriminator.state_dict(),
+                 "state_dict": discriminator.module.state_dict() if args.multiprocessing_distributed else discriminator.state_dict(),
                  "best_lpips": best_lpips_value,
                  "optimizer": discriminator_optimizer.state_dict()
                  }, is_best,
                 os.path.join("weights", f"Discriminator_epoch{epoch}.pth"),
-                os.path.join("weights", f"Discriminator_bs{args.batch_size}_epochs{args.gan_epochs}.pth"))
+                os.path.join("weights", f"Discriminator_epochs{args.gan_epochs}.pth"))
             save_checkpoint(
                 {"epoch": epoch + 1,
                  "arch": args.arch,
-                 "state_dict": generator.state_dict(),
+                 "state_dict": generator.module.state_dict() if args.multiprocessing_distributed else generator.state_dict(),
                  "best_lpips": best_lpips_value,
                  "optimizer": generator_optimizer.state_dict()
                  }, is_best,
                 os.path.join("weights", f"DSGAN_epoch{epoch}.pth"),
-                os.path.join("weights", f"DSGAN.pth"))
+                os.path.join("weights", f"DSGAN_epochs{args.gan_epochs}.pth"))
 
 
 def train_psnr(dataloader: torch.utils.data.DataLoader,
@@ -616,6 +615,12 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
             vutils.save_image(hr, os.path.join("runs", "hr", f"DSGAN_{iters}.bmp"))
             sr = generator(lr)
             vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"DSGAN_{iters}.bmp"))
+
+
+def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):
+    torch.save(state, source_filename)
+    if is_best:
+        torch.save(state["state_dict"], target_filename)
 
 
 if __name__ == "__main__":
