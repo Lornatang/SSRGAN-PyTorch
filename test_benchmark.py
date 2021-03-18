@@ -190,11 +190,13 @@ def main_worker(gpu, ngpus_per_node, args):
                                              batch_size=args.batch_size,
                                              pin_memory=True,
                                              num_workers=args.workers)
-    logger.info(f"Test Dataset information:\n"
-                f"\tTest Dataset dir is `{os.getcwd()}/{args.data}/test`\n"
-                f"\tBatch size is {args.batch_size}\n"
-                f"\tWorkers is {int(args.workers)}\n"
-                f"\tLoad dataset to CUDA")
+    logger.info(f"Dataset information:\n"
+                f"\tPath:              {os.getcwd()}/{args.data}/test\n"
+                f"\tNumber of samples: {len(dataset)}\n"
+                f"\tNumber of batches: {len(dataloader)}\n"
+                f"\tShuffle:           False\n"
+                f"\tSampler:           None\n"
+                f"\tWorkers:           {args.workers}")
 
     cudnn.benchmark = True
 
@@ -224,7 +226,9 @@ def main_worker(gpu, ngpus_per_node, args):
         total_lpips_value += value[4]
         total_gmsd_value += value[5]
 
-        progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] PSNR: {value[2]:.2f}dB  SSIM: {value[3]:.4f}")
+        progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
+                                     f"PSNR: {total_psnr_value / (i + 1):.2f} "
+                                     f"SSIM: {total_ssim_value / (i + 1):.4f}")
 
         images = torch.cat([bicubic, sr, hr], dim=-1)
         vutils.save_image(images, os.path.join("benchmark", f"{i + 1}.bmp"), padding=10)
@@ -249,6 +253,8 @@ if __name__ == "__main__":
     logger.info("TestEngine:")
     print("\tAPI version .......... 0.1.1")
     print("\tBuild ................ 2020.11.30-1116-0c5adc7e")
-    main()
     print("##################################################\n")
+
+    main()
+
     logger.info("Test dataset performance evaluation completed successfully.\n")
