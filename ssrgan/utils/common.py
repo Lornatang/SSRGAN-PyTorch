@@ -44,13 +44,13 @@ def configure(args):
 
     # Create model
     if args.pretrained:
-        logger.info(f"Using pre-trained model `{args.arch}`")
+        logger.info(f"Using pre-trained model `{args.arch}`.")
         model = models.__dict__[args.arch](pretrained=True)
     else:
-        logger.info(f"Creating model `{args.arch}`")
+        logger.info(f"Creating model `{args.arch}`.")
         model = models.__dict__[args.arch]()
     if args.model_path:
-        logger.info(f"You loaded the specified weight. Load weights from `{args.model_path}`")
+        logger.info(f"You loaded the specified weight. Load weights from `{os.path.abspath(args.model_path)}`.")
         model.load_state_dict(torch.load(args.model_path, map_location=torch.device("cpu")), strict=False)
 
     return model
