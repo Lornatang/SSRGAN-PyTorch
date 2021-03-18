@@ -51,6 +51,6 @@ def configure(args):
         model = models.__dict__[args.arch]()
     if args.model_path:
         logger.info(f"You loaded the specified weight. Load weights from `{args.model_path}`")
-        model.load_state_dict(torch.load(args.model_path, map_location=torch.device("cpu")), state_dict=False)
+        model.load_state_dict(torch.load(args.model_path, map_location=torch.device("cpu")), strict=False)
 
     return model
