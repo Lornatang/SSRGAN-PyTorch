@@ -251,10 +251,10 @@ if __name__ == "__main__":
     create_folder("benchmark")
 
     logger.info("TestEngine:")
-    print("\tAPI version .......... 0.1.1")
-    print("\tBuild ................ 2020.11.30-1116-0c5adc7e")
+    print("\tAPI version .......... 0.1.0")
+    print("\tBuild ................ 2020.03.18")
     print("##################################################\n")
 
     main()
 
-    logger.info("Test dataset performance evaluation completed successfully.\n")
+    logger.info("Test dataset performance evaluation completed successfully.")
