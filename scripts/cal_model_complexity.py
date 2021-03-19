@@ -16,7 +16,7 @@ import time
 
 import prettytable as pt
 import torch
-from ptflops import get_model_complexity_info
+from thop import profile
 
 import ssrgan.models as models
 
@@ -36,29 +36,30 @@ parser.add_argument("--gpu", default=None, type=int,
 def inference(arch, cpu_data, cuda_data, args):
     cpu_model = models.__dict__[arch]()
 
+    params = sum(x.numel() for x in cpu_model.parameters()) / 1E6
+
     # Cal flops and parameters.
-    flops, params = get_model_complexity_info(model=cpu_model,
-                                              input_res=(3, args.image_size, args.image_size),
-                                              print_per_layer_stat=False)
+    flops = profile(model=cpu_model, inputs=(cpu_data,), verbose=False)[0] / 1E9 * 2
 
-    if args.gpu is not None:
-        start_time = time.time()
-        _ = cpu_model(cpu_data)
-        cpu_time = int(1 / (time.time() - start_time) * args.batch_size)
+    with torch.no_grad():
+        if args.gpu is not None:
+            start_time = time.time()
+            _ = cpu_model(cpu_data)
+            cpu_speed = int(1 / (time.time() - start_time) * args.batch_size)
 
-        cuda_model = cpu_model.cuda(args.gpu)
+            cuda_model = cpu_model.cuda(args.gpu)
 
-        start_time = time.time()
-        _ = cuda_model(cuda_data)
-        cuda_time = int(1 / (time.time() - start_time) * args.batch_size)
+            start_time = time.time()
+            _ = cuda_model(cuda_data)
+            cuda_speed = int(1 / (time.time() - start_time) * args.batch_size)
 
-        return params, flops, cpu_time, cuda_time
-    else:
-        start_time = time.time()
-        _ = cpu_model(cpu_data)
-        cpu_time = int(1 / (time.time() - start_time) * args.batch_size)
+            return params, flops, cpu_speed, cuda_speed
+        else:
+            start_time = time.time()
+            _ = cpu_model(cpu_data)
+            cpu_speed = int(1 / (time.time() - start_time) * args.batch_size)
 
-        return params, flops, cpu_time
+            return params, flops, cpu_speed
 
 
 def main():
@@ -71,13 +72,17 @@ def main():
     else:
         cuda_data = None
 
-    print(f"|----------------------------------------------------------|")
-    print(f"|                        Summary                           |")
+    print(f"|-------------------------------------------------------------|")
+    print(f"|                           Summary                           |")
     tb.field_names = ["Model", "Params", "FLOPs", "CPU Speed", "GPU Speed"]
 
     for i in range(len(model_names)):
         value = inference(model_names[i], cpu_data, cuda_data, args)
-        tb.add_row([model_names[i], value[0], value[1], f"{value[2]} it/s", f"{value[3]} it/s"])
+        tb.add_row([f"{model_names[i].center(15)}",
+                    f"{value[0]:4.2f} M",
+                    f"{value[1]:4.1f} G",
+                    f"{value[2]:4d} it/s",
+                    f"{value[3]:4d} it/s"])
 
     print(tb)
 
