@@ -647,4 +647,3 @@ if __name__ == "__main__":
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")
-    main()
