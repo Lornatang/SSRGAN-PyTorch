@@ -67,22 +67,23 @@ def test_psnr(model: nn.Module, dataloader: torch.utils.data.DataLoader, gpu: in
     total_psnr_value = 0.
     total_ssim_value = 0.
     total = len(dataloader)
-    for i, (lr, _, hr) in progress_bar:
-        # Move data to special device.
-        if gpu is not None:
-            lr = lr.cuda(gpu, non_blocking=True)
-        if torch.cuda.is_available():
-            hr = hr.cuda(gpu, non_blocking=True)
 
-        with torch.no_grad():
+    with torch.no_grad():
+        for i, (lr, _, hr) in progress_bar:
+            # Move data to special device.
+            if gpu is not None:
+                lr = lr.cuda(gpu, non_blocking=True)
+            if torch.cuda.is_available():
+                hr = hr.cuda(gpu, non_blocking=True)
+
             sr = model(lr)
 
-        # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-        total_psnr_value += 10 * torch.log10(1. / mse_loss(sr, hr))
-        total_ssim_value += ssim_loss(sr, hr)
+            # The MSE Loss of the generated fake high-resolution image and real high-resolution image is calculated.
+            total_psnr_value += 10 * torch.log10(1. / mse_loss(sr, hr))
+            total_ssim_value += ssim_loss(sr, hr)
 
-        progress_bar.set_description(f"PSNR: {total_psnr_value / (i + 1):.2f} "
-                                     f"SSIM: {total_ssim_value / (i + 1):.4f}")
+            progress_bar.set_description(f"PSNR: {total_psnr_value / (i + 1):.2f} "
+                                         f"SSIM: {total_ssim_value / (i + 1):.4f}")
 
     out = total_psnr_value / total, total_ssim_value / total
 
@@ -106,26 +107,28 @@ def test_gan(model: nn.Module, dataloader: torch.utils.data.DataLoader, gpu: int
     total_lpips_value = 0.
     total_gmsd_value = 0.
     total = len(dataloader)
-    for i, (lr, _, hr) in progress_bar:
-        # Move data to special device.
-        if gpu is not None:
-            lr = lr.cuda(gpu, non_blocking=True)
-        if torch.cuda.is_available():
-            hr = hr.cuda(gpu, non_blocking=True)
 
-        with torch.no_grad():
-            sr = model(lr)
+    with torch.no_grad():
+        for i, (lr, _, hr) in progress_bar:
+            # Move data to special device.
+            if gpu is not None:
+                lr = lr.cuda(gpu, non_blocking=True)
+            if torch.cuda.is_available():
+                hr = hr.cuda(gpu, non_blocking=True)
 
-        # The SSIM of the generated fake high-resolution image and real high-resolution image is calculated.
-        total_ssim_value += ssim_loss(sr, hr)
-        # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
-        total_lpips_value += lpips_loss(sr, hr)
-        # The GMSD of the generated fake high-resolution image and real high-resolution image is calculated.
-        total_gmsd_value += gmsd_loss(sr, hr)
+            with torch.no_grad():
+                sr = model(lr)
 
-        progress_bar.set_description(f"SSIM: {total_ssim_value / (i + 1):.4f} "
-                                     f"LPIPS: {total_lpips_value / (i + 1):.4f} "
-                                     f"GMSD: {total_gmsd_value / (i + 1):.4f}")
+            # The SSIM of the generated fake high-resolution image and real high-resolution image is calculated.
+            total_ssim_value += ssim_loss(sr, hr)
+            # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
+            total_lpips_value += lpips_loss(sr, hr)
+            # The GMSD of the generated fake high-resolution image and real high-resolution image is calculated.
+            total_gmsd_value += gmsd_loss(sr, hr)
+
+            progress_bar.set_description(f"SSIM: {total_ssim_value / (i + 1):.4f} "
+                                         f"LPIPS: {total_lpips_value / (i + 1):.4f} "
+                                         f"GMSD: {total_gmsd_value / (i + 1):.4f}")
 
     out = total_ssim_value / total, total_lpips_value / total, total_gmsd_value / total
 
