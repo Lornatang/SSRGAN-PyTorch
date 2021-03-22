@@ -13,9 +13,9 @@
 # ==============================================================================
 import argparse
 import logging
-import math
 import os
 import random
+import time
 import warnings
 
 import torch
@@ -30,15 +30,17 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.utils as vutils
 from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
 
 import ssrgan.models as models
 from ssrgan.dataset import CustomTestDataset
 from ssrgan.dataset import CustomTrainDataset
 from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator_for_vgg
+from ssrgan.utils.common import AverageMeter
+from ssrgan.utils.common import ProgressMeter
 from ssrgan.utils.common import configure
 from ssrgan.utils.common import create_folder
+from ssrgan.utils.common import save_checkpoint
 from ssrgan.utils.estimate import test_gan
 from ssrgan.utils.estimate import test_psnr
 
@@ -59,12 +61,12 @@ parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
                          " (default: dsgan)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (default: 4)")
-parser.add_argument("--psnr-epochs", default=128, type=int, metavar="N",
-                    help="Number of total psnr epochs to run. (default: 128)")
+parser.add_argument("--psnr-epochs", default=32, type=int, metavar="N",
+                    help="Number of total psnr epochs to run. (default: 32)")
 parser.add_argument("--start-psnr-epoch", default=0, type=int, metavar='N',
                     help="Manual psnr epoch number (useful on restarts). (default: 0)")
-parser.add_argument("--gan-epochs", default=32, type=int, metavar="N",
-                    help="Number of total gan epochs to run. (default: 32)")
+parser.add_argument("--gan-epochs", default=16, type=int, metavar="N",
+                    help="Number of total gan epochs to run. (default: 16)")
 parser.add_argument("--start-gan-epoch", default=0, type=int, metavar='N',
                     help="Manual gan epoch number (useful on restarts). (default: 0)")
 parser.add_argument("-b", "--batch-size", default=4, type=int,
@@ -75,10 +77,10 @@ parser.add_argument("-b", "--batch-size", default=4, type=int,
 parser.add_argument("--sampler-frequency", default=1, type=int, metavar="N",
                     help="If there are many datasets, this method can be used "
                          "to increase the number of epochs. (default:1)")
-parser.add_argument("--psnr-lr", type=float, default=0.0002,
-                    help="Learning rate for psnr-oral. (default: 0.0002)")
-parser.add_argument("--gan-lr", type=float, default=0.0001,
-                    help="Learning rate for gan-oral. (default: 0.0001)")
+parser.add_argument("--psnr-lr", type=float, default=0.0004,
+                    help="Learning rate for psnr-oral. (default: 0.0004)")
+parser.add_argument("--gan-lr", type=float, default=0.0002,
+                    help="Learning rate for gan-oral. (default: 0.0002)")
 parser.add_argument("--image-size", type=int, default=256,
                     help="Image size of high resolution image. (default: 256)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
@@ -221,8 +223,6 @@ def main_worker(gpu, ngpus_per_node, args):
     # We use VGG5.4 as our feature extraction method by default.
     perceptual_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
-    # PSNR Evaluating.
-    psnr_criterion = nn.MSELoss().cuda(args.gpu)
     logger.info(f"Losses function information:\n"
                 f"\tPixel:       L1\n"
                 f"\tPerceptual:  VGG19_35th\n"
@@ -355,10 +355,9 @@ def main_worker(gpu, ngpus_per_node, args):
             train_sampler.set_epoch(epoch)
 
         # train for one epoch
-        train_psnr(dataloader=train_dataloader,
+        train_psnr(train_dataloader=train_dataloader,
                    model=generator,
-                   pixel_criterion=pixel_criterion,
-                   psnr_criterion=psnr_criterion,
+                   criterion=pixel_criterion,
                    optimizer=psnr_optimizer,
                    epoch=epoch,
                    scaler=scaler,
@@ -390,12 +389,15 @@ def main_worker(gpu, ngpus_per_node, args):
                 os.path.join("weights", f"PSNR_epoch{epoch}.pth"),
                 os.path.join("weights", f"PSNR.pth"))
 
+    # Load best PSNR model.
+    generator.load_state_dict(torch.load(os.path.join("weights", f"PSNR.pth"), map_location=f"cuda:{args.gpu}"))
+
     for epoch in range(args.start_gan_epoch, args.gan_epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
 
         # train for one epoch
-        train_gan(dataloader=train_dataloader,
+        train_gan(train_dataloader=train_dataloader,
                   discriminator=discriminator,
                   generator=generator,
                   pixel_criterion=pixel_criterion,
@@ -434,8 +436,8 @@ def main_worker(gpu, ngpus_per_node, args):
                  "best_gmsd": best_gmsd_value,
                  "optimizer": discriminator_optimizer.state_dict()
                  }, is_best,
-                os.path.join("weights", f"Discriminator_epoch{epoch}.pth"),
-                os.path.join("weights", f"Discriminator.pth"))
+                os.path.join("exps", "weights", f"Discriminator_epoch{epoch}.pth"),
+                os.path.join("exps", "weights", f"Discriminator.pth"))
             save_checkpoint(
                 {"epoch": epoch + 1,
                  "arch": args.arch,
@@ -445,23 +447,34 @@ def main_worker(gpu, ngpus_per_node, args):
                  "best_gmsd": best_gmsd_value,
                  "optimizer": generator_optimizer.state_dict()
                  }, is_best,
-                os.path.join("weights", f"Generator_epoch{epoch}.pth"),
-                os.path.join("weights", f"Generator.pth"))
+                os.path.join("exps", "weights", f"Generator_epoch{epoch}.pth"),
+                os.path.join("exps", "weights", f"Generator.pth"))
 
 
-def train_psnr(dataloader: torch.utils.data.DataLoader,
+def train_psnr(train_dataloader: torch.utils.data.DataLoader,
                model: nn.Module,
-               pixel_criterion: nn.L1Loss,
-               psnr_criterion: nn.MSELoss,
+               criterion: nn.L1Loss,
                optimizer: torch.optim.Adam,
                epoch: int,
                scaler: amp.GradScaler,
                writer: SummaryWriter,
                args: argparse.ArgumentParser.parse_args):
-    # switch train mode.
+    batch_time = AverageMeter("Time", ":6.4f")
+    data_time = AverageMeter("Data", ":6.4f")
+    pixel_losses = AverageMeter("Pixel Loss", ":.6f")
+    progress = ProgressMeter(
+        len(train_dataloader),
+        [batch_time, data_time, pixel_losses],
+        prefix=f"Epoch: [{epoch}]")
+
+    # switch to train mode
     model.train()
-    progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-    for i, (lr, hr) in progress_bar:
+
+    end = time.time()
+    for i, (lr, hr) in enumerate(train_dataloader):
+        # measure data loading time
+        data_time.update(time.time() - end)
+
         # Move data to special device.
         if args.gpu is not None:
             lr = lr.cuda(args.gpu, non_blocking=True)
@@ -473,7 +486,7 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
             # Generating fake high resolution images from real low resolution images.
             sr = model(lr)
             # The L1 Loss of the generated fake high-resolution image and real high-resolution image is calculated.
-            pixel_loss = pixel_criterion(sr, hr)
+            pixel_loss = criterion(sr, hr)
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
         # Backward passes under autocast are not recommended.
@@ -488,22 +501,28 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
         # Updates the scale for next iteration.
         scaler.update()
 
-        progress_bar.set_description(f"[{epoch + 1}/{args.psnr_epochs}][{i + 1}/{len(dataloader)}] "
-                                     f"Pixel Loss: {pixel_loss.item():.6f}")
+        # measure accuracy and record loss
+        pixel_losses.update(pixel_loss.item(), lr.size(0))
 
-        iters = i + epoch * len(dataloader) + 1
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        iters = i + epoch * len(train_dataloader) + 1
         writer.add_scalar("Train/Pixel Loss", pixel_loss.item(), iters)
-        writer.add_scalar("Train/PSNR", 10 * math.log10(1. / psnr_criterion(sr, hr).item()), iters)
 
-        # The image is saved every 1000 epoch.
+        # Output results every 100 batches.
+        if i % 100 == 0:
+            progress.display(i)
+
+        # Save images every 1000 iterations.
         if iters % 1000 == 0:
             vutils.save_image(hr, os.path.join("runs", "hr", f"PSNR_{iters}.bmp"))
-            with torch.no_grad():
-                sr = model(lr)
-            vutils.save_image(sr, os.path.join("runs", "sr", f"PSNR_{iters}.bmp"))
+            sr = model(lr)
+            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"PSNR_{iters}.bmp"))
 
 
-def train_gan(dataloader: torch.utils.data.DataLoader,
+def train_gan(train_dataloader: torch.utils.data.DataLoader,
               discriminator: nn.Module,
               generator: nn.Module,
               pixel_criterion: nn.L1Loss,
@@ -515,11 +534,25 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
               scaler: amp.GradScaler,
               writer: SummaryWriter,
               args: argparse.ArgumentParser.parse_args):
-    # switch train mode.
+    batch_time = AverageMeter("Time", ":6.4f")
+    data_time = AverageMeter("Data", ":6.4f")
+    d_losses = AverageMeter("Discriminator Loss", ":.6f")
+    g_losses = AverageMeter("Generator Loss", ":.6f")
+    pixel_losses = AverageMeter("Pixel Loss", ":.6f")
+    perceptual_losses = AverageMeter("Perceptual Loss", ":.6f")
+    adversarial_losses = AverageMeter("Adversarial Loss", ":.6f")
+
+    progress = ProgressMeter(
+        len(train_dataloader),
+        [batch_time, data_time, d_losses, g_losses, pixel_losses, perceptual_losses, adversarial_losses],
+        prefix=f"Epoch: [{epoch}]")
+
+    # switch to train mode
     discriminator.train()
     generator.train()
-    progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
-    for i, (lr, hr) in progress_bar:
+
+    end = time.time()
+    for i, (lr, hr) in enumerate(train_dataloader):
         # Move data to special device.
         if args.gpu is not None:
             lr = lr.cuda(args.gpu, non_blocking=True)
@@ -550,8 +583,6 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
             d_loss_fake = adversarial_criterion(fake_output - torch.mean(real_output), fake_label)
 
             d_loss = d_loss_fake + d_loss_real
-            d_hr = real_output.mean().item()
-            d_g_sr1 = fake_output.mean().item()
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
         # Backward passes under autocast are not recommended.
@@ -584,7 +615,6 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
             # Adversarial loss (relativistic average GAN)
             adversarial_loss = adversarial_criterion(fake_output - torch.mean(real_output), real_label)
             g_loss = 5 * pixel_loss + 2 * perceptual_loss + 0.001 * adversarial_loss
-            d_g_sr2 = fake_output.mean().item()
 
         # Scales loss.  Calls backward() on scaled loss to create scaled gradients.
         # Backward passes under autocast are not recommended.
@@ -599,37 +629,33 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
         # Updates the scale for next iteration.
         scaler.update()
 
-        progress_bar.set_description(f"[{epoch + 1}/{args.gan_epochs}][{i + 1}/{len(dataloader)}] "
-                                     f"D Loss: {d_loss.item():.6f} "
-                                     f"G Loss: {g_loss.item():.6f} "
-                                     f"Pixel Loss: {pixel_loss.item():.6f} "
-                                     f"Perceptual Loss: {perceptual_loss.item():.6f} "
-                                     f"Adversarial Loss: {adversarial_loss.item():.6f} "
-                                     f"D(HR): {d_hr:.6f} "
-                                     f"D(G(SR1/SR2)): {d_g_sr1:.6f}/{d_g_sr2:.6f}")
+        # measure accuracy and record loss
+        d_losses.update(d_loss.item(), lr.size(0))
+        g_losses.update(g_loss.item(), lr.size(0))
+        pixel_losses.update(pixel_loss.item(), lr.size(0))
+        perceptual_losses.update(perceptual_loss.item(), lr.size(0))
+        adversarial_losses.update(adversarial_loss.item(), lr.size(0))
 
-        iters = i + epoch * len(dataloader) + 1
-        writer.add_scalar("Train/D Loss", d_loss.item(), iters)
-        writer.add_scalar("Train/G Loss", g_loss.item(), iters)
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        iters = i + epoch * len(train_dataloader) + 1
+        writer.add_scalar("Train/Discriminator Loss", d_loss.item(), iters)
+        writer.add_scalar("Train/Generator Loss", g_loss.item(), iters)
         writer.add_scalar("Train/Pixel Loss", pixel_loss.item(), iters)
         writer.add_scalar("Train/Perceptual Loss", perceptual_loss.item(), iters)
         writer.add_scalar("Train/Adversarial Loss", adversarial_loss.item(), iters)
-        writer.add_scalar("Train/D(HR)", d_hr, iters)
-        writer.add_scalar("Train/D(G(SR1))", d_g_sr1, iters)
-        writer.add_scalar("Train/D(G(SR2))", d_g_sr2, iters)
+
+        # Output results every 100 batches.
+        if i % 100 == 0:
+            progress.display(i)
 
         # The image is saved every 1000 epoch.
         if iters % 1000 == 0:
             vutils.save_image(hr, os.path.join("runs", "hr", f"GAN_{iters}.bmp"))
-            with torch.no_grad():
-                sr = generator(lr)
-            vutils.save_image(sr, os.path.join("runs", "sr", f"GAN_{iters}.bmp"))
-
-
-def save_checkpoint(state, is_best: bool, source_filename: str, target_filename: str):
-    torch.save(state, source_filename)
-    if is_best:
-        torch.save(state["state_dict"], target_filename)
+            sr = generator(lr)
+            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"GAN_{iters}.bmp"))
 
 
 if __name__ == "__main__":
@@ -643,7 +669,7 @@ if __name__ == "__main__":
 
     logger.info("TrainingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.03.19")
+    print("\tBuild ................ 2021.03.22")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")
