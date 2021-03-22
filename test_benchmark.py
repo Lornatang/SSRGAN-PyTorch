@@ -61,7 +61,7 @@ parser.add_argument("--sampler-frequency", default=1, type=int, metavar="N",
                     help="If there are many datasets, this method can be used "
                          "to increase the number of epochs. (default:1)")
 parser.add_argument("--image-size", type=int, default=256,
-                    help="Image size of high resolution image. (default: 128)")
+                    help="Image size of high resolution image. (default: 256)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
@@ -185,7 +185,8 @@ def main_worker(gpu, ngpus_per_node, args):
     logger.info("Load testing dataset")
     # Selection of appropriate treatment equipment.
     dataset = CustomTestDataset(root=os.path.join(args.data, "test"),
-                                image_size=args.image_size)
+                                image_size=args.image_size,
+                                sampler_frequency=args.sampler_frequency)
     dataloader = torch.utils.data.DataLoader(dataset,
                                              batch_size=args.batch_size,
                                              pin_memory=True,
@@ -227,8 +228,8 @@ def main_worker(gpu, ngpus_per_node, args):
         total_gmsd_value += value[5]
 
         progress_bar.set_description(f"[{i + 1}/{len(dataloader)}] "
-                                     f"PSNR: {total_psnr_value / (i + 1):.2f} "
-                                     f"SSIM: {total_ssim_value / (i + 1):.4f}")
+                                     f"PSNR: {total_psnr_value / (i + 1):6.2f} "
+                                     f"SSIM: {total_ssim_value / (i + 1):6.4f}")
 
         images = torch.cat([bicubic, sr, hr], dim=-1)
         vutils.save_image(images, os.path.join("benchmark", f"{i + 1}.bmp"), padding=10)
@@ -236,25 +237,24 @@ def main_worker(gpu, ngpus_per_node, args):
     print(f"Performance average results:\n")
     print(f"indicator Score\n")
     print(f"--------- -----\n")
-    print(f"MSE       {total_mse_value / len(dataloader):.4f}\n"
-          f"RMSE      {total_rmse_value / len(dataloader):.4f}\n"
-          f"PSNR      {total_psnr_value / len(dataloader):.2f}\n"
-          f"SSIM      {total_ssim_value / len(dataloader):.4f}\n"
-          f"LPIPS     {total_lpips_value / len(dataloader):.4f}\n"
-          f"GMSD      {total_gmsd_value / len(dataloader):.4f}")
+    print(f"MSE       {total_mse_value / len(dataloader):6.4f}\n"
+          f"RMSE      {total_rmse_value / len(dataloader):6.4f}\n"
+          f"PSNR      {total_psnr_value / len(dataloader):6.2f}\n"
+          f"SSIM      {total_ssim_value / len(dataloader):6.4f}\n"
+          f"LPIPS     {total_lpips_value / len(dataloader):6.4f}\n"
+          f"GMSD      {total_gmsd_value / len(dataloader):6.4f}")
 
 
 if __name__ == "__main__":
     print("##################################################\n")
     print("Run Testing Engine.\n")
 
-    create_folder("benchmark")
+    create_folder("test")
 
-    logger.info("TestEngine:")
+    logger.info("TestingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2020.03.18")
+    print("\tBuild ................ 2021.03.22")
     print("##################################################\n")
-
     main()
 
     logger.info("Test dataset performance evaluation completed successfully.")
