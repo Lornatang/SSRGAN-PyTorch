@@ -224,7 +224,7 @@ def main_worker(gpu, ngpus_per_node, args):
     perceptual_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
     logger.info(f"Losses function information:\n"
-                f"\tPixel:       L1\n"
+                f"\tPixel:       L1Loss\n"
                 f"\tPerceptual:  VGG19_35th\n"
                 f"\tAdversarial: BCEWithLogitsLoss")
 
