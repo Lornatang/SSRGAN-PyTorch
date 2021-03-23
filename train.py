@@ -389,6 +389,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 os.path.join("weights", f"PSNR_epoch{epoch}.pth"),
                 os.path.join("weights", f"PSNR.pth"))
 
+    best_ssim_value = 0.0
     # Load best PSNR model.
     generator.load_state_dict(torch.load(os.path.join("weights", f"PSNR.pth"), map_location=f"cuda:{args.gpu}"))
 
@@ -669,7 +670,7 @@ if __name__ == "__main__":
 
     logger.info("TrainingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.03.22")
+    print("\tBuild ................ 2021.03.23")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")
