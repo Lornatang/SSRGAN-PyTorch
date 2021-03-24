@@ -437,8 +437,8 @@ def main_worker(gpu, ngpus_per_node, args):
                  "best_gmsd": best_gmsd_value,
                  "optimizer": discriminator_optimizer.state_dict()
                  }, is_best,
-                os.path.join("exps", "weights", f"Discriminator_epoch{epoch}.pth"),
-                os.path.join("exps", "weights", f"Discriminator.pth"))
+                os.path.join("weights", f"Discriminator_epoch{epoch}.pth"),
+                os.path.join("weights", f"Discriminator.pth"))
             save_checkpoint(
                 {"epoch": epoch + 1,
                  "arch": args.arch,
@@ -448,8 +448,8 @@ def main_worker(gpu, ngpus_per_node, args):
                  "best_gmsd": best_gmsd_value,
                  "optimizer": generator_optimizer.state_dict()
                  }, is_best,
-                os.path.join("exps", "weights", f"Generator_epoch{epoch}.pth"),
-                os.path.join("exps", "weights", f"Generator.pth"))
+                os.path.join("weights", f"Generator_epoch{epoch}.pth"),
+                os.path.join("weights", f"Generator.pth"))
 
 
 def train_psnr(train_dataloader: torch.utils.data.DataLoader,

@@ -46,7 +46,7 @@ parser.add_argument("--hr", type=str,
                     help="Raw high resolution image name.")
 parser.add_argument("-a", "--arch", metavar="ARCH", default="esrgan16",
                     choices=model_names,
-                    help="model architecture: " +
+                    help="Model architecture: " +
                          " | ".join(model_names) +
                          " (default: esrgan16)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
@@ -145,3 +145,4 @@ if __name__ == "__main__":
     main()
 
     logger.info("Test single image performance evaluation completed successfully.\n")
+

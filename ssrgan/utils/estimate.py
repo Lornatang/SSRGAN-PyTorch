@@ -36,30 +36,31 @@ def iqa(image1_tensor: torch.Tensor, image2_tensor: torch.Tensor, gpu: int = Non
     Returns:
         MSE, RMSE, PSNR, SSIM, LPIPS, GMSD
     """
-    mse_loss = nn.MSELoss().cuda(gpu)
+    mse_loss = nn.MSELoss().cuda(gpu).eval()
     # Reference sources from https://github.com/richzhang/PerceptualSimilarity
-    lpips_loss = LPIPS(gpu).cuda(gpu)
+    lpips_loss = LPIPS(gpu).cuda(gpu).eval()
     # Reference sources from https://github.com/dingkeyan93/IQA-optimization/blob/master/IQA_pytorch/SSIM.py
-    ssim_loss = SSIM().cuda(gpu)
+    ssim_loss = SSIM().cuda(gpu).eval()
     # Reference sources from http://www4.comp.polyu.edu.hk/~cslzhang/IQA/GMSD/GMSD.htm
-    gmsd_loss = GMSD().cuda(gpu)
+    gmsd_loss = GMSD().cuda(gpu).eval()
 
     # Complete estimate.
-    mse_value = mse_loss(image1_tensor, image2_tensor)
-    rmse_value = torch.sqrt(mse_value)
-    psnr_value = 10 * torch.log10(1. / mse_value)
-    ssim_value = ssim_loss(image1_tensor, image2_tensor)
-    lpips_value = lpips_loss(image1_tensor, image2_tensor)
-    gmsd_value = gmsd_loss(image1_tensor, image2_tensor)
+    with torch.no_grad():
+        mse_value = mse_loss(image1_tensor, image2_tensor)
+        rmse_value = torch.sqrt(mse_value)
+        psnr_value = 10 * torch.log10(1. / mse_value)
+        ssim_value = ssim_loss(image1_tensor, image2_tensor)
+        lpips_value = lpips_loss(image1_tensor, image2_tensor)
+        gmsd_value = gmsd_loss(image1_tensor, image2_tensor)
 
     return mse_value, rmse_value, psnr_value, ssim_value, lpips_value, gmsd_value
 
 
 def test_psnr(model: nn.Module, dataloader: torch.utils.data.DataLoader, gpu: int = None) -> [torch.Tensor,
                                                                                               torch.Tensor]:
-    mse_loss = nn.MSELoss().cuda(gpu)
+    mse_loss = nn.MSELoss().cuda(gpu).eval()
     # Reference sources from https://hub.fastgit.org/dingkeyan93/IQA-optimization/blob/master/IQA_pytorch/SSIM.py
-    ssim_loss = SSIM().cuda(gpu)
+    ssim_loss = SSIM().cuda(gpu).eval()
 
     # switch eval mode.
     model.eval()
@@ -94,11 +95,11 @@ def test_gan(model: nn.Module, dataloader: torch.utils.data.DataLoader, gpu: int
                                                                                              torch.Tensor,
                                                                                              torch.Tensor]:
     # Reference sources from https://hub.fastgit.org/dingkeyan93/IQA-optimization/blob/master/IQA_pytorch/SSIM.py
-    ssim_loss = SSIM().cuda(gpu)
+    ssim_loss = SSIM().cuda(gpu).eval()
     # Reference sources from https://github.com/richzhang/PerceptualSimilarity
-    lpips_loss = LPIPS(gpu).cuda(gpu)
+    lpips_loss = LPIPS(gpu).cuda(gpu).eval()
     # Reference sources from http://www4.comp.polyu.edu.hk/~cslzhang/IQA/GMSD/GMSD.htm
-    gmsd_loss = GMSD().cuda(gpu)
+    gmsd_loss = GMSD().cuda(gpu).eval()
 
     # switch eval mode.
     model.eval()
