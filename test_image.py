@@ -44,11 +44,11 @@ parser.add_argument("--lr", type=str, required=True,
                     help="Test low resolution image name.")
 parser.add_argument("--hr", type=str,
                     help="Raw high resolution image name.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="esrgan16",
+parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
-                         " (default: esrgan16)")
+                         " (default: dsgan)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
