@@ -20,7 +20,6 @@ import warnings
 
 import torch
 import torch.backends.cudnn as cudnn
-import torch.cuda.amp as amp
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
@@ -34,8 +33,8 @@ from torch.utils.tensorboard import SummaryWriter
 import ssrgan.models as models
 from ssrgan.dataset import CustomTestDataset
 from ssrgan.dataset import CustomTrainDataset
-from ssrgan.loss import VGGLoss
 from ssrgan.loss import LPIPSLoss
+from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator_for_vgg
 from ssrgan.utils.common import AverageMeter
 from ssrgan.utils.common import ProgressMeter
@@ -220,12 +219,12 @@ def main_worker(gpu, ngpus_per_node, args):
     perceptual_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
     # We use the weight of VGG19 pre training model.
-    lpips_criterion = LPIPSLoss().cuda(args.cuda)
+    lpips_criterion = LPIPSLoss().cuda(args.gpu)
     logger.info(f"Losses function information:\n"
                 f"\tPixel:       L1Loss\n"
                 f"\tPerceptual:  VGG19_35th\n"
                 f"\tAdversarial: BCEWithLogitsLoss\n"
-                f"\tLPIPS:       VGG19")
+                f"\tLPIPS:       VGG16")
 
     # All optimizer function and scheduler function.
     psnr_optimizer = torch.optim.Adam(generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.99))
@@ -487,19 +486,16 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
     batch_time = AverageMeter("Time", ":.4f")
     d_losses = AverageMeter("D Loss", ":.6f")
     g_losses = AverageMeter("G Loss", ":.6f")
-    content_losses = AverageMeter("Content Loss", ":.4f")
-    adversarial_losses = AverageMeter("Adversarial Loss", ":.4f")
-    lpips_losses = AverageMeter("LPIPS Loss", ":.4f")
-    d_hr_values = AverageMeter("D(x)", ":.4f")
-    d_sr1_values = AverageMeter("D(SR1)", ":.4f")
-    d_sr2_values = AverageMeter("D(SR2)", ":.4f")
+    pixel_losses = AverageMeter("L1 Loss", ":6.4f")
+    content_losses = AverageMeter("Content Loss", ":6.4f")
+    adversarial_losses = AverageMeter("Adversarial Loss", ":6.4f")
+    lpips_losses = AverageMeter("LPIPS Loss", ":6.4f")
 
     progress = ProgressMeter(
         len(train_dataloader),
         [batch_time,
          d_losses, g_losses,
-         content_losses, adversarial_losses,
-         d_hr_values, d_sr1_values, d_sr2_values],
+         pixel_losses, content_losses, adversarial_losses, lpips_losses],
         prefix=f"Epoch: [{epoch}]")
 
     # switch to train mode
@@ -537,10 +533,8 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
         d_loss_fake = adversarial_criterion(fake_output - torch.mean(real_output), fake_label)
 
         # Count all discriminator losses.
-        d_loss = d_loss_fake + d_loss_real
+        d_loss = (d_loss_fake + d_loss_real) / 2
         d_loss.backward()
-        d_hr = real_output.mean().item()
-        d_sr1 = fake_output.mean().item()
 
         # Update discriminator optimizer gradient information.
         discriminator_optimizer.step()
@@ -564,8 +558,6 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
         # LPIPS for VGG19.
         lpips_loss = lpips_criterion(sr, hr.detach())
         g_loss = 0.001 * adversarial_loss + 1 * pixel_loss + 1 * content_loss + 0.1 * lpips_loss
-        g_loss.backward()
-        d_sr2 = fake_output.mean().item()
 
         # Update generator optimizer gradient information.
         generator_optimizer.step()
@@ -573,12 +565,10 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
         # measure accuracy and record loss
         d_losses.update(d_loss.item(), lr.size(0))
         g_losses.update(g_loss.item(), lr.size(0))
+        pixel_losses.update(pixel_loss.item(), lr.size(0))
         content_losses.update(content_loss.item(), lr.size(0))
         adversarial_losses.update(adversarial_loss.item(), lr.size(0))
         lpips_losses.update(lpips_loss.item(), lr.size(0))
-        d_hr_values.update(d_hr, lr.size(0))
-        d_sr1_values.update(d_sr1, lr.size(0))
-        d_sr2_values.update(d_sr2, lr.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -587,12 +577,10 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
         iters = i + epoch * len(train_dataloader) + 1
         writer.add_scalar("Train/D Loss", d_loss.item(), iters)
         writer.add_scalar("Train/G Loss", g_loss.item(), iters)
+        writer.add_scalar("Train/Pixel Loss", pixel_loss.item(), iters)
         writer.add_scalar("Train/Content Loss", content_loss.item(), iters)
         writer.add_scalar("Train/Adversarial Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/LPIPS Loss", lpips_loss.item(), iters)
-        writer.add_scalar("Train/D(LR)", d_hr, iters)
-        writer.add_scalar("Train/D(SR1)", d_sr1, iters)
-        writer.add_scalar("Train/D(SR2)", d_sr2, iters)
 
         # Output results every 100 batches.
         if i % 100 == 0:

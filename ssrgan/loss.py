@@ -27,11 +27,11 @@ class LPIPSLoss(torch.nn.Module):
     r"""Learned Perceptual Image Patch Similarity (LPIPS) metric"""
 
     def __init__(self) -> None:
-        super(LPIPSLoss).__init__()
+        super(LPIPSLoss, self).__init__()
         self.model = lpips.LPIPS(net="vgg", verbose=False).eval()
 
     def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        lpips_loss = self.model(source, target)
+        lpips_loss = torch.mean(self.model(source, target))
 
         return lpips_loss
 
