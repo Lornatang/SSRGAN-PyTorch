@@ -221,16 +221,16 @@ class Generator(nn.Module):
             InceptionX(32)
         )
 
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1)
+        self.conv2 = Symmetric(32)
 
         # Upsampling layers
         self.upsampling = nn.Sequential(
             nn.Upsample(scale_factor=2, mode="nearest"),
-            Symmetric(32),
+            InceptionX(32),
             nn.Conv2d(32, 128, kernel_size=3, stride=1, padding=1),
             Mish(),
             nn.PixelShuffle(upscale_factor=2),
-            Symmetric(32)
+            InceptionX(32)
         )
 
         # Next conv layer
