@@ -186,18 +186,16 @@ def main_worker(gpu, ngpus_per_node, args):
             args.batch_size = int(args.batch_size / ngpus_per_node)
             args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
             discriminator = nn.parallel.DistributedDataParallel(module=discriminator,
-                                                                device_ids=[args.gpu],
-                                                                find_unused_parameters=True)
+                                                                device_ids=[args.gpu])
             generator = nn.parallel.DistributedDataParallel(module=generator,
-                                                            device_ids=[args.gpu],
-                                                            find_unused_parameters=True)
+                                                            device_ids=[args.gpu])
         else:
             discriminator.cuda()
             generator.cuda()
             # DistributedDataParallel will divide and allocate batch_size to all
             # available GPUs if device_ids are not set
-            discriminator = nn.parallel.DistributedDataParallel(discriminator, find_unused_parameters=True)
-            generator = nn.parallel.DistributedDataParallel(generator, find_unused_parameters=True)
+            discriminator = nn.parallel.DistributedDataParallel(discriminator)
+            generator = nn.parallel.DistributedDataParallel(generator)
     elif args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         discriminator = discriminator.cuda(args.gpu)
@@ -360,15 +358,18 @@ def main_worker(gpu, ngpus_per_node, args):
         gan_writer.add_scalar("Test/LPIPS", lpips, epoch + 1)
         gan_writer.add_scalar("Test/GMSD", gmsd, epoch + 1)
 
+        is_best = psnr > best_psnr
+        best_psnr = max(psnr, best_psnr)
+
         if not args.multiprocessing_distributed or (
                 args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
             torch.save({"epoch": epoch + 1,
                         "arch": args.arch,
-                        "state_dict": generator.module.state_dict() if args.multiprocessing_distributed else generator.state_dict(),
+                        "best_psnr": best_psnr,
+                        "state_dict": generator.state_dict(),
                         "optimizer": psnr_optimizer.state_dict(),
                         }, os.path.join("weights", f"PSNR_epoch{epoch}.pth"))
-            if psnr > best_psnr:
-                best_psnr = max(psnr, best_psnr)
+            if is_best:
                 torch.save(generator.state_dict(), os.path.join("weights", f"PSNR.pth"))
 
     # Load best model weight.
@@ -403,20 +404,23 @@ def main_worker(gpu, ngpus_per_node, args):
         gan_writer.add_scalar("Test/LPIPS", lpips, epoch + 1)
         gan_writer.add_scalar("Test/GMSD", gmsd, epoch + 1)
 
+        is_best = psnr > best_psnr
+        best_psnr = max(psnr, best_psnr)
+
         if not args.multiprocessing_distributed or (
                 args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
             torch.save({"epoch": epoch + 1,
                         "arch": "vgg",
-                        "state_dict": discriminator.module.state_dict() if args.multiprocessing_distributed else discriminator.state_dict(),
+                        "state_dict": discriminator.state_dict(),
                         "optimizer": discriminator_optimizer.state_dict()
                         }, os.path.join("weights", f"Discriminator_epoch{epoch}.pth"))
             torch.save({"epoch": epoch + 1,
                         "arch": args.arch,
-                        "state_dict": generator.module.state_dict() if args.multiprocessing_distributed else generator.state_dict(),
+                        "best_psnr": best_psnr,
+                        "state_dict": generator.state_dict(),
                         "optimizer": generator_optimizer.state_dict()
                         }, os.path.join("weights", f"Generator_epoch{epoch}.pth"))
-            if psnr > best_psnr:
-                best_psnr = max(psnr, best_psnr)
+            if is_best:
                 torch.save(generator.state_dict(), os.path.join("weights", f"GAN.pth"))
 
 
@@ -558,6 +562,7 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
         # LPIPS for VGG19.
         lpips_loss = lpips_criterion(sr, hr.detach())
         g_loss = 0.001 * adversarial_loss + 1 * pixel_loss + 1 * content_loss + 0.1 * lpips_loss
+        g_loss.backward()
 
         # Update generator optimizer gradient information.
         generator_optimizer.step()

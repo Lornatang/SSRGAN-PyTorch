@@ -262,7 +262,7 @@ class Generator(nn.Module):
         out3 = torch.add(conv1, trunk_c)
 
         # Inception trunk.
-        trunk_d = self.trunk_b(out3)
+        trunk_d = self.trunk_d(out3)
         # Concat conv1 and trunk d.
         out4 = torch.add(conv1, trunk_d)
 
