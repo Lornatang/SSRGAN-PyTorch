@@ -44,11 +44,11 @@ parser.add_argument("--lr", type=str, required=True,
                     help="Test low resolution image name.")
 parser.add_argument("--hr", type=str,
                     help="Raw high resolution image name.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="dsgan",
+parser.add_argument("-a", "--arch", metavar="ARCH", default="pmi_srgan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
-                         " (default: dsgan)")
+                         " (default: pmi_srgan)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. (default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
@@ -56,7 +56,7 @@ parser.add_argument("--model-path", default="", type=str, metavar="PATH",
 parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                     help="Use pre-trained model.")
 parser.add_argument("--seed", default=None, type=int,
-                    help="Seed for initializing training.")
+                    help="Seed for initializing testing.")
 parser.add_argument("--gpu", default=None, type=int,
                     help="GPU id to use.")
 
@@ -81,7 +81,7 @@ def main_worker(gpu, args):
     args.gpu = gpu
 
     if args.gpu is not None:
-        logger.info(f"Use GPU: {args.gpu} for training.")
+        logger.info(f"Use GPU: {args.gpu} for testing.")
 
     model = configure(args)
 
@@ -110,7 +110,7 @@ def main_worker(gpu, args):
 
     if args.hr:
         hr = process_image(Image.open(args.hr), args.gpu)
-        vutils.save_image(hr, os.path.join("test", f"hr_{filename}"))
+        vutils.save_image(hr, os.path.join("tests", f"hr_{filename}"))
         images = torch.cat([bicubic, sr, hr], dim=-1)
 
         value = iqa(sr, hr, args.gpu)
@@ -126,21 +126,21 @@ def main_worker(gpu, args):
     else:
         images = torch.cat([bicubic, sr], dim=-1)
 
-    vutils.save_image(lr, os.path.join("test", f"lr_{filename}"))
-    vutils.save_image(bicubic, os.path.join("test", f"bicubic_{filename}"))
-    vutils.save_image(sr, os.path.join("test", f"sr_{filename}"))
-    vutils.save_image(images, os.path.join("test", f"compare_{filename}"), padding=10)
+    vutils.save_image(lr, os.path.join("tests", f"lr_{filename}"))
+    vutils.save_image(bicubic, os.path.join("tests", f"bicubic_{filename}"))
+    vutils.save_image(sr, os.path.join("tests", f"sr_{filename}"))
+    vutils.save_image(images, os.path.join("tests", f"compare_{filename}"), padding=10)
 
 
 if __name__ == "__main__":
     print("##################################################\n")
     print("Run Testing Engine.\n")
 
-    create_folder("test")
+    create_folder("tests")
 
     logger.info("TestingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.03.30")
+    print("\tBuild ................ 2021.04.02")
     print("##################################################\n")
     main()
 

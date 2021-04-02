@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .dsgan import dsgan
+from .pmi_srgan import pmi_srgan
 from .esrgan import esrgan16
 from .esrgan import esrgan23
 from .srgan import srgan
