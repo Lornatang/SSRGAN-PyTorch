@@ -1,4 +1,4 @@
-# Copyright 2020 Dakewe Biotech Corporation. All Rights Reserved.
+# Copyright 2021 Dakewe Biotech Corporation. All Rights Reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
 #   You may obtain a copy of the License at
@@ -11,174 +11,190 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""General convolution layer"""
 import torch
 import torch.nn as nn
 
-from ssrgan.activation import HSigmoid
-from ssrgan.activation import Mish
-
 __all__ = ["channel_shuffle", "SqueezeExcite",
-           "GhostConv", "GhostBottleneck",
+           "GhostModule", "GhostBottleneck",
            "SPConv"]
 
 
-# Source from `https://github.com/pytorch/vision/blob/master/torchvision/models/shufflenetv2.py`
+# Source code reference from `https://github.com/pytorch/vision/blob/master/torchvision/models/shufflenetv2.py`
 def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
-    r""" Random shuffle channel.
+    r""" PyTorch implementation ShuffleNet module.
+
+    `"ShuffleNet V2: Practical Guidelines for Efficient CNN Architecture Design" <https://arxiv.org/pdf/1807.11164v1.pdf>` paper.
 
     Args:
         x (torch.Tensor): PyTorch format data stream.
         groups (int): Number of blocked connections from input channels to output channels.
 
     Examples:
-        >>> x = torch.randn(1, 64, 128, 128)
-        >>> out = channel_shuffle(x, 4)
+        >>> inputs = torch.randn(1, 64, 128, 128)
+        >>> output = channel_shuffle(inputs, 4)
     """
     batch_size, num_channels, height, width = x.data.image_size()
     channels_per_group = num_channels // groups
 
     # reshape
-    x = x.view(batch_size, groups, channels_per_group, height, width)
+    out = x.view(batch_size, groups, channels_per_group, height, width)
 
-    x = torch.transpose(x, 1, 2).contiguous()
+    out = torch.transpose(out, 1, 2).contiguous()
 
     # flatten
-    x = x.view(batch_size, -1, height, width)
+    out = out.view(batch_size, -1, height, width)
 
-    return x
+    return out
 
 
 class SqueezeExcite(nn.Module):
-    r""" Squeeze-and-Excite module.
+    r""" PyTorch implementation Squeeze-and-Excite module.
 
-    `"MnasNet: Platform-Aware Neural Architecture Search for Mobile" <https://arxiv.org/pdf/1807.11626.pdf>`_
-
+    `"MSqueeze-and-Excitation Networks" <https://arxiv.org/pdf/1709.01507v4.pdf>` paper.
     """
 
-    def __init__(self, channels: int, reduction: int = 4) -> None:
-        r""" Modules introduced in MnasNet paper.
+    def __init__(self, channels: int, reduction: int) -> None:
+        r""" Modules introduced in SENet paper.
+
         Args:
             channels (int): Number of channels in the input image.
-            reduction (optional, int): Reduce the number of channels by several times. (Default: 4).
+            reduction (int): Reduce the number of channels by several times.
         """
         super(SqueezeExcite, self).__init__()
-        reduce_channels = int(channels // reduction)
-        self.HSigmoid = HSigmoid()
-        self.avgpool = nn.AdaptiveAvgPool2d(1)
-        self.conv_reduce = nn.Conv2d(channels, reduce_channels, 1, 1, 0, bias=True)
-        self.Mish = Mish()
-        self.conv_expand = nn.Conv2d(reduce_channels, channels, 1, 1, 0, bias=True)
+        self.global_pooling = nn.AdaptiveAvgPool2d(1)
+        self.fc1 = nn.Linear(channels, channels // reduction)
+        self.relu = nn.ReLU(inplace=True)
+        self.fc2 = nn.Linear(channels // reduction, channels)
+        self.sigmoid = nn.Sigmoid()
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        out = self.avgpool(input)
-        out = self.conv_reduce(out)
-        out = self.Mish(out)
-        out = self.conv_expand(out)
-        return input * self.HSigmoid(out)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size, channels, _, _ = x.size()
+        out = self.global_pooling(x)
+        # Squeeze layer.
+        out = out.view(batch_size, channels)
+        out = self.fc1(out)
+        out = self.relu(out)
+        out = self.fc2(out)
+        out = self.sigmoid(out)
+        # Excite layer.
+        out = out.view(batch_size, channels, 1, 1)
+
+        return x * out.expand_as(x)
 
 
-class GhostConv(nn.Module):
-    r""" Ghost convolution.
+# Source code reference from `https://github.com/huawei-noah/CV-backbones/blob/master/ghostnet_pytorch/ghostnet.py`
+class GhostModule(nn.Module):
+    r""" PyTorch implementation GhostNet module.
 
-    `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907.pdf>`_ paper.
+    `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907v2.pdf>` paper.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 1, stride: int = 1, padding: int = 0,
-                 dw_kernel_size: int = 5, act: bool = True):
-        """
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, dw_size: int, stride: int, ratio: int, relu: bool) -> None:
+        r""" Modules introduced in GhostNet paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            kernel_size (int or tuple): Size of the convolving kernel. (Default: 1).
-            stride (optional, int or tuple): Stride of the convolution. (Default: 1).
-            padding (optional, int or tuple): Zero-padding added to both sides of the input. (Default: 0).
-            dw_kernel_size (int or tuple): Size of the depthwise convolving kernel. (Default: 5).
-            act (optional, bool): Whether to use activation function. (Default: ``True``).
+            kernel_size (int): Size of the convolving kernel.
+            dw_size (int): Size of the depth-wise convolving kernel.
+            stride (int): Stride of the convolution.
+            ratio (int): Reduce the number of channels ratio.
+            relu (bool): Use activation function.
         """
-        super(GhostConv, self).__init__()
-        mid_channels = out_channels // 2
+        super(GhostModule, self).__init__()
+        self.out_channels = out_channels
 
-        # Point-wise expansion.
-        self.pointwise = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size, stride, padding),
-            Mish() if act else nn.Identity()
-        )
-        # Depth-wise convolution.
-        self.depthwise = nn.Sequential(
-            nn.Conv2d(mid_channels, mid_channels, dw_kernel_size, 1, (dw_kernel_size - 1) // 2, groups=mid_channels),
-            Mish() if act else nn.Identity()
+        self.primary_conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels // ratio, kernel_size, stride, kernel_size // 2, bias=False),
+            nn.BatchNorm2d(out_channels // ratio),
+            nn.ReLU(inplace=True) if relu else nn.Sequential()
         )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        out = self.pointwise(input)
-        return torch.cat([out, self.depthwise(out)], 1)
+        self.cheap_operation = nn.Sequential(
+            nn.Conv2d(out_channels // ratio, out_channels // ratio * (ratio - 1), dw_size, 1, dw_size // 2, groups=out_channels // ratio, bias=False),
+            nn.BatchNorm2d(out_channels // ratio * (ratio - 1)),
+            nn.ReLU(inplace=True) if relu else nn.Sequential()
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out1 = self.primary_conv(x)
+        out2 = self.cheap_operation(out1)
+        out = torch.cat([out1, out2], dim=1)
+        return out[:, :self.out_channels, :, :]
 
 
+# TODO: implementation GhostNet module.
+# Source code reference from `https://github.com/huawei-noah/CV-backbones/blob/master/ghostnet_pytorch/ghostnet.py`
 class GhostBottleneck(nn.Module):
-    r""" Ghost bottleneck.
+    r""" PyTorch implementation GhostNet module.
 
-    `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907.pdf>`_ paper.
+    `"GhostNet: More Features from Cheap Operations" <https://arxiv.org/pdf/1911.11907v2.pdf>` paper.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, dw_kernel_size: int = 3, stride: int = 1):
-        """
+    def __init__(self, in_channels: int, mid_channels: int, out_channels: int, dw_size: int, stride: int, reduction: int) -> None:
+        r""" Modules introduced in GhostNet paper.
 
         Args:
             in_channels (int): Number of channels in the input image.
+            mid_channels (int): Number of channels midden by the convolution.
             out_channels (int): Number of channels produced by the convolution.
-            dw_kernel_size (int or tuple): Size of the depthwise convolving kernel. (Default: 5).
-            stride (optional, int or tuple): Stride of the convolution. (Default: 1).
+            dw_size (int): Size of the depth-wise convolving kernel.
+            stride (int): Stride of the convolution.
+            reduction (int): Reduce the number of SE channels ratio.
         """
         super(GhostBottleneck, self).__init__()
-        self.stride = stride
-        mid_channels = in_channels // 2
-        dw_padding = (dw_kernel_size - 1) // 2
+        pass
 
-        # Shortcut layer
-        if in_channels == out_channels:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_channels, in_channels, dw_kernel_size, stride, dw_padding, groups=in_channels, bias=False),
-                nn.Conv2d(in_channels, out_channels, 1, 1, 0, bias=False) if self.stride == 2 else nn.Identity()
-            )
-        else:
-            self.shortcut = nn.Sequential()
+    #         self.stride = stride
+    #         mid_channels = in_channels // 2
+    #         dw_padding = (dw_size - 1) // 2
+    #
+    #         # Shortcut layer
+    #         if in_channels == out_channels:
+    #             self.shortcut = nn.Sequential(
+    #                 nn.Conv2d(in_channels, in_channels, dw_size, stride, dw_padding, groups=in_channels, bias=False),
+    #                 nn.Conv2d(in_channels, out_channels, 1, 1, 0, bias=False) if self.stride == 2 else nn.Identity()
+    #             )
+    #         else:
+    #             self.shortcut = nn.Sequential()
+    #
+    #         # Point-wise expansion.
+    #         self.pointwise = GhostModule(in_channels, mid_channels, 1, 1, 0)
+    #
+    #         # Depth-wise convolution.
+    #         if self.stride == 2:
+    #             self.depthwise = nn.Conv2d(mid_channels, mid_channels, dw_kernel_size, stride, dw_padding,
+    #                                        groups=mid_channels, bias=False)
+    #         else:
+    #             self.depthwise = nn.Identity()
+    #
+    #         # Squeeze-and-excitation
+    #         self.se = SqueezeExcite(mid_channels, 4)
+    #
+    #         # Point-wise linear projection.
+    #         self.pointwise_linear = GhostConv(mid_channels, out_channels, 1, 1, 0, act=False)
+    #
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        pass
 
-        # Point-wise expansion.
-        self.pointwise = GhostConv(in_channels, mid_channels, 1, 1, 0)
 
-        # Depth-wise convolution.
-        if self.stride == 2:
-            self.depthwise = nn.Conv2d(mid_channels, mid_channels, dw_kernel_size, stride, dw_padding,
-                                       groups=mid_channels, bias=False)
-        else:
-            self.depthwise = nn.Identity()
-
-        # Squeeze-and-excitation
-        self.se = SqueezeExcite(mid_channels, 4)
-
-        # Point-wise linear projection.
-        self.pointwise_linear = GhostConv(mid_channels, out_channels, 1, 1, 0, act=False)
-
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        # Nonlinear residual convolution link layer
-        shortcut = self.shortcut(input)
-
-        # 1st ghost bottleneck.
-        out = self.pointwise(input)
-
-        # Depth-wise convolution.
-        if self.stride == 2:
-            out = self.depthwise(out)
-
-        # Squeeze-and-excitation
-        out = self.se(out)
-
-        # 2nd ghost bottleneck.
-        out = self.pointwise_linear(out)
-
-        return out + shortcut
+#         # Nonlinear residual convolution link layer
+#         shortcut = self.shortcut(x)
+#
+#         # 1st ghost bottleneck.
+#         out = self.pointwise(x)
+#
+#         # Depth-wise convolution.
+#         if self.stride == 2:
+#             out = self.depthwise(out)
+#
+#         # Squeeze-and-excitation
+#         out = self.se(out)
+#
+#         # 2nd ghost bottleneck.
+#         out = self.pointwise_linear(out)
+#
+#         return out + shortcut
 
 
 class SPConv(nn.Module):
@@ -187,13 +203,14 @@ class SPConv(nn.Module):
     `"Split to Be Slim: An Overlooked Redundancy in Vanilla Convolution" <https://arxiv.org/pdf/2006.12085.pdf>`_ paper.
     """
 
-    def __init__(self, in_channels, out_channels, stride=1, scale_ratio=2):
-        """
+    def __init__(self, in_channels: int, out_channels: int, stride: int, scale_ratio: int):
+        r"""
+
         Args:
             in_channels (int): Number of channels in the input image.
             out_channels (int): Number of channels produced by the convolution.
-            stride (optional, int or tuple): Stride of the convolution. (Default: 1).
-            scale_ratio (optional, int): Channel number scaling size. (Default: 2).
+            stride (int): Stride of the convolution.
+            scale_ratio (int): Channel number scaling size.
         """
         super(SPConv, self).__init__()
         self.in_channels = in_channels
@@ -206,33 +223,33 @@ class SPConv(nn.Module):
         self.out_channels_3x3 = int(self.out_channels // self.scale_ratio)
         self.out_channels_1x1 = self.out_channels - self.out_channels_3x3
 
-        self.depthwise = nn.Conv2d(self.in_channels_3x3, self.out_channels, 3, stride, 1, groups=2, bias=False)
-        self.pointwise = nn.Conv2d(self.in_channels_3x3, self.out_channels, 1, 1, 0, bias=False)
+        self.depthwise = nn.Conv2d(self.in_channels_3x3, self.out_channels, 3, stride, 1, groups=2)
+        self.pointwise = nn.Conv2d(self.in_channels_3x3, self.out_channels, 1, 1, 0)
 
-        self.conv1x1 = nn.Conv2d(self.in_channels_1x1, self.out_channels, 1, 1, 0, bias=False)
+        self.conv1x1 = nn.Conv2d(self.in_channels_1x1, self.out_channels, 1, 1, 0)
         self.groups = int(1 * self.scale_ratio)
-        self.avgpool_stride = nn.AvgPool2d(2, 2)
-        self.avgpool_add = nn.AdaptiveAvgPool2d(1)
+        self.avg_pool_stride = nn.AvgPool2d(2, 2)
+        self.avg_pool_add = nn.AdaptiveAvgPool2d(1)
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        batch_size, channel, _, _ = input.size()
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        batch_size, channels, _, _ = x.size()
 
         # Split conv3x3
-        input_3x3 = input[:, :int(channel // self.scale_ratio), :, :]
+        input_3x3 = x[:, :int(channels // self.scale_ratio), :, :]
         depthwise_out_3x3 = self.depthwise(input_3x3)
         if self.stride == 2:
-            input_3x3 = self.avgpool_stride(input_3x3)
+            input_3x3 = self.avg_pool_stride(input_3x3)
         pointwise_out_3x3 = self.pointwise(input_3x3)
         out_3x3 = depthwise_out_3x3 + pointwise_out_3x3
-        out_3x3_ratio = self.avgpool_add(out_3x3).squeeze(dim=3).squeeze(dim=2)
+        out_3x3_ratio = self.avg_pool_add(out_3x3).squeeze(dim=3).squeeze(dim=2)
 
         # Split conv1x1.
-        input_1x1 = input[:, int(channel // self.scale_ratio):, :, :]
+        input_1x1 = x[:, int(channels // self.scale_ratio):, :, :]
         # use avgpool first to reduce information lost.
         if self.stride == 2:
-            input_1x1 = self.avgpool_stride(input_1x1)
+            input_1x1 = self.avg_pool_stride(input_1x1)
         out_1x1 = self.conv1x1(input_1x1)
-        out_1x1_ratio = self.avgpool_add(out_1x1).squeeze(dim=3).squeeze(dim=2)
+        out_1x1_ratio = self.avg_pool_add(out_1x1).squeeze(dim=3).squeeze(dim=2)
 
         out_31_ratio = torch.stack((out_3x3_ratio, out_1x1_ratio), 2)
         out_31_ratio = nn.Softmax(dim=2)(out_31_ratio)
