@@ -147,10 +147,7 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         self.lr_filenames = [os.path.join(lr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
         self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
 
-        self.transforms = transforms.Compose([
-            transforms.AutoAugment(),
-            transforms.ToTensor()
-        ])
+        self.transforms = transforms.ToTensor()
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -190,10 +187,7 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         self.lr_filenames = [os.path.join(lr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
         self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
 
-        self.transforms = transforms.Compose([
-            transforms.AutoAugment(),
-            transforms.ToTensor()
-        ])
+        self.transforms = transforms.ToTensor()
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
