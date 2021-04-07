@@ -448,8 +448,8 @@ def train_psnr(train_dataloader: torch.utils.data.DataLoader,
 
         # Save image every 300 batches.
         if iters % 300 == 0:
-            vutils.save_image(hr.detach(), os.path.join("runs", "hr", f"PSNR_{iters}.bmp"), normalize=True)
-            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"PSNR_{iters}.bmp"), normalize=True)
+            vutils.save_image(hr.detach(), os.path.join("runs", "hr", f"PSNR_{iters}.bmp"))
+            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"PSNR_{iters}.bmp"))
 
 
 def train_gan(train_dataloader: torch.utils.data.DataLoader,
@@ -560,8 +560,8 @@ def train_gan(train_dataloader: torch.utils.data.DataLoader,
 
         # Save image every 300 batches.
         if iters % 300 == 0:
-            vutils.save_image(hr.detach(), os.path.join("runs", "hr", f"GAN_{iters}.bmp"), normalize=True)
-            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"GAN_{iters}.bmp"), normalize=True)
+            vutils.save_image(hr.detach(), os.path.join("runs", "hr", f"GAN_{iters}.bmp"))
+            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"GAN_{iters}.bmp"))
 
 
 if __name__ == "__main__":
