@@ -210,7 +210,7 @@ class InceptionX(nn.Module):
         branch3 = self.branch3(x)
         branch4 = self.branch4(x)
 
-        out = torch.cat([branch1, branch2, branch3, branch4], dim=1)
+        out = torch.cat([branch1, branch2, branch3, branch4], 1)
         out = self.conv(out)
         out = out * self.scale + shortcut
         out = self.mish(out)
@@ -227,19 +227,19 @@ class SubpixelConvolutionLayer(nn.Module):
         """
         super(SubpixelConvolutionLayer, self).__init__()
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
-        self.inception_x1 = InceptionX(channels, channels, 0.1)
-        self.conv2 = nn.Conv2d(channels, channels * 4, 3, 1, 1)
-        self.mish = Mish()
+        self.inception = InceptionX(channels, channels, 0.1)
+        self.conv = nn.Conv2d(channels, channels * 4, 3, 1, 1)
         self.pixel_shuffle = nn.PixelShuffle(2)
-        self.inception_x2 = InceptionX(channels, channels, 0.1)
+        self.mish = Mish()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.upsample(x)
-        out = self.inception_x1(out)
-        out = self.conv2(out)
+        out = self.inception(out)
         out = self.mish(out)
+        out = self.conv(out)
         out = self.pixel_shuffle(out)
-        out = self.inception_x2(out)
+        out = self.inception(out)
+        out = self.mish(out)
 
         return out
 
