@@ -136,8 +136,7 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
 
         Args:
             root (str): The directory address where the data image is stored.
-            sampler_frequency (list): If there are many datasets, this method can be used to increase
-                the number of epochs. (Default: 1).
+            sampler_frequency (list): If there are many datasets, this method can be used to increase the number of epochs.
         """
         super(CustomTrainDataset, self).__init__()
         lr_dir = os.path.join(root, "input")
@@ -176,8 +175,7 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         Args:
             root (str): The directory address where the data image is stored.
             image_size (optional, int): The size of image block is randomly cut out from the original image.
-            sampler_frequency (list): If there are many datasets, this method can be used to increase
-                the number of epochs. (Default: 1).
+            sampler_frequency (list): If there are many datasets, this method can be used to increase the number of epochs.
         """
         super(CustomTestDataset, self).__init__()
         lr_dir = os.path.join(root, "input")
