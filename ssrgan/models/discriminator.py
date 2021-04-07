@@ -64,10 +64,9 @@ class DiscriminatorForVGG(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(512 * feature_map_size * feature_map_size, 256),
+            nn.Linear(512 * feature_map_size * feature_map_size, image_size),
             nn.LeakyReLU(0.2, True),
-            nn.Linear(256, 1),
-            nn.Sigmoid()
+            nn.Linear(image_size, 1)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
