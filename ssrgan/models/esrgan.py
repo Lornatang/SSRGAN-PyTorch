@@ -16,12 +16,83 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.hub import load_state_dict_from_url
 
-from .utils import ResidualInResidualDenseBlock
-
 model_urls = {
     "esrgan16": "https://github.com/Lornatang/ESRGAN-PyTorch/releases/download/v0.2.0/ESRGAN16_DF2K-a03a643d.pth",
     "esrgan23": "https://github.com/Lornatang/ESRGAN-PyTorch/releases/download/v0.2.0/ESRGAN23_DF2K-13a67ca9.pth"
 }
+
+
+# Source code reference from `https://github.com/xinntao/ESRGAN/blob/master/RRDBNet_arch.py`.
+class ResidualDenseBlock(nn.Module):
+    def __init__(self, channels: int = 64, growth_channels: int = 32):
+        r"""
+        Args:
+            channels (int): Number of channels in the input image. (Default: 64)
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        """
+        super(ResidualDenseBlock, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(channels + 0 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(channels + 1 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(channels + 2 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.conv4 = nn.Sequential(
+            nn.Conv2d(channels + 3 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(negative_slope=0.2, inplace=True)
+        )
+
+        self.conv5 = nn.Conv2d(channels + 4 * growth_channels, channels, kernel_size=3, stride=1, padding=1)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        conv1 = self.conv1(x)
+        conv2 = self.conv2(torch.cat((x, conv1), dim=1))
+        conv3 = self.conv3(torch.cat((x, conv1, conv2), dim=1))
+        conv4 = self.conv4(torch.cat((x, conv1, conv2, conv3), dim=1))
+        conv5 = self.conv5(torch.cat((x, conv1, conv2, conv3, conv4), dim=1))
+
+        out = torch.add(conv5 * 0.2, x)
+
+        return out
+
+
+# Source code reference from `https://github.com/xinntao/ESRGAN/blob/master/RRDBNet_arch.py`.
+class ResidualInResidualDenseBlock(nn.Module):
+    def __init__(self, channels: int = 64, growth_channels: int = 32):
+        r"""
+        Args:
+            channels (int): Number of channels in the input image. (Default: 64)
+            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        """
+        super(ResidualInResidualDenseBlock, self).__init__()
+        self.RDB1 = ResidualDenseBlock(channels, growth_channels)
+        self.RDB2 = ResidualDenseBlock(channels, growth_channels)
+        self.RDB3 = ResidualDenseBlock(channels, growth_channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.RDB1(x)
+        out = self.RDB2(out)
+        out = self.RDB3(out)
+
+        out = torch.add(out * 0.2, x)
+
+        return out
 
 
 class Generator(nn.Module):
@@ -66,13 +137,22 @@ class Generator(nn.Module):
         self.conv4 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out1 = self.conv1(x)
-        trunk = self.trunk(out1)
-        out2 = self.conv2(trunk)
-        out = torch.add(out1, out2)
+        # First convolution layer.
+        conv1 = self.conv1(x)
+
+        # ResidualInResidualDenseBlock network with 16 layers.
+        trunk = self.trunk(conv1)
+
+        # Second convolution layer.
+        conv2 = self.conv2(trunk)
+        # First convolution and second convolution feature image fusion.
+        out = torch.add(conv1, conv2)
+        # Using sub-pixel convolution layer to improve image resolution.
         out = F.leaky_relu(self.up1(F.interpolate(out, scale_factor=2, mode="nearest")), negative_slope=0.2, inplace=True)
         out = F.leaky_relu(self.up2(F.interpolate(out, scale_factor=2, mode="nearest")), negative_slope=0.2, inplace=True)
+        # Third convolution layer.
         out = self.conv3(out)
+        # Output RGB channel image.
         out = self.conv4(out)
 
         return out

@@ -16,14 +16,210 @@ import math
 import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
+
 from ssrgan.activation import Mish
-from .utils import DepthWise
-from .utils import Symmetric
-from .utils import InceptionX
 
 model_urls = {
     "pmi_srgan": None,
 }
+
+
+# Source code reference from `https://github.com/pytorch/vision/blob/master/torchvision/models/mobilenetv2.py`.
+class DepthWise(nn.Module):
+    r""" PyTorch implementation MobileNet-v2 module.
+
+    `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/abs/1801.04381>`_ paper.
+    """
+
+    def __init__(self, channels: int = 32) -> None:
+        r""" Modules introduced in MobileNetV2 paper.
+
+        Args:
+            channels (int): Number of channels in the input image. (Default: 32)
+        """
+        super(DepthWise, self).__init__()
+
+        # pw
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0),
+            Mish()
+        )
+
+        # dw
+        self.depthwise = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels),
+            Mish()
+        )
+
+        # pw-linear
+        self.pointwise_linear = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Expansion convolution
+        out = self.pointwise(x)
+        # DepthWise convolution
+        out = self.depthwise(out)
+        # Projection convolution
+        out = self.pointwise_linear(out)
+
+        # residual shortcut.
+        out = torch.add(out, x)
+
+        return out
+
+
+# Source code reference from `https://github.com/ruinmessi/RFBNet/blob/master/models/RFB_Net_vgg.py`.
+class InceptionX(nn.Module):
+    r""" PyTorch implementation RFBNet/Inception-V4 module.
+
+    `"Receptive Field Block Net for Accurate and Fast Object Detection <https://arxiv.org/pdf/1711.07767v3.pdf>` paper.
+    `"Inception-v4, Inception-ResNet and the Impact of Residual Connections on Learning <https://arxiv.org/pdf/1602.07261v2.pdf>` paper.
+    """
+
+    def __init__(self, channels: int = 32) -> None:
+        r""" Modules introduced in RFBNet/Inception-V4 paper.
+
+        Args:
+            channels (int): Number of channels in the input image. (Default: 32)
+        """
+        super(InceptionX, self).__init__()
+        branch_features = channels // 4
+
+        self.shortcut = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0)
+
+        self.branch1 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3)
+        )
+
+        self.branch2 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3)
+        )
+
+        self.branch3 = nn.Sequential(
+            nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3)
+        )
+
+        self.branch4 = nn.Sequential(
+            nn.Conv2d(channels, branch_features // 2, kernel_size=1, stride=1, padding=0),
+            Mish(),
+            nn.Conv2d(branch_features // 2, (branch_features // 4) * 3, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+            Mish(),
+            nn.Conv2d((branch_features // 4) * 3, branch_features, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+            Mish(),
+            nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3),
+        )
+
+        self.conv = nn.Conv2d(4 * branch_features, channels, kernel_size=1, stride=1, padding=0)
+        self.mish = Mish()
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        shortcut = self.shortcut(x)
+
+        branch1 = self.branch1(x)
+        branch2 = self.branch2(x)
+        branch3 = self.branch3(x)
+        branch4 = self.branch4(x)
+
+        out = torch.cat([branch1, branch2, branch3, branch4], dim=1)
+        out = self.conv(out)
+
+        # residual scale shortcut + mish activation
+        out = self.mish(torch.add(out * 0.1, shortcut))
+
+        return out
+
+
+# Source code reference from `https://github.com/zhixuhao/unet/blob/master/model.py`.
+class Symmetric(nn.Module):
+    r""" PyTorch implementation U-Net module.
+
+    `"U-Net: Convolutional Networks for Biomedical Image Segmentation" <https://arxiv.org/abs/1505.04597>` paper.
+    """
+
+    def __init__(self, channels: int = 32) -> None:
+        r""" Modules introduced in U-Net paper.
+
+        Args:
+            channels (int): Number of channels in the input image. (Default: 32)
+        """
+        super(Symmetric, self).__init__()
+
+        # The first layer convolution block of down-sampling module in U-Net network.
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(channels, channels // 2, kernel_size=3, stride=1, padding=1),
+            Mish(),
+            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
+            Mish()
+        )
+
+        # Down sampling layer.
+        self.down_sampling_layer = nn.Sequential(
+            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=2, padding=1),
+            Mish()
+        )
+
+        # The second layer convolution block of up-sampling module in U-Net network.
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(channels // 2, channels, kernel_size=3, stride=1, padding=1),
+            Mish(),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
+            Mish()
+        )
+
+        # Up sampling layer.
+        self.up_sampling_layer = nn.Sequential(
+            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
+            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
+            Mish(),
+            nn.Conv2d(channels, channels // 2, kernel_size=3, stride=1, padding=1),
+            Mish()
+        )
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Down-sampling layer.
+        conv1 = self.conv1(x)
+        down_sampling_layer = self.down_sampling_layer(conv1)
+        # Up-sampling layer.
+        conv2 = self.conv2(down_sampling_layer)
+        up_sampling_layer = self.up_sampling_layer(conv2)
+        # Concat up layer and down layer.
+        out = torch.cat((up_sampling_layer, conv1), dim=1)
+
+        # residual shortcut.
+        out = torch.add(out, x)
+
+        return out
 
 
 # Source code reference `https://arxiv.org/pdf/2005.12597v1.pdf` paper.
