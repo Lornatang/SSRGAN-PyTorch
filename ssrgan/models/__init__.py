@@ -12,6 +12,8 @@
 # limitations under the License.
 # ==============================================================================
 from .pmi_srgan import pmi_srgan
+from .rfb_esrgan import rfb
+from .rfb_esrgan import rfb_4x4
 from .esrgan import esrgan16
 from .esrgan import esrgan23
 from .srgan import srgan

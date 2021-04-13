@@ -41,6 +41,7 @@ from ssrgan.utils.common import ProgressMeter
 from ssrgan.utils.common import configure
 from ssrgan.utils.common import create_folder
 from ssrgan.utils.estimate import test
+from ssrgan.loss import LPIPSLoss
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -206,7 +207,7 @@ def main_worker(gpu, ngpus_per_node, args):
             discriminator = torch.nn.DataParallel(discriminator).cuda()
             generator = torch.nn.DataParallel(generator).cuda()
 
-    # Loss = pixel loss + content loss + 0.1 * lpips loss + 0.001 * adversarial loss
+    # Loss = pixel loss + content loss + 0.001 * adversarial loss + 0 * lpips loss
     pixel_criterion = nn.L1Loss().cuda(args.gpu)
     content_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
@@ -381,6 +382,7 @@ def main_worker(gpu, ngpus_per_node, args):
                   pixel_criterion=pixel_criterion,
                   content_criterion=content_criterion,
                   adversarial_criterion=adversarial_criterion,
+                  lpips_criterion=lpips_criterion,
                   epoch=epoch,
                   scaler=scaler,
                   writer=gan_writer,
@@ -477,6 +479,7 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
               pixel_criterion: nn.L1Loss,
               content_criterion: VGGLoss,
               adversarial_criterion: nn.BCEWithLogitsLoss,
+              lpips_criterion: LPIPSLoss,
               epoch: int,
               scaler: amp.GradScaler,
               writer: SummaryWriter,
@@ -543,13 +546,15 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
 
             # Calculate the absolute value of pixels with L1 loss.
             pixel_loss = pixel_criterion(sr, hr.detach())
-            # # The 35th layer in VGG19 is used as the feature extractor by default.
+            # The 35th layer in VGG19 is used as the feature extractor by default.
             content_loss = content_criterion(sr, hr.detach())
             # Adversarial loss for real and fake images (relativistic average GAN)
             adversarial_loss = adversarial_criterion(fake_output - torch.mean(real_output), real_label)
+            # Loss of perceived quality of image.
+            lpips_loss = lpips_criterion(sr, hr.detach())
 
             # Count all generator losses.
-            g_loss = 10 * pixel_loss + 1 * content_loss + 0.005 * adversarial_loss
+            g_loss = 10 * pixel_loss + 1 * content_loss + 0.005 * adversarial_loss + 0 * lpips_loss
 
         scaler.scale(g_loss).backward()
         scaler.step(generator_optimizer)
