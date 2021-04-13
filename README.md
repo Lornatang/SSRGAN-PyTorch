@@ -76,6 +76,8 @@ $ bash download_dataset.sh
 
 ### Script
 
+#### Computational model complexity
+
 ```text
 $ python3 scripts/cal_model_complexity.py
                    Summary                     
@@ -96,8 +98,6 @@ $ python3 scripts/cal_model_complexity.py
 |        UNet       |     2.36M   |  8.87GMac |
 -----------------------------------------------
 ```
-
-#### Computational model complexity
 
 ### Test
 
