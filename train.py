@@ -32,8 +32,8 @@ import torchvision.utils as vutils
 from torch.utils.tensorboard import SummaryWriter
 
 import ssrgan.models as models
-from ssrgan.dataset import BaseTestDataset
 from ssrgan.dataset import BaseTrainDataset
+from ssrgan.dataset import BaseTestDataset
 from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator_for_vgg
 from ssrgan.utils.common import AverageMeter
@@ -68,9 +68,9 @@ parser.add_argument("--gan-epochs", default=64, type=int, metavar="N",
                     help="Number of total gan epochs to run. (Default: 64)")
 parser.add_argument("--start-gan-epoch", default=0, type=int, metavar="N",
                     help="Manual gan epoch number (useful on restarts). (Default: 0)")
-parser.add_argument("-b", "--batch-size", default=16, type=int,
+parser.add_argument("-b", "--batch-size", default=4, type=int,
                     metavar="N",
-                    help="Mini-batch size (default: 16), this is the total "
+                    help="Mini-batch size (default: 4), this is the total "
                          "batch size of all GPUs on the current node when "
                          "using Data Parallel or Distributed Data Parallel.")
 parser.add_argument("--sampler-frequency", default=1, type=int, metavar="N",
@@ -554,7 +554,7 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
             lpips_loss = lpips_criterion(sr, hr.detach())
 
             # Count all generator losses.
-            g_loss = 10 * pixel_loss + 1 * content_loss + 0.005 * adversarial_loss + 0 * lpips_loss
+            g_loss = 0.01 * pixel_loss + 1 * content_loss + 0.005 * adversarial_loss + 0 * lpips_loss
 
         scaler.scale(g_loss).backward()
         scaler.step(generator_optimizer)
@@ -602,7 +602,7 @@ if __name__ == "__main__":
 
     logger.info("TrainingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.13")
+    print("\tBuild ................ 2021.04.15")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")
