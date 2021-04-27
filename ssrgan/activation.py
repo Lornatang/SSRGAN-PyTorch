@@ -34,6 +34,7 @@ class FReLU(nn.Module):
 
     def __init__(self, channels: int = 64) -> None:
         r"""
+
         Args:
             channels (int): Number of channels in the input image. (Default: 64)
         """

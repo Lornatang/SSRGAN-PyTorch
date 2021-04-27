@@ -34,7 +34,7 @@ parser.add_argument("--model-path", type=str, metavar="PATH", required=True,
                     help="Path to latest checkpoint for model.")
 args = parser.parse_args()
 
-model = configure(args)
+model = models.__dict__[args.arch]()
 model.load_state_dict(torch.load(args.model_path)["state_dict"])
 torch.save(model.state_dict(), "Generator.pth")
 logger.info("Model convert done.")

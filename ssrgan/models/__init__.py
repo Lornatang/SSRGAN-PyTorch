@@ -11,11 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .pmi_srgan import pmi_srgan
-from .rfb_esrgan import rfb
-from .rfb_esrgan import rfb_4x4
+from .pmigan import pmigan
+# from .rfb_esrgan import rfb
+# from .rfb_esrgan import rfb_4x4
 from .esrgan import esrgan16
-from .esrgan import esrgan23
+# from .esrgan import esrgan23
 from .srgan import srgan
-from .srgan import srgan_2x2
-from .srgan import srgan_8x8
+# from .srgan import srgan_2x2
+# from .srgan import srgan_8x8

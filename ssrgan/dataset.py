@@ -14,28 +14,19 @@
 import os
 import random
 
-import torch.utils.data.dataset
+import torch.utils.data
 import torchvision.transforms as transforms
 from PIL import Image
 from torchvision.transforms import InterpolationMode
 
+from .utils.common import check_image_file
+from .utils.data_augmentation import random_horizontally_flip
+from .utils.data_augmentation import random_vertically_flip
+
 __all__ = [
-    "check_image_file",
     "BaseTrainDataset", "BaseTestDataset",
     "CustomTrainDataset", "CustomTestDataset"
 ]
-
-
-def check_image_file(filename: str):
-    r"""Filter non image files in directory.
-
-    Args:
-        filename (str): File name under path.
-
-    Returns:
-        Return True if bool(x) is True for any x in the iterable.
-    """
-    return any(filename.endswith(extension) for extension in [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".JPG", ".JPEG", ".PNG", ".BMP"])
 
 
 class BaseTrainDataset(torch.utils.data.dataset.Dataset):
@@ -56,7 +47,8 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
         ])
         self.hr_transforms = transforms.Compose([
             transforms.RandomCrop((image_size, image_size)),
-            transforms.AutoAugment(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
             transforms.ToTensor()
         ])
 
@@ -69,7 +61,9 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        hr = self.hr_transforms(Image.open(self.filenames[index]).convert("RGB"))
+        image = Image.open(self.filenames[index]).convert("RGB")
+
+        hr = self.hr_transforms(image)
         lr = self.lr_transforms(hr)
 
         return lr, hr
@@ -101,7 +95,6 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
         ])
         self.hr_transforms = transforms.Compose([
             transforms.RandomCrop((image_size, image_size)),
-            transforms.AutoAugment(),
             transforms.ToTensor()
         ])
 
@@ -114,7 +107,9 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        hr = self.hr_transforms(Image.open(self.filenames[index]).convert("RGB"))
+        image = Image.open(self.filenames[index]).convert("RGB")
+
+        hr = self.hr_transforms(image)
         lr = self.lr_transforms(hr)
         bicubic = self.bicubic_transforms(lr)
 
@@ -150,8 +145,14 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        lr = self.transforms(Image.open(self.lr_filenames[index]))
-        hr = self.transforms(Image.open(self.hr_filenames[index]))
+        lr = Image.open(self.lr_filenames[index]).convert("RGB")
+        hr = Image.open(self.hr_filenames[index]).convert("RGB")
+
+        lr, hr = random_horizontally_flip(lr, hr)
+        lr, hr = random_vertically_flip(lr, hr)
+
+        lr = self.transforms(lr)
+        hr = self.transforms(hr)
 
         return lr, hr
 
@@ -191,9 +192,12 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        lr = self.transforms(Image.open(self.lr_filenames[index]))
+        lr = Image.open(self.lr_filenames[index]).convert("RGB")
+        hr = Image.open(self.hr_filenames[index]).convert("RGB")
+
+        lr = self.transforms(lr)
         bicubic = self.bicubic_transforms(lr)
-        hr = self.transforms(Image.open(self.hr_filenames[index]))
+        hr = self.transforms(hr)
 
         return lr, bicubic, hr
 

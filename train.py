@@ -28,12 +28,15 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
+import torchvision.transforms as transforms
 import torchvision.utils as vutils
-from torch.utils.tensorboard import SummaryWriter
+from PIL import Image
+from tensorboardX import SummaryWriter
 
 import ssrgan.models as models
-from ssrgan.dataset import BaseTrainDataset
 from ssrgan.dataset import BaseTestDataset
+from ssrgan.dataset import BaseTrainDataset
+from ssrgan.loss import LPIPSLoss
 from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator_for_vgg
 from ssrgan.utils.common import AverageMeter
@@ -41,7 +44,6 @@ from ssrgan.utils.common import ProgressMeter
 from ssrgan.utils.common import configure
 from ssrgan.utils.common import create_folder
 from ssrgan.utils.estimate import test
-from ssrgan.loss import LPIPSLoss
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -113,6 +115,10 @@ parser.add_argument("--multiprocessing-distributed", action="store_true",
                          "multi node data parallel training.")
 
 best_psnr = 0.0
+# Load base low-resolution image.
+base_image = transforms.ToTensor()(Image.open(os.path.join("assets", "butterfly.png")))
+base_image = base_image.unsqueeze(0)
+logger.info("Loaded `butterfly.png` successful.")
 
 
 def main():
@@ -150,7 +156,7 @@ def main():
 
 
 def main_worker(gpu, ngpus_per_node, args):
-    global best_psnr
+    global best_psnr, base_image
     args.gpu = gpu
 
     if args.gpu is not None:
@@ -216,6 +222,9 @@ def main_worker(gpu, ngpus_per_node, args):
                 f"\tPixel:       L1Loss\n"
                 f"\tContent:     VGG19_35th\n"
                 f"\tAdversarial: BCEWithLogitsLoss")
+
+    if args.gpu is not None:
+        base_image = base_image.cuda(args.gpu)
 
     # All optimizer function and scheduler function.
     psnr_optimizer = torch.optim.Adam(generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.99))
@@ -465,10 +474,9 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
         if i % 100 == 0:
             progress.display(i)
 
-        # Save image every 300 batches.
-        if iters % 300 == 0:
-            vutils.save_image(hr.detach(), os.path.join("runs", "hr", f"PSNR_{iters}.bmp"))
-            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"PSNR_{iters}.bmp"))
+    # Each Epoch validates the model once.
+    sr = model(base_image)
+    vutils.save_image(sr.detach(), os.path.join("runs", f"PSNR_epoch_{epoch}.png"))
 
 
 def train_gan(dataloader: torch.utils.data.DataLoader,
@@ -554,7 +562,7 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
             lpips_loss = lpips_criterion(sr, hr.detach())
 
             # Count all generator losses.
-            g_loss = 0.01 * pixel_loss + 1 * content_loss + 0.005 * adversarial_loss + 0 * lpips_loss
+            g_loss = 0.05 * pixel_loss + 1.2 * content_loss + 0.001 * adversarial_loss + 0.05 * lpips_loss
 
         scaler.scale(g_loss).backward()
         scaler.step(generator_optimizer)
@@ -585,10 +593,9 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
         if i % 100 == 0:
             progress.display(i)
 
-        # Save image every 300 batches.
-        if iters % 300 == 0:
-            vutils.save_image(hr.detach(), os.path.join("runs", "hr", f"GAN_{iters}.bmp"))
-            vutils.save_image(sr.detach(), os.path.join("runs", "sr", f"GAN_{iters}.bmp"))
+    # Each Epoch validates the model once.
+    sr = generator(base_image)
+    vutils.save_image(sr.detach(), os.path.join("runs", f"GAN_epoch_{epoch}.png"))
 
 
 if __name__ == "__main__":
@@ -596,13 +603,11 @@ if __name__ == "__main__":
     print("Run Training Engine.\n")
 
     create_folder("runs")
-    create_folder("runs/hr")
-    create_folder("runs/sr")
     create_folder("weights")
 
     logger.info("TrainingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.15")
+    print("\tBuild ................ 2021.04.27")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")

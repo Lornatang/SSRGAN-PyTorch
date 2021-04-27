@@ -134,6 +134,7 @@ data/Camelyon16
 data/DF2K
 data/DIV2K
 data/ImageNet2012
+data/Paper
 
 # Program run create directory.
 benchmarks

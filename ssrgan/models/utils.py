@@ -16,7 +16,7 @@ import torch.nn as nn
 
 __all__ = [
     "channel_shuffle",  # ShuffleNet
-    "SqueezeExcite",  # SENet
+    "SqueezeExcitation",  # SENet
     "GhostModule", "GhostBottleneck",  # GhostNet
     "SPConv",  # SPConv
 ]
@@ -51,39 +51,38 @@ def channel_shuffle(x: torch.Tensor, groups: int) -> torch.Tensor:
 
 
 # Source code reference from `https://github.com/hujie-frank/SENet`.
-class SqueezeExcite(nn.Module):
+class SqueezeExcitation(nn.Module):
     r""" PyTorch implementation Squeeze-and-Excite module.
 
-    `"MSqueeze-and-Excitation Networks" <https://arxiv.org/pdf/1709.01507v4.pdf>` paper.
+    `"Squeeze-and-Excitation Networks" <https://arxiv.org/pdf/1709.01507v4.pdf>` paper.
     """
 
-    def __init__(self, channels: int, reduction: int) -> None:
+    def __init__(self, channels: int, squeeze_factor: int = 4) -> None:
         r""" Modules introduced in SENet paper.
 
         Args:
             channels (int): Number of channels in the input image.
-            reduction (int): Reduce the number of channels by several times.
+            squeeze_factor (int): Channel compression ratio. (Default: 4)
         """
-        super(SqueezeExcite, self).__init__()
+        super(SqueezeExcitation, self).__init__()
+        squeeze_channels = int(channels // squeeze_factor)
+
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.fc1 = nn.Linear(channels, channels // reduction)
+        self.fc1 = nn.Conv2d(channels, squeeze_channels, kernel_size=1, stride=1, padding=0)
         self.relu = nn.ReLU(inplace=True)
-        self.fc2 = nn.Linear(channels // reduction, channels)
-        self.sigmoid = nn.Sigmoid()
+        self.fc2 = nn.Conv2d(squeeze_channels, channels, kernel_size=1, stride=1, padding=0)
+        self.hard_sigmoid = nn.Hardsigmoid(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        batch_size, channels, _, _ = x.size()
         out = self.global_pooling(x)
-        # Squeeze layer.
-        out = out.view(batch_size, channels)
         out = self.fc1(out)
         out = self.relu(out)
         out = self.fc2(out)
-        out = self.sigmoid(out)
-        # Excite layer.
-        out = out.view(batch_size, channels, 1, 1)
+        out = self.hard_sigmoid(out)
 
-        return x * out.expand_as(x)
+        out = out.mul(x)
+
+        return out
 
 
 # TODO: implementation GhostBottleneck module.

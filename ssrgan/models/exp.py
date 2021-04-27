@@ -17,10 +17,11 @@ import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
-from ssrgan.activation import Mish
+from .utils import SqueezeExcitation
+from ..activation import Mish
 
 model_urls = {
-    "pmi_srgan": None,
+    "exp": None,
 }
 
 
@@ -39,19 +40,22 @@ class DepthWise(nn.Module):
         """
         super(DepthWise, self).__init__()
 
-        # pw
+        # Expand.
         self.pointwise = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0),
             Mish()
         )
 
-        # dw
+        # Depthwise.
         self.depthwise = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels),
             Mish()
         )
 
-        # pw-linear
+        # Squeeze Excitation.
+        self.squeeze_excitation = SqueezeExcitation(channels=channels, squeeze_factor=4)
+
+        # Project.
         self.pointwise_linear = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0)
 
         for m in self.modules():
@@ -66,6 +70,8 @@ class DepthWise(nn.Module):
         out = self.pointwise(x)
         # DepthWise convolution
         out = self.depthwise(out)
+        # Squeeze Excitation.
+        out = self.squeeze_excitation(out)
         # Projection convolution
         out = self.pointwise_linear(out)
 
@@ -168,35 +174,21 @@ class Symmetric(nn.Module):
         """
         super(Symmetric, self).__init__()
 
-        # The first layer convolution block of down-sampling module in U-Net network.
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(channels, channels // 2, kernel_size=3, stride=1, padding=1),
-            Mish(),
-            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1),
-            Mish()
-        )
-
         # Down sampling layer.
         self.down_sampling_layer = nn.Sequential(
-            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=2, padding=1),
-            Mish()
-        )
-
-        # The second layer convolution block of up-sampling module in U-Net network.
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(channels // 2, channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(channels, channels // 2, kernel_size=3, stride=2, padding=1),
             Mish(),
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
-            Mish()
+            SqueezeExcitation(channels=channels // 2, squeeze_factor=4),
+            nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1)
         )
 
         # Up sampling layer.
         self.up_sampling_layer = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
-            nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(channels // 2, channels * 2, kernel_size=3, stride=1, padding=1),
+            nn.PixelShuffle(upscale_factor=2),
             Mish(),
-            nn.Conv2d(channels, channels // 2, kernel_size=3, stride=1, padding=1),
-            Mish()
+            SqueezeExcitation(channels=channels // 2, squeeze_factor=4),
+            nn.Conv2d(channels // 2, channels, kernel_size=3, stride=1, padding=1)
         )
 
         for m in self.modules():
@@ -208,13 +200,9 @@ class Symmetric(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Down-sampling layer.
-        conv1 = self.conv1(x)
-        down_sampling_layer = self.down_sampling_layer(conv1)
+        out = self.down_sampling_layer(x)
         # Up-sampling layer.
-        conv2 = self.conv2(down_sampling_layer)
-        up_sampling_layer = self.up_sampling_layer(conv2)
-        # Concat up layer and down layer.
-        out = torch.cat((up_sampling_layer, conv1), dim=1)
+        out = self.up_sampling_layer(out)
 
         # residual shortcut.
         out = torch.add(out, x)
@@ -222,27 +210,20 @@ class Symmetric(nn.Module):
         return out
 
 
-# Source code reference `https://arxiv.org/pdf/2005.12597v1.pdf` paper.
 class SubpixelConvolutionLayer(nn.Module):
     def __init__(self, channels: int = 32) -> None:
-        """
+        r"""
         Args:
             channels (int): Number of channels in the input image. (Default: 32)
         """
         super(SubpixelConvolutionLayer, self).__init__()
-        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
-        self.inception = InceptionX(channels)
         self.conv = nn.Conv2d(channels, channels * 4, kernel_size=3, stride=1, padding=1)
         self.pixel_shuffle = nn.PixelShuffle(upscale_factor=2)
         self.mish = Mish()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.upsample(x)
-        out = self.inception(out)
-        out = self.mish(out)
-        out = self.conv(out)
+        out = self.conv(x)
         out = self.pixel_shuffle(out)
-        out = self.inception(out)
         out = self.mish(out)
 
         return out
@@ -259,7 +240,7 @@ class Generator(nn.Module):
         """
         super(Generator, self).__init__()
         # Calculating the number of subpixel convolution layers.
-        num_subpixel_convolution_layers = int(math.log(upscale_factor, 4))
+        num_subpixel_convolution_layers = int(math.log(upscale_factor, 2))
 
         # First layer
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
@@ -281,7 +262,7 @@ class Generator(nn.Module):
 
         self.trunk_d = nn.Sequential(
             InceptionX(32),
-            InceptionX(32),
+            InceptionX(32)
         )
 
         self.symmetric_conv = Symmetric(32)
@@ -342,11 +323,11 @@ def _gan(arch: str, upscale_factor: int, pretrained: bool, progress: bool) -> Ge
     return model
 
 
-def pmi_srgan(pretrained: bool = False, progress: bool = True) -> Generator:
+def exp(pretrained: bool = False, progress: bool = True) -> Generator:
     r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2021.00000>` paper.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet.
         progress (bool): If True, displays a progress bar of the download to stderr.
     """
-    return _gan("pmi_srgan", 4, pretrained, progress)
+    return _gan("exp", 4, pretrained, progress)

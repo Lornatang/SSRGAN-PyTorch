@@ -19,7 +19,9 @@ class DiscriminatorForVGG(nn.Module):
     def __init__(self, image_size: int = 256) -> None:
         super(DiscriminatorForVGG, self).__init__()
 
-        self.main = nn.Sequential(
+        features_size = int(image_size / 32)
+
+        self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),  # input is (3) x 256 x 256
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -61,13 +63,14 @@ class DiscriminatorForVGG(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Conv2d(512, image_size, kernel_size=3, stride=1, padding=1),
+            nn.Linear(512 * features_size * features_size, image_size),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
-            nn.Conv2d(image_size, 1, kernel_size=3, stride=1, padding=1)
+            nn.Linear(image_size, 1)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.features(x)
+        out = torch.flatten(out, 1)
         out = self.classifier(out)
 
         return out

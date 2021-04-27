@@ -55,8 +55,8 @@ parser.add_argument("--image-size", type=int, default=256,
                     help="Image size of high resolution image. (Default: 256)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
-parser.add_argument("--model-path", default="./weights/GAN.pth", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (Default: `./weights/GAN.pth`)")
+parser.add_argument("--model-path", default="", type=str, metavar="PATH",
+                    help="Path to latest checkpoint for model. (Default: ``)")
 parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                     help="Use pre-trained model.")
 parser.add_argument("--seed", default=666, type=int,
@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
     logger.info("TestingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.13")
+    print("\tBuild ................ 2021.04.27")
     print("##################################################\n")
     main()
 
