@@ -55,11 +55,11 @@ logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
 parser.add_argument("data", metavar="DIR",
                     help="Path to dataset.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="pmi_srgan",
+parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
-                         ". (Default: pmi_srgan)")
+                         ". (Default: pmigan)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (Default: 4)")
 parser.add_argument("--psnr-epochs", default=128, type=int, metavar="N",
@@ -493,11 +493,11 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
               writer: SummaryWriter,
               args: argparse.ArgumentParser.parse_args):
     batch_time = AverageMeter("Time", ":.4f")
-    d_losses = AverageMeter("D Loss", ":.6f")
-    g_losses = AverageMeter("G Loss", ":.6f")
-    pixel_losses = AverageMeter("Pixel Loss", ":6.4f")
-    content_losses = AverageMeter("Content Loss", ":6.4f")
-    adversarial_losses = AverageMeter("Adversarial Loss", ":6.4f")
+    d_losses = AverageMeter("D_Loss", ":.6f")
+    g_losses = AverageMeter("G_Loss", ":.6f")
+    pixel_losses = AverageMeter("Pixel_Loss", ":6.4f")
+    content_losses = AverageMeter("Content_Loss", ":6.4f")
+    adversarial_losses = AverageMeter("Adversarial_Loss", ":6.4f")
 
     progress = ProgressMeter(num_batches=len(dataloader),
                              meters=[batch_time, d_losses, g_losses, pixel_losses, content_losses, adversarial_losses],
@@ -583,11 +583,11 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
         adversarial_losses.update(adversarial_loss.item(), lr.size(0))
 
         iters = i + epoch * len(dataloader) + 1
-        writer.add_scalar("Train/D Loss", d_loss.item(), iters)
-        writer.add_scalar("Train/G Loss", g_loss.item(), iters)
-        writer.add_scalar("Train/Pixel Loss", pixel_loss.item(), iters)
-        writer.add_scalar("Train/Content Loss", content_loss.item(), iters)
-        writer.add_scalar("Train/Adversarial Loss", adversarial_loss.item(), iters)
+        writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
+        writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
+        writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
+        writer.add_scalar("Train/Content_Loss", content_loss.item(), iters)
+        writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
 
         # Output results every 100 batches.
         if i % 100 == 0:
@@ -607,7 +607,7 @@ if __name__ == "__main__":
 
     logger.info("TrainingEngine:")
     print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.27")
+    print("\tBuild ................ 2021.04.28")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")
