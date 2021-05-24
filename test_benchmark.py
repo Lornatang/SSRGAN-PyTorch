@@ -51,8 +51,8 @@ parser.add_argument("-b", "--batch-size", default=32, type=int,
 parser.add_argument("--sampler-frequency", default=1, type=int, metavar="N",
                     help="If there are many datasets, this method can be used "
                          "to increase the number of epochs. (Default:1)")
-parser.add_argument("--image-size", type=int, default=256,
-                    help="Image size of high resolution image. (Default: 256)")
+parser.add_argument("--image-size", type=int, default=216,
+                    help="Image size of high resolution image. (Default: 216)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
