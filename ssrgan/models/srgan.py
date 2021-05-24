@@ -18,36 +18,10 @@ import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 model_urls = {
-    "srgan_2x2": "https://github.com/Lornatang/SRGAN-PyTorch/releases/download/v0.2.1/SRGAN_2x2_DIV2K-9ec9dd11.pth",
-    "srgan": "https://github.com/Lornatang/SRGAN-PyTorch/releases/download/v0.2.1/SRGAN_DIV2K-6b7848ca.pth",
-    "srgan_8x8": "https://github.com/Lornatang/SRGAN-PyTorch/releases/download/v0.2.1/SRGAN_8x8_DIV2K-5ded8368.pth"
+    "srgan_2x2": "https://github.com/Lornatang/SRGAN-PyTorch/releases/download/v0.2.2/SRGAN_2x2_ImageNet2012-8a6c37a4f51bd78920271bae11c9ab7882f8df066afba425cde360ff645a681a.pth",
+    "srgan": "https://github.com/Lornatang/SRGAN-PyTorch/releases/download/v0.2.2/SRGAN_ImageNet2012-992702908bcbce3b6e2bc2d15eb5b4eb7a5c816468654819c6efbbd79ce671ea.pth",
+    "srgan_8x8": "https://github.com/Lornatang/SRGAN-PyTorch/releases/download/v0.2.2/SRGAN_8x8_ImageNet2012-56374e6208b19eebe1a3fb2dd06a50c29fd7e61b75714c037e22de3a97d86135.pth"
 }
-
-
-# Source code reference from `https://arxiv.org/pdf/1609.04802.pdf`.
-class ResidualBlock(nn.Module):
-    def __init__(self, channels: int = 64) -> None:
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-        """
-        super(ResidualBlock, self).__init__()
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels)
-        self.prelu = nn.PReLU()
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(channels)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.prelu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        out = torch.add(out, x)
-
-        return out
 
 
 class SubpixelConvolutionLayer(nn.Module):
@@ -69,6 +43,31 @@ class SubpixelConvolutionLayer(nn.Module):
         return out
 
 
+class ResidualBlock(nn.Module):
+    def __init__(self, channels: int = 64) -> None:
+        r"""
+        Args:
+            channels (int): Number of channels in the input image. (Default: 64)
+        """
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(channels)
+        self.prelu = nn.PReLU()
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(channels)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.prelu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        out = out + x
+
+        return out
+
+
 class Generator(nn.Module):
     def __init__(self, upscale_factor: int = 4) -> None:
         r"""
@@ -79,13 +78,13 @@ class Generator(nn.Module):
         # Calculating the number of subpixel convolution layers.
         num_subpixel_convolution_layers = int(math.log(upscale_factor, 2))
 
-        # First layer convolution layer.
+        # First layer.
         self.conv1 = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=9, stride=1, padding=4),
             nn.PReLU()
         )
 
-        # ResidualBlock network with 16 layers.
+        # 16 Residual blocks.
         trunk = []
         for _ in range(16):
             trunk.append(ResidualBlock(channels=64))
@@ -107,19 +106,11 @@ class Generator(nn.Module):
         self.conv3 = nn.Conv2d(64, 3, kernel_size=9, stride=1, padding=4)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # First convolution layer.
         conv1 = self.conv1(x)
-
-        # ResidualBlock network with 16 layers.
         trunk = self.trunk(conv1)
-
-        # Second convolution layer.
         conv2 = self.conv2(trunk)
-        # First convolution and second convolution feature image fusion.
         out = torch.add(conv1, conv2)
-        # Using sub-pixel convolution layer to improve image resolution.
         out = self.subpixel_conv(out)
-        # Output RGB channel image.
         out = self.conv3(out)
 
         return out

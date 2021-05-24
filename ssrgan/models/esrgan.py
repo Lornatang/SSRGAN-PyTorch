@@ -22,13 +22,15 @@ model_urls = {
 }
 
 
-# Source code reference from `https://github.com/xinntao/ESRGAN/blob/master/RRDBNet_arch.py`.
 class ResidualDenseBlock(nn.Module):
-    def __init__(self, channels: int = 64, growth_channels: int = 32):
+    r"""The residual block structure of traditional SRGAN and Dense model is defined"""
+
+    def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2):
         r"""
         Args:
             channels (int): Number of channels in the input image. (Default: 64)
             growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
         """
         super(ResidualDenseBlock, self).__init__()
         self.conv1 = nn.Sequential(
@@ -53,6 +55,8 @@ class ResidualDenseBlock(nn.Module):
 
         self.conv5 = nn.Conv2d(channels + 4 * growth_channels, channels, kernel_size=3, stride=1, padding=1)
 
+        self.scale_ratio = scale_ratio
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
@@ -67,32 +71,30 @@ class ResidualDenseBlock(nn.Module):
         conv4 = self.conv4(torch.cat((x, conv1, conv2, conv3), dim=1))
         conv5 = self.conv5(torch.cat((x, conv1, conv2, conv3, conv4), dim=1))
 
-        out = torch.add(conv5 * 0.2, x)
-
-        return out
+        return conv5 * self.scale_ratio + x
 
 
-# Source code reference from `https://github.com/xinntao/ESRGAN/blob/master/RRDBNet_arch.py`.
 class ResidualInResidualDenseBlock(nn.Module):
-    def __init__(self, channels: int = 64, growth_channels: int = 32):
+    r"""The residual block structure of traditional ESRGAN and Dense model is defined"""
+
+    def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2):
         r"""
         Args:
             channels (int): Number of channels in the input image. (Default: 64)
             growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
         """
         super(ResidualInResidualDenseBlock, self).__init__()
-        self.RDB1 = ResidualDenseBlock(channels, growth_channels)
-        self.RDB2 = ResidualDenseBlock(channels, growth_channels)
-        self.RDB3 = ResidualDenseBlock(channels, growth_channels)
+        self.RDB1 = ResidualDenseBlock(channels, growth_channels, scale_ratio)
+        self.RDB2 = ResidualDenseBlock(channels, growth_channels, scale_ratio)
+        self.RDB3 = ResidualDenseBlock(channels, growth_channels, scale_ratio)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.RDB1(x)
         out = self.RDB2(out)
         out = self.RDB3(out)
 
-        out = torch.add(out * 0.2, x)
-
-        return out
+        return out * 0.2 + x
 
 
 class Generator(nn.Module):
@@ -117,7 +119,7 @@ class Generator(nn.Module):
         # 16/23 ResidualInResidualDenseBlock layer.
         trunk = []
         for _ in range(num_rrdb_blocks):
-            trunk += [ResidualInResidualDenseBlock(channels=64, growth_channels=32)]
+            trunk += [ResidualInResidualDenseBlock(channels=64, growth_channels=32, scale_ratio=0.2)]
         self.trunk = nn.Sequential(*trunk)
 
         # Second conv layer post residual blocks
@@ -137,22 +139,13 @@ class Generator(nn.Module):
         self.conv4 = nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # First convolution layer.
-        conv1 = self.conv1(x)
-
-        # ResidualInResidualDenseBlock network with 16 layers.
-        trunk = self.trunk(conv1)
-
-        # Second convolution layer.
-        conv2 = self.conv2(trunk)
-        # First convolution and second convolution feature image fusion.
-        out = torch.add(conv1, conv2)
-        # Using sub-pixel convolution layer to improve image resolution.
+        out1 = self.conv1(x)
+        trunk = self.trunk(out1)
+        out2 = self.conv2(trunk)
+        out = torch.add(out1, out2)
         out = F.leaky_relu(self.up1(F.interpolate(out, scale_factor=2, mode="nearest")), negative_slope=0.2, inplace=True)
         out = F.leaky_relu(self.up2(F.interpolate(out, scale_factor=2, mode="nearest")), negative_slope=0.2, inplace=True)
-        # Third convolution layer.
         out = self.conv3(out)
-        # Output RGB channel image.
         out = self.conv4(out)
 
         return out

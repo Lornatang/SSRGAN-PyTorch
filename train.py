@@ -60,12 +60,12 @@ parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                          ". (Default: pmigan)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (Default: 4)")
-parser.add_argument("--psnr-epochs", default=128, type=int, metavar="N",
-                    help="Number of total psnr epochs to run. (Default: 128)")
-parser.add_argument("--start-psnr-epoch", default=0, type=int, metavar='N',
+parser.add_argument("--psnr-epochs", default=5000, type=int, metavar="N",
+                    help="Number of total psnr epochs to run. (Default: 5000)")
+parser.add_argument("--start-psnr-epoch", default=0, type=int, metavar="N",
                     help="Manual psnr epoch number (useful on restarts). (Default: 0)")
-parser.add_argument("--gan-epochs", default=64, type=int, metavar="N",
-                    help="Number of total gan epochs to run. (Default: 64)")
+parser.add_argument("--gan-epochs", default=2000, type=int, metavar="N",
+                    help="Number of total gan epochs to run. (Default: 2000)")
 parser.add_argument("--start-gan-epoch", default=0, type=int, metavar="N",
                     help="Manual gan epoch number (useful on restarts). (Default: 0)")
 parser.add_argument("-b", "--batch-size", default=4, type=int,
@@ -212,7 +212,7 @@ def main_worker(gpu, ngpus_per_node, args):
             discriminator = torch.nn.DataParallel(discriminator).cuda()
             generator = torch.nn.DataParallel(generator).cuda()
 
-    # Loss = pixel loss + content loss + 0.001 * adversarial loss + 0 * lpips loss
+    # Loss = 0.05 * pixel loss + 1.2 * content loss + 0.001 * adversarial loss + 0.05 * lpips loss
     pixel_criterion = nn.L1Loss().cuda(args.gpu)
     content_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
