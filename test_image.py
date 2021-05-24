@@ -37,15 +37,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
-parser.add_argument("--lr", type=str, required=True,
-                    help="Test low resolution image name.")
-parser.add_argument("--hr", type=str,
-                    help="Raw high resolution image name.")
 parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
                          ". (Default: `pmigan`)")
+parser.add_argument("--lr", type=str, required=True,
+                    help="Test low resolution image name.")
+parser.add_argument("--hr", type=str,
+                    help="Raw high resolution image name.")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",

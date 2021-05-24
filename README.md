@@ -83,13 +83,13 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | pmigan | srgan. (Default: `pmigan`)
+  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: `pmigan`)
   -j N, --workers N     Number of data loading workers. (Default: 8)
   -b N, --batch-size N  mini-batch size (default: 32), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel
   --sampler-frequency N
                         If there are many datasets, this method can be used to increase the number of epochs. (Default:1)
   --image-size IMAGE_SIZE
-                        Image size of high resolution image. (Default: 256)
+                        Image size of high resolution image. (Default: 216)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
   --model-path PATH     Path to latest checkpoint for model. (Default: ``)
   --pretrained          Use pre-trained model.
@@ -103,19 +103,19 @@ $ python3 test_benchmark.py -a pmigan --pretrained --gpu 0 [image-folder with tr
 #### Test image
 
 ```text
-usage: Research on the technology of digital pathological image super-resolution. [-h] --lr LR [--hr HR] [-a ARCH] [--upscale-factor {4}] [--model-path PATH] [--pretrained] [--seed SEED] [--gpu GPU]
+usage: Research on the technology of digital pathological image super-resolution. [-h] [-a ARCH] --lr LR [--hr HR] [--upscale-factor {4}] [--model-path PATH] [--pretrained] [--seed SEED] [--gpu GPU]
 
 optional arguments:
   -h, --help            show this help message and exit
+  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: `pmigan`)
   --lr LR               Test low resolution image name.
   --hr HR               Raw high resolution image name.
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | pmigan | srgan. (Default: `pmigan`)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
   --model-path PATH     Path to latest checkpoint for model. (Default: ``)
   --pretrained          Use pre-trained model.
   --seed SEED           Seed for initializing training. (Default: 666)
   --gpu GPU             GPU id to use.
-  
+
 # Example
 $ python3 test_image.py -a esrgan16 --lr [path-to-lr-image] --hr [Optional, path-to-hr-image] --pretrained --gpu 0
 ```
@@ -128,7 +128,7 @@ usage: Research on the technology of digital pathological image super-resolution
 optional arguments:
   -h, --help            show this help message and exit
   --file FILE           Test low resolution video name.
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | pmigan | srgan. (Default: `pmigan`)
+  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: `pmigan`)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
   --model-path PATH     Path to latest checkpoint for model. (Default: ``)
   --pretrained          Use pre-trained model.
@@ -162,11 +162,11 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | pmigan | srgan. (Default: pmigan)
+  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: pmigan)
   -j N, --workers N     Number of data loading workers. (Default: 4)
-  --psnr-epochs N       Number of total psnr epochs to run. (Default: 128)
+  --psnr-epochs N       Number of total psnr epochs to run. (Default: 64)
   --start-psnr-epoch N  Manual psnr epoch number (useful on restarts). (Default: 0)
-  --gan-epochs N        Number of total gan epochs to run. (Default: 64)
+  --gan-epochs N        Number of total gan epochs to run. (Default: 32)
   --start-gan-epoch N   Manual gan epoch number (useful on restarts). (Default: 0)
   -b N, --batch-size N  Mini-batch size (default: 4), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel.
   --sampler-frequency N
@@ -174,7 +174,7 @@ optional arguments:
   --psnr-lr PSNR_LR     Learning rate for psnr-oral. (Default: 0.0004)
   --gan-lr GAN_LR       Learning rate for gan-oral. (Default: 0.0002)
   --image-size IMAGE_SIZE
-                        Image size of high resolution image. (Default: 256)
+                        Image size of high resolution image. (Default: 216)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
   --model-path PATH     Path to latest checkpoint for model.
   --resume-psnr PATH    Path to latest psnr-oral checkpoint.
@@ -190,12 +190,12 @@ optional arguments:
   --seed SEED           Seed for initializing training.
   --gpu GPU             GPU id to use.
   --multiprocessing-distributed
-                        Use multi-processing distributed training to launch N processes per node, which has N GPUs. This is the fastest way to use PyTorch for either single node or multi node data parallel training. 
+                        Use multi-processing distributed training to launch N processes per node, which has N GPUs. This is the fastest way to use PyTorch for either single node or multi node data parallel training.
 
 # Example (e.g DIV2K)
-$ python3 train.py -a esrgan16 --gpu 0 [image-folder with train and val folders]
+$ python3 train.py -a pmigan --gpu 0 [image-folder with train and val folders]
 # Multi-processing Distributed Data Parallel Training
-$ python3 train.py -a esrgan16 --dist-url 'tcp://127.0.0.1:12345' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 [image-folder with train and val folders]
+$ python3 train.py -a pmigan --dist-url 'tcp://127.0.0.1:12345' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 [image-folder with train and val folders]
 ```
 
 If you want to load weights that you've trained before, run the following command.

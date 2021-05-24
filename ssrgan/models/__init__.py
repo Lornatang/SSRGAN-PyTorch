@@ -11,7 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .discriminator import *
 from .esrgan import *
 # from .exp import *
 from .generator import *
@@ -27,4 +26,3 @@ from .rfb_esrgan import *
 # from .squeezenet import *
 from .srgan import *
 # from .u_net import *
-from .utils import *
