@@ -16,16 +16,14 @@ import torch.nn as nn
 
 
 class DiscriminatorForVGG(nn.Module):
-    def __init__(self, image_size: int = 256) -> None:
+    def __init__(self, image_size: int = 216) -> None:
         super(DiscriminatorForVGG, self).__init__()
 
-        features_size = int(image_size / 32)
-
         self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),  # input is (3) x 256 x 256
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),  # input is (3) x 216 x 216
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (64) x 128 x 128
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (64) x 108 x 108
             nn.BatchNorm2d(64),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -33,7 +31,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(128),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (128) x 64 x 64
+            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (128) x 54 x 54
             nn.BatchNorm2d(128),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -41,7 +39,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(256),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (256) x 32 x 32
+            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (256) x 27 x 27
             nn.BatchNorm2d(256),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -49,7 +47,7 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (512) x 16 x 16
+            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (512) x 14 x 14
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
@@ -57,13 +55,13 @@ class DiscriminatorForVGG(nn.Module):
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
 
-            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (512) x 8 x 8
+            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1, bias=False),  # state size. (512) x 7 x 7
             nn.BatchNorm2d(512),
             nn.LeakyReLU(negative_slope=0.2, inplace=True)
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(512 * features_size * features_size, image_size),
+            nn.Linear(512 * 7 * 7, image_size),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.Linear(image_size, 1)
         )
@@ -76,7 +74,7 @@ class DiscriminatorForVGG(nn.Module):
         return out
 
 
-def discriminator_for_vgg(image_size: int = 256) -> DiscriminatorForVGG:
+def discriminator_for_vgg(image_size: int = 216) -> DiscriminatorForVGG:
     r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2100.00000>` paper.
     """
     model = DiscriminatorForVGG(image_size)
