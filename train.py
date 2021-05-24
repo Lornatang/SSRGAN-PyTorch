@@ -34,8 +34,8 @@ from PIL import Image
 from tensorboardX import SummaryWriter
 
 import ssrgan.models as models
-from ssrgan.dataset import BaseTestDataset
-from ssrgan.dataset import BaseTrainDataset
+from ssrgan.dataset import CustomTrainDataset
+from ssrgan.dataset import CustomTestDataset
 from ssrgan.loss import LPIPSLoss
 from ssrgan.loss import VGGLoss
 from ssrgan.models.discriminator import discriminator_for_vgg
@@ -60,12 +60,12 @@ parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                          ". (Default: pmigan)")
 parser.add_argument("-j", "--workers", default=4, type=int, metavar="N",
                     help="Number of data loading workers. (Default: 4)")
-parser.add_argument("--psnr-epochs", default=5000, type=int, metavar="N",
-                    help="Number of total psnr epochs to run. (Default: 5000)")
+parser.add_argument("--psnr-epochs", default=64, type=int, metavar="N",
+                    help="Number of total psnr epochs to run. (Default: 64)")
 parser.add_argument("--start-psnr-epoch", default=0, type=int, metavar="N",
                     help="Manual psnr epoch number (useful on restarts). (Default: 0)")
-parser.add_argument("--gan-epochs", default=2000, type=int, metavar="N",
-                    help="Number of total gan epochs to run. (Default: 2000)")
+parser.add_argument("--gan-epochs", default=32, type=int, metavar="N",
+                    help="Number of total gan epochs to run. (Default: 32)")
 parser.add_argument("--start-gan-epoch", default=0, type=int, metavar="N",
                     help="Manual gan epoch number (useful on restarts). (Default: 0)")
 parser.add_argument("-b", "--batch-size", default=4, type=int,
@@ -80,8 +80,8 @@ parser.add_argument("--psnr-lr", type=float, default=0.0004,
                     help="Learning rate for psnr-oral. (Default: 0.0004)")
 parser.add_argument("--gan-lr", type=float, default=0.0002,
                     help="Learning rate for gan-oral. (Default: 0.0002)")
-parser.add_argument("--image-size", type=int, default=256,
-                    help="Image size of high resolution image. (Default: 256)")
+parser.add_argument("--image-size", type=int, default=216,
+                    help="Image size of high resolution image. (Default: 216)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
@@ -245,8 +245,8 @@ def main_worker(gpu, ngpus_per_node, args):
 
     logger.info("Load training dataset")
     # Selection of appropriate treatment equipment.
-    train_dataset = BaseTrainDataset(os.path.join(args.data, "train"), args.image_size, args.upscale_factor)
-    test_dataset = BaseTestDataset(os.path.join(args.data, "test"), args.image_size, args.upscale_factor)
+    train_dataset = CustomTrainDataset(os.path.join(args.data, "train"), args.sampler_frequency)
+    test_dataset = CustomTestDataset(os.path.join(args.data, "test"), args.image_size, args.sampler_frequency)
 
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)

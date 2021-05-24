@@ -161,11 +161,11 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
 
 
 class CustomTestDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, image_size: int = 256, sampler_frequency: int = 1):
+    def __init__(self, root: str, image_size: int = 216, sampler_frequency: int = 1):
         r"""
         Args:
             root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 256)
+            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
             sampler_frequency (list): If there are many datasets, this method can be used to increase the number of epochs. (Default: 1)
         """
         super(CustomTestDataset, self).__init__()

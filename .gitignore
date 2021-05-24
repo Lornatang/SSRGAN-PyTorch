@@ -133,6 +133,8 @@ dmypy.json
 data/Camelyon16
 data/DF2K
 data/DIV2K
+data/DF2K+OST
+data/Digital-pathology
 data/ImageNet2012
 data/Paper
 

@@ -23,7 +23,6 @@ model_urls = {
 }
 
 
-# Source code reference from `https://github.com/xinntao/ESRGAN/blob/master/RRDBNet_arch.py`.
 class ResidualDenseBlock(nn.Module):
     def __init__(self, channels: int = 64, growth_channels: int = 32):
         r"""
@@ -73,7 +72,6 @@ class ResidualDenseBlock(nn.Module):
         return out
 
 
-# Source code reference from `https://github.com/xinntao/ESRGAN/blob/master/RRDBNet_arch.py`.
 class ResidualInResidualDenseBlock(nn.Module):
     def __init__(self, channels: int = 64, growth_channels: int = 32):
         r"""
@@ -96,7 +94,6 @@ class ResidualInResidualDenseBlock(nn.Module):
         return out
 
 
-# Source code reference from `https://github.com/ruinmessi/RFBNet/blob/master/models/RFB_Net_vgg.py`.
 class ReceptiveFieldBlock(nn.Module):
     def __init__(self, in_channels: int = 64, out_channels: int = 64):
         r""" Modules introduced in RFBNet paper.
@@ -352,8 +349,8 @@ def rfb_4x4(pretrained: bool = False, progress: bool = True) -> Generator:
     r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2005.12597>` paper.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet.
-        progress (bool): If True, displays a progress bar of the download to stderr.
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _gan("rfb_4x4", 4, pretrained, progress)
 
@@ -362,7 +359,7 @@ def rfb(pretrained: bool = False, progress: bool = True) -> Generator:
     r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2005.12597>` paper.
 
     Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet.
-        progress (bool): If True, displays a progress bar of the download to stderr.
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _gan("rfb", 16, pretrained, progress)
