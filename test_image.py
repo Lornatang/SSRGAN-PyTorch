@@ -41,11 +41,11 @@ parser.add_argument("--lr", type=str, required=True,
                     help="Test low resolution image name.")
 parser.add_argument("--hr", type=str,
                     help="Raw high resolution image name.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="pmi_srgan",
+parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
-                         ". (Default: pmi_srgan)")
+                         ". (Default: `pmigan`)")
 parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
@@ -130,8 +130,8 @@ if __name__ == "__main__":
     create_folder("tests")
 
     logger.info("TestingEngine:")
-    print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.27")
+    print("\tAPI version .......... 0.1.2")
+    print("\tBuild ................ 2021.05.24")
     print("##################################################\n")
     main()
 

@@ -23,7 +23,6 @@ import torch.backends.cudnn as cudnn
 from PIL import Image
 
 import ssrgan.models as models
-from ssrgan.utils.common import configure
 from ssrgan.utils.estimate import iqa
 from ssrgan.utils.transform import process_image
 
@@ -33,15 +32,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
+parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
+                    choices=model_names,
+                    help="Model architecture: " +
+                         " | ".join(model_names) +
+                         ". (Default: `pmigan`)")
 parser.add_argument("--lr", type=str, required=True,
                     help="Test low resolution image name.")
 parser.add_argument("--hr", type=str, required=True,
                     help="Raw high resolution image name.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="pmi_srgan",
-                    choices=model_names,
-                    help="Model architecture: " +
-                         " | ".join(model_names) +
-                         ". (Default: pmi_srgan)")
 parser.add_argument("--model-dir", default="", type=str, metavar="PATH",
                     help="Path to latest checkpoint for model.")
 parser.add_argument("--seed", default=666, type=int,

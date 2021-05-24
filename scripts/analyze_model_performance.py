@@ -14,17 +14,18 @@
 import argparse
 import time
 
-import ssrgan.models as models
 import torch
+
+import ssrgan.models as models
 
 model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="pmi_srgan",
+parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
-                         ". (Default: `pmi_srgan`)")
+                         ". (Default: `pmigan`)")
 parser.add_argument("-i", "--image-size", type=int, default=64,
                     help="Image size of low-resolution. (Default: 64)")
 parser.add_argument("--mode", default="cpu", type=bool,

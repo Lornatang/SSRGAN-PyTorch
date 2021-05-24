@@ -45,9 +45,7 @@ from ssrgan.utils.common import configure
 from ssrgan.utils.common import create_folder
 from ssrgan.utils.estimate import test
 
-model_names = sorted(name for name in models.__dict__
-                     if name.islower() and not name.startswith("__")
-                     and callable(models.__dict__[name]))
+model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
@@ -88,11 +86,11 @@ parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
                     help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
 parser.add_argument("--model-path", default="", type=str, metavar="PATH",
                     help="Path to latest checkpoint for model.")
-parser.add_argument("--resume_psnr", default="", type=str, metavar="PATH",
+parser.add_argument("--resume-psnr", default="", type=str, metavar="PATH",
                     help="Path to latest psnr-oral checkpoint.")
-parser.add_argument("--resume_d", default="", type=str, metavar="PATH",
+parser.add_argument("--resume-d", default="", type=str, metavar="PATH",
                     help="Path to latest -oral checkpoint.")
-parser.add_argument("--resume_g", default="", type=str, metavar="PATH",
+parser.add_argument("--resume-g", default="", type=str, metavar="PATH",
                     help="Path to latest psnr-oral checkpoint.")
 parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                     help="Use pre-trained model.")
@@ -115,6 +113,7 @@ parser.add_argument("--multiprocessing-distributed", action="store_true",
                          "multi node data parallel training.")
 
 best_psnr = 0.0
+best_ssim = 0.0
 # Load base low-resolution image.
 base_image = transforms.ToTensor()(Image.open(os.path.join("assets", "butterfly.png")))
 base_image = base_image.unsqueeze(0)
@@ -156,7 +155,7 @@ def main():
 
 
 def main_worker(gpu, ngpus_per_node, args):
-    global best_psnr, base_image
+    global best_psnr, best_ssim, base_image
     args.gpu = gpu
 
     if args.gpu is not None:
@@ -230,7 +229,7 @@ def main_worker(gpu, ngpus_per_node, args):
     psnr_optimizer = torch.optim.Adam(generator.parameters(), lr=args.psnr_lr, betas=(0.9, 0.99))
     psnr_scheduler = torch.optim.lr_scheduler.ExponentialLR(psnr_optimizer, gamma=0.95)
     discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=args.gan_lr, betas=(0.9, 0.99))
-    generator_optimizer = torch.optim.Adam(generator.parameters(), args.gan_lr, (0.9, 0.99))
+    generator_optimizer = torch.optim.Adam(generator.parameters(), lr=args.gan_lr, betas=(0.9, 0.99))
     discriminator_scheduler = torch.optim.lr_scheduler.ExponentialLR(discriminator_optimizer, gamma=0.95)
     generator_scheduler = torch.optim.lr_scheduler.ExponentialLR(generator_optimizer, gamma=0.95)
     logger.info(f"Optimizer information:\n"
@@ -356,10 +355,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # Test for every epoch.
         psnr, ssim, lpips, gmsd = test(dataloader=test_dataloader, model=generator, gpu=args.gpu)
-        gan_writer.add_scalar("Test/PSNR", psnr, epoch + 1)
-        gan_writer.add_scalar("Test/SSIM", ssim, epoch + 1)
-        gan_writer.add_scalar("Test/LPIPS", lpips, epoch + 1)
-        gan_writer.add_scalar("Test/GMSD", gmsd, epoch + 1)
+        psnr_writer.add_scalar("PSNR_Test/PSNR", psnr, epoch + 1)
+        psnr_writer.add_scalar("PSNR_Test/SSIM", ssim, epoch + 1)
+        psnr_writer.add_scalar("PSNR_Test/LPIPS", lpips, epoch + 1)
+        psnr_writer.add_scalar("PSNR_Test/GMSD", gmsd, epoch + 1)
 
         is_best = psnr > best_psnr
         best_psnr = max(psnr, best_psnr)
@@ -375,7 +374,6 @@ def main_worker(gpu, ngpus_per_node, args):
                 torch.save(generator.state_dict(), os.path.join("weights", f"PSNR.pth"))
 
     # Load best model weight.
-    best_psnr = 0.0
     generator.load_state_dict(torch.load(os.path.join("weights", f"PSNR.pth"), map_location=f"cuda:{args.gpu}"))
 
     for epoch in range(args.start_gan_epoch, args.gan_epochs):
@@ -402,13 +400,13 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # Test for every epoch.
         psnr, ssim, lpips, gmsd = test(dataloader=test_dataloader, model=generator, gpu=args.gpu)
-        gan_writer.add_scalar("Test/PSNR", psnr, epoch + 1)
-        gan_writer.add_scalar("Test/SSIM", ssim, epoch + 1)
-        gan_writer.add_scalar("Test/LPIPS", lpips, epoch + 1)
-        gan_writer.add_scalar("Test/GMSD", gmsd, epoch + 1)
+        gan_writer.add_scalar("GAN_Test/PSNR", psnr, epoch + 1)
+        gan_writer.add_scalar("GAN_Test/SSIM", ssim, epoch + 1)
+        gan_writer.add_scalar("GAN_Test/LPIPS", lpips, epoch + 1)
+        gan_writer.add_scalar("GAN_Test/GMSD", gmsd, epoch + 1)
 
-        is_best = psnr > best_psnr
-        best_psnr = max(psnr, best_psnr)
+        is_best = ssim > best_ssim
+        best_ssim = max(ssim, best_ssim)
 
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed and args.rank % ngpus_per_node == 0):
             torch.save({"epoch": epoch + 1,
@@ -468,7 +466,7 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
         losses.update(loss.item(), lr.size(0))
 
         iters = i + epoch * len(dataloader) + 1
-        writer.add_scalar("Train/Loss", loss.item(), iters)
+        writer.add_scalar("PSNR_Train/L1_Loss", loss.item(), iters)
 
         # Output results every 100 batches.
         if i % 100 == 0:
@@ -493,14 +491,15 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
               writer: SummaryWriter,
               args: argparse.ArgumentParser.parse_args):
     batch_time = AverageMeter("Time", ":.4f")
-    d_losses = AverageMeter("D_Loss", ":.6f")
-    g_losses = AverageMeter("G_Loss", ":.6f")
-    pixel_losses = AverageMeter("Pixel_Loss", ":6.4f")
-    content_losses = AverageMeter("Content_Loss", ":6.4f")
-    adversarial_losses = AverageMeter("Adversarial_Loss", ":6.4f")
+    d_losses = AverageMeter("D Loss", ":.6f")
+    g_losses = AverageMeter("G Loss", ":.6f")
+    pixel_losses = AverageMeter("Pixel Loss", ":6.4f")
+    content_losses = AverageMeter("Content Loss", ":6.4f")
+    adversarial_losses = AverageMeter("Adversarial Loss", ":6.4f")
+    lpips_losses = AverageMeter("LPIPS Loss", ":6.4f")
 
     progress = ProgressMeter(num_batches=len(dataloader),
-                             meters=[batch_time, d_losses, g_losses, pixel_losses, content_losses, adversarial_losses],
+                             meters=[batch_time, d_losses, g_losses, pixel_losses, content_losses, adversarial_losses, lpips_losses],
                              prefix=f"Epoch: [{epoch}]")
 
     # switch to train mode
@@ -581,13 +580,15 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
         pixel_losses.update(pixel_loss.item(), lr.size(0))
         content_losses.update(content_loss.item(), lr.size(0))
         adversarial_losses.update(adversarial_loss.item(), lr.size(0))
+        lpips_losses.update(lpips_loss.item(), lr.size(0))
 
         iters = i + epoch * len(dataloader) + 1
-        writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
-        writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
-        writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
-        writer.add_scalar("Train/Content_Loss", content_loss.item(), iters)
-        writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
+        writer.add_scalar("GAN_Train/D_Loss", d_loss.item(), iters)
+        writer.add_scalar("GAN_Train/G_Loss", g_loss.item(), iters)
+        writer.add_scalar("GAN_Train/Pixel_Loss", pixel_loss.item(), iters)
+        writer.add_scalar("GAN_Train/Content_Loss", content_loss.item(), iters)
+        writer.add_scalar("GAN_Train/Adversarial_Loss", adversarial_loss.item(), iters)
+        writer.add_scalar("GAN_Train/LPIPS_Loss", lpips_loss.item(), iters)
 
         # Output results every 100 batches.
         if i % 100 == 0:
@@ -606,8 +607,8 @@ if __name__ == "__main__":
     create_folder("weights")
 
     logger.info("TrainingEngine:")
-    print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.28")
+    print("\tAPI version .......... 0.1.2")
+    print("\tBuild ................ 2021.05.24")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")

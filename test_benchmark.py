@@ -36,11 +36,11 @@ logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
 parser.add_argument("data", metavar="DIR",
                     help="Path to dataset.")
-parser.add_argument("-a", "--arch", metavar="ARCH", default="pmi_srgan",
+parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                     choices=model_names,
                     help="Model architecture: " +
                          " | ".join(model_names) +
-                         " .(Default: pmi_srgan)")
+                         ". (Default: `pmigan`)")
 parser.add_argument("-j", "--workers", default=8, type=int, metavar="N",
                     help="Number of data loading workers. (Default: 8)")
 parser.add_argument("-b", "--batch-size", default=32, type=int,
@@ -161,8 +161,8 @@ if __name__ == "__main__":
     create_folder("benchmarks")
 
     logger.info("TestingEngine:")
-    print("\tAPI version .......... 0.1.0")
-    print("\tBuild ................ 2021.04.27")
+    print("\tAPI version .......... 0.1.2")
+    print("\tBuild ................ 2021.05.24")
     print("##################################################\n")
     main()
 
