@@ -212,7 +212,7 @@ def main_worker(gpu, ngpus_per_node, args):
             discriminator = torch.nn.DataParallel(discriminator).cuda()
             generator = torch.nn.DataParallel(generator).cuda()
 
-    # Loss = 0.05 * pixel loss + 1.2 * content loss + 0.001 * adversarial loss + 0.05 * lpips loss
+    # Loss = 0.05 * pixel loss + 1.2 * content loss + 0.001 * adversarial loss + 0.01 * lpips loss
     pixel_criterion = nn.L1Loss().cuda(args.gpu)
     content_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
@@ -371,10 +371,13 @@ def main_worker(gpu, ngpus_per_node, args):
                         "optimizer": psnr_optimizer.state_dict(),
                         }, os.path.join("weights", f"PSNR_epoch{epoch}.pth"))
             if is_best:
-                torch.save(generator.state_dict(), os.path.join("weights", f"PSNR.pth"))
+                torch.save(generator.state_dict(), os.path.join("weights", f"PSNR-best.pth"))
 
-    # Load best model weight.
-    generator.load_state_dict(torch.load(os.path.join("weights", f"PSNR.pth"), map_location=f"cuda:{args.gpu}"))
+    # Save the last training model parameters.
+    torch.save(generator.state_dict(), os.path.join("weights", f"PSNR-last.pth"))
+
+    # Load final model weight.
+    generator.load_state_dict(torch.load(os.path.join("weights", f"PSNR-last"), map_location=f"cuda:{args.gpu}"))
 
     for epoch in range(args.start_gan_epoch, args.gan_epochs):
         if args.distributed:
@@ -391,7 +394,6 @@ def main_worker(gpu, ngpus_per_node, args):
                   adversarial_criterion=adversarial_criterion,
                   lpips_criterion=lpips_criterion,
                   epoch=epoch,
-                  scaler=scaler,
                   writer=gan_writer,
                   args=args)
 
@@ -421,7 +423,10 @@ def main_worker(gpu, ngpus_per_node, args):
                         "optimizer": generator_optimizer.state_dict()
                         }, os.path.join("weights", f"Generator_epoch{epoch}.pth"))
             if is_best:
-                torch.save(generator.state_dict(), os.path.join("weights", f"GAN.pth"))
+                torch.save(generator.state_dict(), os.path.join("weights", f"GAN-best.pth"))
+
+    # Save the last training model parameters.
+    torch.save(generator.state_dict(), os.path.join("weights", f"GAN-last.pth"))
 
 
 def train_psnr(dataloader: torch.utils.data.DataLoader,
@@ -432,8 +437,8 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
                scaler: amp.GradScaler,
                writer: SummaryWriter,
                args: argparse.ArgumentParser.parse_args):
-    batch_time = AverageMeter("Time", ":6.4f")
-    losses = AverageMeter("Loss", ":.6f")
+    batch_time = AverageMeter("Time", ":6.6f")
+    losses = AverageMeter("L1 Loss", ":6.6f")
     progress = ProgressMeter(num_batches=len(dataloader),
                              meters=[batch_time, losses],
                              prefix=f"Epoch: [{epoch}]")
@@ -473,8 +478,9 @@ def train_psnr(dataloader: torch.utils.data.DataLoader,
             progress.display(i)
 
     # Each Epoch validates the model once.
-    sr = model(base_image)
-    vutils.save_image(sr.detach(), os.path.join("runs", f"PSNR_epoch_{epoch}.png"))
+    with torch.no_grad():
+        sr = model(base_image)
+        vutils.save_image(sr.detach(), os.path.join("runs", f"PSNR_epoch_{epoch}.png"), normalize=True)
 
 
 def train_gan(dataloader: torch.utils.data.DataLoader,
@@ -487,16 +493,15 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
               adversarial_criterion: nn.BCEWithLogitsLoss,
               lpips_criterion: LPIPSLoss,
               epoch: int,
-              scaler: amp.GradScaler,
               writer: SummaryWriter,
               args: argparse.ArgumentParser.parse_args):
-    batch_time = AverageMeter("Time", ":.4f")
-    d_losses = AverageMeter("D Loss", ":.6f")
-    g_losses = AverageMeter("G Loss", ":.6f")
-    pixel_losses = AverageMeter("Pixel Loss", ":6.4f")
-    content_losses = AverageMeter("Content Loss", ":6.4f")
-    adversarial_losses = AverageMeter("Adversarial Loss", ":6.4f")
-    lpips_losses = AverageMeter("LPIPS Loss", ":6.4f")
+    batch_time = AverageMeter("Time", ":6.6f")
+    d_losses = AverageMeter("D Loss", ":6.6f")
+    g_losses = AverageMeter("G Loss", ":6.6f")
+    pixel_losses = AverageMeter("Pixel Loss", ":6.6f")
+    content_losses = AverageMeter("Content Loss", ":6.6f")
+    adversarial_losses = AverageMeter("Adversarial Loss", ":6.6f")
+    lpips_losses = AverageMeter("LPIPS Loss", ":6.6f")
 
     progress = ProgressMeter(num_batches=len(dataloader),
                              meters=[batch_time, d_losses, g_losses, pixel_losses, content_losses, adversarial_losses, lpips_losses],
@@ -519,56 +524,49 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
         fake_label = torch.full((batch_size, 1), 0, dtype=lr.dtype).cuda(args.gpu, non_blocking=True)
 
         ##############################################
-        # (1) Update D network: E(hr)[fake(C(D(hr) - E(sr)C(sr)))] + E(sr)[fake(C(fake) - E(real)C(real))]
+        # (1) Update D network: E(hr)[log(D(hr))] + E(sr)[log(1- D(G(sr))]
         ##############################################
-        discriminator_optimizer.zero_grad()
+        # Sets gradients of discriminator model parameters to zero.
+        discriminator.zero_grad()
 
-        with amp.autocast():
-            sr = generator(lr)
-            # It makes the discriminator distinguish between real sample and fake sample.
-            real_output = discriminator(hr)
-            fake_output = discriminator(sr.detach())
+        # Generating fake high resolution images from real low resolution images.
+        sr = generator(lr)
 
-            # Adversarial loss for real and fake images (relativistic average GAN)
-            d_loss_real = adversarial_criterion(real_output - torch.mean(fake_output), real_label)
-            d_loss_fake = adversarial_criterion(fake_output - torch.mean(real_output), fake_label)
+        # It makes the discriminator distinguish between real sample and fake sample.
+        real_output = discriminator(hr)
+        fake_output = discriminator(sr.detach())
 
-            # Count all discriminator losses.
-            d_loss = (d_loss_real + d_loss_fake) / 2
+        # Adversarial loss for real and fake images (relativistic average GAN)
+        d_loss_real = adversarial_criterion(real_output - torch.mean(fake_output), real_label)
+        d_loss_real.backward()
+        d_loss_fake = adversarial_criterion(fake_output - torch.mean(real_output), fake_label)
+        d_loss_fake.backward()
 
-        scaler.scale(d_loss).backward()
-        scaler.step(discriminator_optimizer)
-        scaler.update()
+        # Count all discriminator losses.
+        d_loss = d_loss_real + d_loss_fake
+
+        # Update discriminator model parameters.
+        discriminator_optimizer.step()
 
         ##############################################
-        # (2) Update G network: E(hr)[sr(C(D(hr) - E(sr)C(sr)))] + E(sr)[sr(C(fake) - E(real)C(real))]
+        # (2) Update G network: 0.01 * pixel_loss + 1.2 * content_loss + 0.005 * adversarial_loss + 0.00 * lpips_loss
         ##############################################
-        generator_optimizer.zero_grad()
-
-        with amp.autocast():
-            sr = generator(lr)
-            # It makes the discriminator unable to distinguish the real samples and fake samples.
-            real_output = discriminator(hr.detach())
-            fake_output = discriminator(sr)
-
-            # Calculate the absolute value of pixels with L1 loss.
-            pixel_loss = pixel_criterion(sr, hr.detach())
-            # The 35th layer in VGG19 is used as the feature extractor by default.
-            content_loss = content_criterion(sr, hr.detach())
-            # Adversarial loss for real and fake images (relativistic average GAN)
-            adversarial_loss = adversarial_criterion(fake_output - torch.mean(real_output), real_label)
-            # Loss of perceived quality of image.
-            lpips_loss = lpips_criterion(sr, hr.detach())
-
-            # Count all generator losses.
-            g_loss = 0.05 * pixel_loss + 1.2 * content_loss + 0.001 * adversarial_loss + 0.05 * lpips_loss
-
-        scaler.scale(g_loss).backward()
-        scaler.step(generator_optimizer)
-        scaler.update()
-
-        # Set generator gradients to zero.
         generator.zero_grad()
+
+        # Calculate the absolute value of pixels with L1 loss.
+        pixel_loss = pixel_criterion(sr, hr.detach())
+        # The 35th layer in VGG19 is used as the feature extractor by default.
+        content_loss = content_criterion(sr, hr.detach())
+        # Adversarial loss for real and fake images (relativistic average GAN)
+        adversarial_loss = adversarial_criterion(fake_output - torch.mean(real_output), real_label)
+        # Loss of perceived quality of image.
+        lpips_loss = lpips_criterion(sr, hr.detach())
+        # Count all generator losses.
+        g_loss = 0.01 * pixel_loss + 1.2 * content_loss + 0.005 * adversarial_loss + 0.00 * lpips_loss
+        g_loss.backward()
+
+        # Update generator model parameters.
+        generator_optimizer.step()
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -595,8 +593,9 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
             progress.display(i)
 
     # Each Epoch validates the model once.
-    sr = generator(base_image)
-    vutils.save_image(sr.detach(), os.path.join("runs", f"GAN_epoch_{epoch}.png"))
+    with torch.no_grad():
+        sr = generator(base_image)
+        vutils.save_image(sr.detach(), os.path.join("runs", f"GAN_epoch_{epoch}.png"), normalize=True)
 
 
 if __name__ == "__main__":
@@ -607,8 +606,8 @@ if __name__ == "__main__":
     create_folder("weights")
 
     logger.info("TrainingEngine:")
-    print("\tAPI version .......... 0.1.2")
-    print("\tBuild ................ 2021.05.24")
+    print("\tAPI version .......... 0.1.4")
+    print("\tBuild ................ 2021.05.25")
     print("##################################################\n")
     main()
     logger.info("All training has been completed successfully.\n")

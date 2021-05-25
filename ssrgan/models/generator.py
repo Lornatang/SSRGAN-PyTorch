@@ -11,8 +11,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import math
-
 import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
@@ -57,13 +55,6 @@ class DepthWise(nn.Module):
 
         # Project.
         self.pointwise_linear = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Expansion convolution
@@ -135,13 +126,6 @@ class InceptionX(nn.Module):
         self.conv = nn.Conv2d(4 * branch_features, channels, kernel_size=1, stride=1, padding=0)
         self.mish = Mish()
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shortcut = self.shortcut(x)
 
@@ -191,13 +175,6 @@ class Symmetric(nn.Module):
             nn.Conv2d(channels // 2, channels, kernel_size=3, stride=1, padding=1)
         )
 
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight)
-                m.weight.data *= 0.1
-                if m.bias is not None:
-                    m.bias.data.zero_()
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Down-sampling layer.
         out = self.down_sampling_layer(x)
@@ -232,16 +209,8 @@ class SubpixelConvolutionLayer(nn.Module):
 class Generator(nn.Module):
     r""" It is mainly based on the mobile net network as the backbone network generator"""
 
-    def __init__(self, upscale_factor: int = 4) -> None:
-        r"""
-
-        Args:
-            upscale_factor (int): How many times to upscale the picture. (Default: 4)
-        """
+    def __init__(self) -> None:
         super(Generator, self).__init__()
-        # Calculating the number of subpixel convolution layers.
-        num_subpixel_convolution_layers = int(math.log(upscale_factor, 2))
-
         # First layer
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
 
@@ -269,7 +238,7 @@ class Generator(nn.Module):
 
         # Sub-pixel convolution layers.
         subpixel_conv_layers = []
-        for _ in range(num_subpixel_convolution_layers):
+        for _ in range(2):
             subpixel_conv_layers.append(SubpixelConvolutionLayer(32))
         self.subpixel_conv = nn.Sequential(*subpixel_conv_layers)
 
@@ -281,6 +250,9 @@ class Generator(nn.Module):
 
         # Final output layer.
         self.conv3 = nn.Conv2d(32, 3, kernel_size=3, stride=1, padding=1)
+
+        # Initializing all neural network weights.
+        self._initialize_weights()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         conv1 = self.conv1(x)
@@ -300,23 +272,41 @@ class Generator(nn.Module):
         out = self.subpixel_conv(out)
         out = self.conv2(out)
         out = self.conv3(out)
+        out = torch.tanh(out)
 
         return out
 
+    def _initialize_weights(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
-def _gan(arch: str, upscale_factor: int, pretrained: bool, progress: bool) -> Generator:
+
+def _gan(arch: str, pretrained: bool, progress: bool) -> Generator:
     r""" Used to create GAN model.
 
     Args:
         arch (str): GAN model architecture name.
-        upscale_factor (int): How many times to upscale the picture.
         pretrained (bool): If True, returns a model pre-trained on ImageNet.
         progress (bool): If True, displays a progress bar of the download to stderr.
 
     Returns:
         Generator model.
     """
-    model = Generator(upscale_factor)
+    model = Generator()
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch], progress=progress, map_location=torch.device("cpu"))
         model.load_state_dict(state_dict)
@@ -330,4 +320,4 @@ def pmigan(pretrained: bool = False, progress: bool = True) -> Generator:
         pretrained (bool): If True, returns a model pre-trained on ImageNet.
         progress (bool): If True, displays a progress bar of the download to stderr.
     """
-    return _gan("exp", 4, pretrained, progress)
+    return _gan("pmigan", pretrained, progress)

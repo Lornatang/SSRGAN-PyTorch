@@ -27,7 +27,7 @@ URL = "https://github.com/Lornatang/SSRGAN"
 EMAIL = "liu_changyu@dakewe.com"
 AUTHOR = "Liu Goodfellow"
 REQUIRES_PYTHON = ">=3.8.0"
-VERSION = "0.1.0"
+VERSION = "0.1.4"
 
 # Libraries that must be installed.
 REQUIRED = [

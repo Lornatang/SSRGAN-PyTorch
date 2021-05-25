@@ -66,12 +66,33 @@ class DiscriminatorForVGG(nn.Module):
             nn.Linear(image_size, 1)
         )
 
+        # Initializing all neural network weights.
+        self._initialize_weights()
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.features(x)
         out = torch.flatten(out, 1)
         out = self.classifier(out)
 
         return out
+
+    def _initialize_weights(self) -> None:
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                m.weight.data *= 0.1
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
 
 def discriminator_for_vgg(image_size: int = 216) -> DiscriminatorForVGG:
