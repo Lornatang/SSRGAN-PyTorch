@@ -18,6 +18,7 @@ import os
 import cv2
 import numpy as np
 
+# It is a convenient method for simple scripts to configure the log package at one time.
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
