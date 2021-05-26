@@ -157,6 +157,10 @@ class ContentLoss(torch.nn.Module):
         source = (source + 1) / 2
         target = (target + 1) / 2
 
+        # Keep all parameters in same device.
+        self.mean = self.mean.cuda(source.device)
+        self.std = self.std.cuda(source.device)
+
         # Normalize the all input image.
         source = (source - self.mean) / self.std
         target = (target - self.mean) / self.std
@@ -204,6 +208,10 @@ class LPIPSLoss(torch.nn.Module):
         source = (source + 1) / 2
         target = (target + 1) / 2
 
+        # Keep all parameters in same device.
+        self.mean = self.mean.cuda(source.device)
+        self.std = self.std.cuda(source.device)
+
         # Normalize the input image. Default: `ImageNet` dataset.
         source = (source - self.mean) / self.std
         target = (target - self.mean) / self.std
@@ -212,9 +220,3 @@ class LPIPSLoss(torch.nn.Module):
         loss = torch.nn.functional.l1_loss(self.features(source), self.features(target))
 
         return loss
-
-# charbonnier_loss = CharbonnierLoss()
-# inputs = torch.randn(1, 3, 224, 224)
-# target = torch.randn(1, 3, 224, 224)
-# loss = charbonnier_loss(inputs, target)
-# print(loss)
