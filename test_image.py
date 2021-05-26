@@ -36,37 +36,11 @@ model_names = sorted(name for name in models.__dict__ if name.islower() and not 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
-                    choices=model_names,
-                    help="Model architecture: " +
-                         " | ".join(model_names) +
-                         ". (Default: `pmigan`)")
-parser.add_argument("--lr", type=str, required=True,
-                    help="Test low resolution image name.")
-parser.add_argument("--hr", type=str,
-                    help="Raw high resolution image name.")
-parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
-                    help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
-parser.add_argument("--model-path", default="", type=str, metavar="PATH",
-                    help="Path to latest checkpoint for model. (Default: ``)")
-parser.add_argument("--pretrained", dest="pretrained", action="store_true",
-                    help="Use pre-trained model.")
-parser.add_argument("--seed", default=666, type=int,
-                    help="Seed for initializing training. (Default: 666)")
-parser.add_argument("--gpu", default=None, type=int,
-                    help="GPU id to use.")
 
-
-def main():
-    # Command line argument parsing methods.
-    args = parser.parse_args()
-
+def main(args):
     # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
     random.seed(args.seed)
     torch.manual_seed(args.seed)
-    # Ensure that every time the same input returns the same result.
-    cudnn.deterministic = True
 
     # Build a super-resolution model, if model_ If path is defined, the specified model weight will be loaded.
     model = configure(args)
@@ -82,6 +56,8 @@ def main():
         # Setting this flag allows the built-in auto tuner of cudnn to automatically find the most efficient algorithm suitable
         # for the current configuration, so as to optimize the operation efficiency.
         cudnn.benchmark = True
+        # Ensure that every time the same input returns the same result.
+        cudnn.deterministic = True
 
     # Get image filename.
     filename = os.path.basename(args.lr)
@@ -126,15 +102,37 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
+                        choices=model_names,
+                        help="Model architecture: " +
+                             " | ".join(model_names) +
+                             ". (Default: `pmigan`)")
+    parser.add_argument("--lr", type=str, required=True,
+                        help="Test low resolution image name.")
+    parser.add_argument("--hr", type=str,
+                        help="Raw high resolution image name.")
+    parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
+                        help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
+    parser.add_argument("--model-path", default="", type=str, metavar="PATH",
+                        help="Path to latest checkpoint for model. (Default: ``)")
+    parser.add_argument("--pretrained", dest="pretrained", action="store_true",
+                        help="Use pre-trained model.")
+    parser.add_argument("--seed", default=666, type=int,
+                        help="Seed for initializing training. (Default: 666)")
+    parser.add_argument("--gpu", default=None, type=int,
+                        help="GPU id to use.")
+    args = parser.parse_args()
+
     print("##################################################\n")
     print("Run Testing Engine.\n")
 
     create_folder("tests")
 
-    logger.info("TestingEngine:")
+    logger.info("TestEngine:")
     print("\tAPI version .......... 0.1.4")
     print("\tBuild ................ 2021.05.26")
     print("##################################################\n")
-    main()
+    main(args)
 
     logger.info("Test single image performance evaluation completed successfully.\n")
