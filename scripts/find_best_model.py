@@ -86,8 +86,8 @@ def main_worker(gpu, args):
         logger.warning("Using CPU, this will be slow.")
 
     # Read all pictures.
-    lr = process_image(Image.open(args.lr), args.gpu)
-    hr = process_image(Image.open(args.hr), args.gpu)
+    lr = process_image(Image.open(args.lr), norm=False, gpu=args.gpu)
+    hr = process_image(Image.open(args.hr), norm=True, gpu=args.gpu)
 
     model_paths = glob(os.path.join(f"{args.model_dir}", "Generator_epoch*.pth"))
     best_model = model_paths[0]

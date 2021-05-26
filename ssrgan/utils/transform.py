@@ -60,18 +60,34 @@ def pil2opencv(image: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
     return image
 
 
-def process_image(image: PIL.BmpImagePlugin.BmpImageFile, gpu: int = None) -> torch.Tensor:
-    """ PIL.Image Convert to PyTorch format.
+def process_image(image: PIL, norm: bool = False, gpu: int = None) -> torch.Tensor:
+    """ RGB data convert to tensor data(PyTorch format).
 
     Args:
-        image (PIL.BmpImagePlugin.BmpImageFile): File read by PIL.Image.
-        gpu (int): Graphics card model.
+        image (image): File read by PIL.Image.
+        norm (bool): Is it necessary to normalize the input to [-1, 1]. (Default: `False`)
+        gpu (int): Graphics card index.
+
+    Examples:
+        >>> tensor_image = process_image(Image.open("lena.png"), norm=True, gpu=1)
 
     Returns:
         torch.Tensor.
     """
-    tensor = transforms.ToTensor()(image)
-    input_tensor = tensor.unsqueeze(0)
+    # If set to `True`, the input scaling is normalized to between [-1, 1].
+    if norm:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        ])
+    else:
+        transform = transforms.ToTensor()
+
+    # Convert C*H*W data to N*C*H*W data. Example: (3, 64, 64) -> (1, 3, 64, 64).
+    tensor = transform(image).unsqueeze(0)
+
+    # If the GPU model is specified, the data will be transferred to the GPU, otherwise it will be processed on the CPU.
     if gpu is not None:
-        input_tensor = input_tensor.cuda(gpu, non_blocking=True)
-    return input_tensor
+        tensor = tensor.cuda(gpu, non_blocking=True)
+
+    return tensor

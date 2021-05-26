@@ -212,7 +212,7 @@ def main_worker(gpu, ngpus_per_node, args):
             discriminator = torch.nn.DataParallel(discriminator).cuda()
             generator = torch.nn.DataParallel(generator).cuda()
 
-    # Loss = 0.05 * pixel loss + 1.2 * content loss + 0.001 * adversarial loss + 0.01 * lpips loss
+    # Loss = 0.01 * pixel loss + 1.0 * content loss + 0.005 * adversarial loss + 0.00 * lpips loss
     pixel_criterion = nn.L1Loss().cuda(args.gpu)
     content_criterion = VGGLoss().cuda(args.gpu)
     adversarial_criterion = nn.BCEWithLogitsLoss().cuda(args.gpu)
@@ -562,7 +562,7 @@ def train_gan(dataloader: torch.utils.data.DataLoader,
         # Loss of perceived quality of image.
         lpips_loss = lpips_criterion(sr, hr.detach())
         # Count all generator losses.
-        g_loss = 0.01 * pixel_loss + 1.2 * content_loss + 0.005 * adversarial_loss + 0.00 * lpips_loss
+        g_loss = 0.01 * pixel_loss + 1.0 * content_loss + 0.005 * adversarial_loss + 0.00 * lpips_loss
         g_loss.backward()
 
         # Update generator model parameters.

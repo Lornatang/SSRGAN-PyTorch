@@ -162,6 +162,8 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         lr = self.transforms(lr)
         hr = self.transforms(hr)
 
+        hr = self.normalize(hr)
+
         return lr, hr
 
     def __len__(self):

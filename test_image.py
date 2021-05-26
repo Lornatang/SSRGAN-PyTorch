@@ -18,8 +18,6 @@ import random
 
 import torch
 import torch.backends.cudnn as cudnn
-import torch.optim
-import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from PIL import Image
@@ -31,12 +29,14 @@ from ssrgan.utils.common import create_folder
 from ssrgan.utils.estimate import iqa
 from ssrgan.utils.transform import process_image
 
+# Find all available models.
 model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
 
+# It is a convenient method for simple scripts to configure the log package at one time.
 logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
-parser = argparse.ArgumentParser("Research on the technology of digital pathological image super-resolution.")
+parser = argparse.ArgumentParser()
 parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
                     choices=model_names,
                     help="Model architecture: " +
@@ -59,51 +59,51 @@ parser.add_argument("--gpu", default=None, type=int,
 
 
 def main():
+    # Command line argument parsing methods.
     args = parser.parse_args()
 
+    # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
     random.seed(args.seed)
     torch.manual_seed(args.seed)
+    # Ensure that every time the same input returns the same result.
     cudnn.deterministic = True
 
-    main_worker(args.gpu, args)
-
-
-def main_worker(gpu, args):
-    args.gpu = gpu
-
-    if args.gpu is not None:
-        logger.info(f"Use GPU: {args.gpu} for testing.")
-
+    # Build a super-resolution model, if model_ If path is defined, the specified model weight will be loaded.
     model = configure(args)
+    # Switch model to eval mode.
+    model.eval()
 
+    # If the GPU is available, load the model into the GPU memory. This speed.
     if not torch.cuda.is_available():
         logger.warning("Using CPU, this will be slow.")
     if args.gpu is not None:
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
-
-    # Set eval mode.
-    model.eval()
-
-    cudnn.benchmark = True
+        # Setting this flag allows the built-in auto tuner of cudnn to automatically find the most efficient algorithm suitable
+        # for the current configuration, so as to optimize the operation efficiency.
+        cudnn.benchmark = True
 
     # Get image filename.
     filename = os.path.basename(args.lr)
 
-    # Read all pictures.
+    # Read the low resolution image and enlarge the low resolution image with bicubic method.
+    # The purpose of bicubic method is to compare the reconstruction results.
     lr = Image.open(args.lr)
     bicubic = transforms.Resize((lr.size[1] * args.upscale_factor, lr.size[0] * args.upscale_factor), InterpolationMode.BICUBIC)(lr)
-    lr = process_image(lr, args.gpu)
-    bicubic = process_image(bicubic, args.gpu)
+    bicubic = process_image(bicubic, norm=True, gpu=args.gpu)
 
+    # It only needs to reconstruct the low resolution image without the gradient information of the reconstructed image.
     with torch.no_grad():
         sr = model(lr)
 
+    # If there is a reference image, a series of evaluation indexes will be output.
     if args.hr:
-        hr = process_image(Image.open(args.hr), args.gpu)
-        vutils.save_image(hr, os.path.join("tests", f"hr_{filename}"))
+        hr = process_image(Image.open(args.hr), norm=True, gpu=args.gpu)
+        vutils.save_image(hr, os.path.join("tests", f"hr_{filename}"), normalize=True)
+        # Merge three images into one line for visualization.
         images = torch.cat([bicubic, sr, hr], dim=-1)
 
+        # The reconstructed image and the reference image are evaluated once.
         value = iqa(sr, hr, args.gpu)
         print(f"Performance avg results:\n")
         print(f"indicator Score\n")
@@ -112,15 +112,16 @@ def main_worker(gpu, args):
               f"RMSE      {value[1]:6.4f}\n"
               f"PSNR      {value[2]:6.2f}\n"
               f"SSIM      {value[3]:6.4f}\n"
-              f"LPIPS     {value[4]:6.4f}\n"
-              f"GMSD      {value[5]:6.4f}\n")
+              f"GMSD      {value[4]:6.4f}\n")
     else:
+        # Merge two images into one line for visualization.
         images = torch.cat([bicubic, sr], dim=-1)
 
+    # Save a series of reconstruction results.
     vutils.save_image(lr, os.path.join("tests", f"lr_{filename}"))
-    vutils.save_image(bicubic, os.path.join("tests", f"bicubic_{filename}"))
-    vutils.save_image(sr, os.path.join("tests", f"sr_{filename}"))
-    vutils.save_image(images, os.path.join("tests", f"compare_{filename}"), padding=10)
+    vutils.save_image(bicubic, os.path.join("tests", f"bicubic_{filename}"), normalize=True)
+    vutils.save_image(sr, os.path.join("tests", f"sr_{filename}"), normalize=True)
+    vutils.save_image(images, os.path.join("tests", f"compare_{filename}"), padding=10, normalize=True)
 
 
 if __name__ == "__main__":
@@ -130,8 +131,8 @@ if __name__ == "__main__":
     create_folder("tests")
 
     logger.info("TestingEngine:")
-    print("\tAPI version .......... 0.1.2")
-    print("\tBuild ................ 2021.05.24")
+    print("\tAPI version .......... 0.1.4")
+    print("\tBuild ................ 2021.05.26")
     print("##################################################\n")
     main()
 

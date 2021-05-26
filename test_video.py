@@ -113,7 +113,7 @@ def main_worker(gpu, args):
         for _ in progress_bar:
             if success:
                 # Read image to tensor and transfer to the specified device for processing.
-                lr = process_image(raw_frame, args.gpu)
+                lr = process_image(raw_frame, norm=False, gpu=args.gpu)
 
                 sr = model(lr)
 

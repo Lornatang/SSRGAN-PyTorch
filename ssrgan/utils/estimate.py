@@ -25,20 +25,18 @@ __all__ = [
 ]
 
 
-def iqa(source: torch.Tensor, target: torch.Tensor, gpu: int) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+def iqa(source: torch.Tensor, target: torch.Tensor, gpu: int) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Image quality evaluation function.
 
     Args:
-        source (torch.Tensor): Original tensor picture.
-        target (torch.Tensor): Target tensor picture.
+        source (torch.Tensor): Original tensor image data.
+        target (torch.Tensor): Target tensor image data.
         gpu (int): Graphics card index.
 
     Returns:
-        MSE, RMSE, PSNR, SSIM, LPIPS, GMSD.
+        MSE, RMSE, PSNR, SSIM, GMSD.
     """
     mse_loss = nn.MSELoss().cuda(gpu).eval()
-    # Reference sources from https://github.com/richzhang/PerceptualSimilarity
-    lpips_loss = LPIPS(gpu).cuda(gpu).eval()
     # Reference sources from https://github.com/dingkeyan93/IQA-optimization/blob/master/IQA_pytorch/SSIM.py
     ssim_loss = SSIM().cuda(gpu).eval()
     # Reference sources from http://www4.comp.polyu.edu.hk/~cslzhang/IQA/GMSD/GMSD.htm
@@ -54,10 +52,9 @@ def iqa(source: torch.Tensor, target: torch.Tensor, gpu: int) -> [torch.Tensor, 
         rmse_value = torch.sqrt(mse_value)
         psnr_value = 10 * torch.log10(1. / mse_value)
         ssim_value = ssim_loss(source, target)
-        lpips_value = lpips_loss(source, target)
         gmsd_value = gmsd_loss(source, target)
 
-    return mse_value, rmse_value, psnr_value, ssim_value, lpips_value, gmsd_value
+    return mse_value, rmse_value, psnr_value, ssim_value, gmsd_value
 
 
 def test(dataloader: torch.utils.data.DataLoader, model: nn.Module, gpu: int) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
