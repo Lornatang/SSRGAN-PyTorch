@@ -106,7 +106,6 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", default=128, type=int, metavar="N",
                         help="In order to ensure the fairness test, many experiments are carried out. (Default: 128)")
     parser.add_argument("--gpu", default=None, type=int, metavar="N", help="GPU id to use.")
-
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
