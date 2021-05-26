@@ -11,18 +11,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-from .esrgan import *
+from .esrgan import esrgan16
+from .esrgan import esrgan23
 # from .exp import *
-from .generator import *
+from .generator import pmigan
 # from .inception import *
 # from .lapsrn import *
 # from .mobilenetv1 import *
 # from .mobilenetv2 import *
 # from .mobilenetv3 import *
 # from .rcan import *
-from .rfb_esrgan import *
+from .rfb_esrgan import rfb
+from .rfb_esrgan import rfb_4x4
 # from .shufflenetv1 import *
 # from .shufflenetv2 import *
 # from .squeezenet import *
-from .srgan import *
+from .srgan import srgan
 # from .u_net import *
