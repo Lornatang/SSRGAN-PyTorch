@@ -83,7 +83,7 @@ def main(args):
         # The reconstructed image and the reference image are evaluated once.
         value = iqa(sr, hr, args.gpu)
         print(f"Performance avg results:\n")
-        print(f"indicator Score\n")
+        print(f"Indicator score\n")
         print(f"--------- -----\n")
         print(f"MSE       {value[0]:6.4f}\n"
               f"RMSE      {value[1]:6.4f}\n"
