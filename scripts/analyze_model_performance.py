@@ -81,9 +81,12 @@ if __name__ == "__main__":
                         help="Model architecture: " +
                              " | ".join(model_names) +
                              ". (Default: `pmigan`)")
-    parser.add_argument("-i", "--image-size", type=int, default=54, help="Image size of low-resolution. (Default: 54)")
-    parser.add_argument("--seed", default=666, type=int, help="Seed for initializing training. (Default: 666)")
-    parser.add_argument("--gpu", default=None, type=int, help="GPU id to use.")
+    parser.add_argument("-i", "--image-size", type=int, default=54,
+                        help="Image size of low-resolution. (Default: 54)")
+    parser.add_argument("--seed", default=666, type=int,
+                        help="Seed for initializing training. (Default: 666)")
+    parser.add_argument("--gpu", default=None, type=int,
+                        help="GPU id to use.")
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")

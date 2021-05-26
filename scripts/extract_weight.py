@@ -50,8 +50,10 @@ if __name__ == "__main__":
                         help="Model architecture: " +
                              " | ".join(model_names) +
                              ". (Default: `pmigan`)")
-    parser.add_argument("--model-path", type=str, metavar="PATH", required=True, help="Path to latest checkpoint for model.")
-    parser.add_argument("--seed", default=666, type=int, help="Seed for initializing training. (Default: 666)")
+    parser.add_argument("--model-path", type=str, metavar="PATH", required=True,
+                        help="Path to latest checkpoint for model.")
+    parser.add_argument("--seed", default=666, type=int,
+                        help="Seed for initializing training. (Default: 666)")
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
