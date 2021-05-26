@@ -12,51 +12,65 @@
 # limitations under the License.
 # ==============================================================================
 import argparse
+import logging
 import os
 
 import cv2
 import numpy as np
 
-parser = argparse.ArgumentParser()
-parser.add_argument("data", metavar="DIR", help="Path to dataset.")
-args = parser.parse_args()
+logger = logging.getLogger(__name__)
+logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
-# Initializes the mean, standard deviation, and file of the dataset.
-mean = [0., 0., 0.]
-std = [0., 0., 0.]
 
-# To ensure the correctness, the absolute path of the dataset is obtained.
-dataset_path = os.path.abspath(args.data)
+def main(args):
+    # Initializes the mean, standard deviation, and file of the dataset.
+    mean = [0., 0., 0.]
+    std = [0., 0., 0.]
 
-# Initializes the number of pictures in the dataset.
-num_images = 0
+    # To ensure the correctness, the absolute path of the dataset is obtained.
+    dataset_path = os.path.abspath(args.data)
 
-# Get all folder information in the dataset.
-for dataset_dir in os.listdir(dataset_path):
-    # Gets the absolute address of the folder in the dataset.
-    image_dir = os.path.join(dataset_path, dataset_dir)
-    # Traverse all image files under file.
-    for file in os.listdir(image_dir):
-        # Get the absolute address of the image.
-        filename = os.path.join(image_dir, file)
-        print(f"Process `{filename}`.")
-        # Caution: OpenCV read operator is BGR image data!
-        image = cv2.imread(filename)
-        # Convert image data to [0, 1].
-        image = image.astype(np.float32) / 255.
-        # Calculate the mean and variance of the three channels in turn.
-        for i in range(3):
-            mean[i] += image[:, :, i].mean()
-            std[i] += image[:, :, i].std()
-        # Calculate the number of pictures in the dataset.
-        num_images += 1
+    # Initializes the number of pictures in the dataset.
+    num_images = 0
 
-# What we get is the mean and variance of BGR format, which needs to be converted to the mean and variance of RGB format.
-mean.reverse()
-std.reverse()
+    # Get all folder information in the dataset.
+    for dataset_dir in os.listdir(dataset_path):
+        # Gets the absolute address of the folder in the dataset.
+        image_dir = os.path.join(dataset_path, dataset_dir)
+        # Traverse all image files under file.
+        for file in os.listdir(image_dir):
+            # Get the absolute address of the image.
+            filename = os.path.join(image_dir, file)
+            logger.info(f"Process `{filename}`.")
+            # Caution: OpenCV read operator is BGR image data!
+            image = cv2.imread(filename)
+            # Convert image data to [0, 1].
+            image = image.astype(np.float32) / 255.
+            # Calculate the mean and variance of the three channels in turn.
+            for i in range(3):
+                mean[i] += image[:, :, i].mean()
+                std[i] += image[:, :, i].std()
+            # Calculate the number of pictures in the dataset.
+            num_images += 1
 
-# Calculate the mean and variance of datasets.
-mean = np.asarray(mean) / num_images
-std = np.asarray(std) / num_images
+    # What we get is the mean and variance of BGR format, which needs to be converted to the mean and variance of RGB format.
+    mean.reverse()
+    std.reverse()
 
-print(f"\nmean=[{mean[0]:.4f}, {mean[1]:.4f}, {mean[2]:.4f}], std=[{std[0]:.4f}, {std[1]:.4f}, {std[2]:.4f}].")
+    # Calculate the mean and variance of datasets.
+    mean = np.asarray(mean) / num_images
+    std = np.asarray(std) / num_images
+
+    print(f"\nmean=[{mean[0]:.4f}, {mean[1]:.4f}, {mean[2]:.4f}], std=[{std[0]:.4f}, {std[1]:.4f}, {std[2]:.4f}].")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("data", metavar="DIR", help="Path to dataset.")
+    args = parser.parse_args()
+
+    logger.info("ScriptEngine:")
+    logger.info("\tAPI version .......... 0.1.4")
+    logger.info("\tBuild ................ 2021.05.26\n")
+
+    main(args)
