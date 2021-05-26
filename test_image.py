@@ -90,6 +90,7 @@ def main():
     # The purpose of bicubic method is to compare the reconstruction results.
     lr = Image.open(args.lr)
     bicubic = transforms.Resize((lr.size[1] * args.upscale_factor, lr.size[0] * args.upscale_factor), InterpolationMode.BICUBIC)(lr)
+    lr = process_image(lr, norm=False, gpu=args.gpu)
     bicubic = process_image(bicubic, norm=True, gpu=args.gpu)
 
     # It only needs to reconstruct the low resolution image without the gradient information of the reconstructed image.
