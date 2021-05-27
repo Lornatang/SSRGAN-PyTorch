@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
 
-def main(args):
+def main(args) -> None:
     # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
     random.seed(args.seed)
     torch.manual_seed(args.seed)

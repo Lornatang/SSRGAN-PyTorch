@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
 
-def main(args):
+def main(args) -> None:
     # Initializes the mean, standard deviation, and file of the dataset.
     mean = [0., 0., 0.]
     std = [0., 0., 0.]

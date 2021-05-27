@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 
-def inference(arch, cpu_data, cuda_data, args):
+def inference(arch, cpu_data, cuda_data, args) -> [float, float, float, float]:
     logger.info(f"Use `{arch}` model start testing...")
     # Build a super-resolution model, if model_ If path is defined, the specified model weight will be loaded.
     cpu_model = models.__dict__[arch]()
@@ -74,7 +74,7 @@ def inference(arch, cpu_data, cuda_data, args):
     return params, flops, cpu_speed, cuda_speed
 
 
-def main(args):
+def main(args) -> None:
     # For visual table analysis.
     table = prettytable.PrettyTable()
 
