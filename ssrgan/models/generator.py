@@ -65,7 +65,6 @@ class DepthWise(nn.Module):
         out = self.squeeze_excitation(out)
         # Projection convolution
         out = self.pointwise_linear(out)
-
         # residual shortcut.
         out = torch.add(out, x)
 
@@ -133,12 +132,12 @@ class InceptionX(nn.Module):
         branch2 = self.branch2(x)
         branch3 = self.branch3(x)
         branch4 = self.branch4(x)
-
         out = torch.cat([branch1, branch2, branch3, branch4], dim=1)
-        out = self.conv(out)
 
-        # residual scale shortcut + mish activation
-        out = self.mish(torch.add(out * 0.1, shortcut))
+        out = self.conv(out)
+        # Residual scale shortcut + mish activation.
+        out = torch.add(out * 0.1, shortcut)
+        out = self.mish(out)
 
         return out
 
@@ -180,7 +179,6 @@ class Symmetric(nn.Module):
         out = self.down_sampling_layer(x)
         # Up-sampling layer.
         out = self.up_sampling_layer(out)
-
         # residual shortcut.
         out = torch.add(out, x)
 
@@ -214,21 +212,19 @@ class Generator(nn.Module):
         # First layer
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
 
+        # Four trunk layer.
         self.trunk_a = nn.Sequential(
             DepthWise(32),
             DepthWise(32)
         )
-
         self.trunk_b = nn.Sequential(
             Symmetric(32),
             Symmetric(32)
         )
-
         self.trunk_c = nn.Sequential(
             DepthWise(32),
             DepthWise(32)
         )
-
         self.trunk_d = nn.Sequential(
             InceptionX(32),
             InceptionX(32)
@@ -237,10 +233,10 @@ class Generator(nn.Module):
         self.symmetric_conv = Symmetric(32)
 
         # Sub-pixel convolution layers.
-        subpixel_conv_layers = []
-        for _ in range(2):
-            subpixel_conv_layers.append(SubpixelConvolutionLayer(32))
-        self.subpixel_conv = nn.Sequential(*subpixel_conv_layers)
+        self.subpixel_conv = nn.Sequential(
+            SubpixelConvolutionLayer(32),
+            SubpixelConvolutionLayer(32)
+        )
 
         # Next conv layer
         self.conv2 = nn.Sequential(
