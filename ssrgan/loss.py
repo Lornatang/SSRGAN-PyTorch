@@ -148,7 +148,7 @@ class ContentLoss(torch.nn.Module):
         self.feature_extraction = torch.nn.Sequential(*list(model.features.children())[:35]).eval()
 
         # Freeze model all parameters. Don't train.
-        for name, parameters in self.feature_extract.named_parameters():
+        for name, parameters in self.feature_extraction.named_parameters():
             parameters.requires_grad = False
 
     def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:

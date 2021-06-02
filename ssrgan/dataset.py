@@ -21,7 +21,8 @@ from torchvision.transforms import InterpolationMode
 
 from .utils.common import check_image_file
 from .utils.data_augmentation import random_horizontally_flip
-from .utils.data_augmentation import rotate
+from .utils.data_augmentation import random_vertically_flip
+from .utils.data_augmentation import random_rotate
 
 __all__ = [
     "BaseTrainDataset", "BaseTestDataset",
@@ -127,21 +128,33 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
 
 
 class CustomTrainDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, sampler_frequency: int = 1):
-        r"""
-        Args:
-            root (str): The directory address where the data image is stored.
-            sampler_frequency (int): If there are many datasets, this method can be used to increase the number of epochs. (Default: 1)
-        """
+    r"""
+
+    Args:
+        root (str): The directory address where the data image is stored.
+        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
+        upscale_factor (optional, int): Image magnification. (Default: 4)
+        use_da (optional, bool): Do you want to use data enhancement for training dataset. (Default: `True`)
+    """
+
+    def __init__(self, root: str, image_size: int = 216, upscale_factor: int = 4, use_da: bool = False) -> None:
         super(CustomTrainDataset, self).__init__()
+        self.use_da = use_da
         lr_dir = os.path.join(root, "input")
         hr_dir = os.path.join(root, "target")
         self.filenames = os.listdir(lr_dir)
-        self.sampler_filenames = random.sample(self.filenames, len(self.filenames) // sampler_frequency)
-        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
-        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
+        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.filenames if check_image_file(x)]
+        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.filenames if check_image_file(x)]
 
-        self.transforms = transforms.ToTensor()
+        self.lr_transforms = transforms.Compose([
+            transforms.CenterCrop((image_size // upscale_factor, image_size // upscale_factor)),
+            transforms.ToTensor()
+        ])
+        self.hr_transforms = transforms.Compose([
+            transforms.CenterCrop((image_size, image_size)),
+            transforms.ToTensor()
+        ])
+
         self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 
     def __getitem__(self, index):
@@ -156,40 +169,50 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         lr = Image.open(self.lr_filenames[index]).convert("RGB")
         hr = Image.open(self.hr_filenames[index]).convert("RGB")
 
-        lr, hr = random_horizontally_flip(lr, hr)
-        lr, hr = rotate(lr, hr, degrees=90)
+        if self.use_da:
+            lr, hr = random_horizontally_flip(lr, hr)
+            lr, hr = random_vertically_flip(lr, hr)
+            lr, hr = random_rotate(lr, hr)
 
-        lr = self.transforms(lr)
-        hr = self.transforms(hr)
+        lr = self.lr_transforms(lr)
+        hr = self.hr_transforms(hr)
 
         hr = self.normalize(hr)
 
         return lr, hr
 
     def __len__(self):
-        return len(self.sampler_filenames)
+        return len(self.filenames)
 
 
 class CustomTestDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, image_size: int = 216, sampler_frequency: int = 1):
-        r"""
-        Args:
-            root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
-            sampler_frequency (list): If there are many datasets, this method can be used to increase the number of epochs. (Default: 1)
-        """
+    r"""
+
+    Args:
+        root (str): The directory address where the data image is stored.
+        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
+        upscale_factor (optional, int): Image magnification. (Default: 4)
+    """
+
+    def __init__(self, root: str, image_size: int = 216, upscale_factor: int = 4) -> None:
         super(CustomTestDataset, self).__init__()
         lr_dir = os.path.join(root, "input")
         hr_dir = os.path.join(root, "target")
         self.filenames = os.listdir(lr_dir)
-        self.sampler_filenames = random.sample(self.filenames, len(self.filenames) // sampler_frequency)
-        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
-        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
+        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.filenames if check_image_file(x)]
+        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.filenames if check_image_file(x)]
 
-        self.transforms = transforms.ToTensor()
+        self.lr_transforms = transforms.Compose([
+            transforms.CenterCrop((image_size // upscale_factor, image_size // upscale_factor)),
+            transforms.ToTensor()
+        ])
         self.bicubic_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize((image_size, image_size)),
+            transforms.ToTensor()
+        ])
+        self.hr_transforms = transforms.Compose([
+            transforms.CenterCrop((image_size, image_size)),
             transforms.ToTensor()
         ])
         self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
@@ -206,9 +229,9 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         lr = Image.open(self.lr_filenames[index]).convert("RGB")
         hr = Image.open(self.hr_filenames[index]).convert("RGB")
 
-        lr = self.transforms(lr)
+        lr = self.lr_transforms(lr)
         bicubic = self.bicubic_transforms(lr)
-        hr = self.transforms(hr)
+        hr = self.hr_transforms(hr)
 
         bicubic = self.normalize(bicubic)
         hr = self.normalize(hr)
@@ -216,4 +239,4 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
         return lr, bicubic, hr
 
     def __len__(self):
-        return len(self.sampler_filenames)
+        return len(self.filenames)
