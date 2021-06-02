@@ -22,12 +22,12 @@ from setuptools import setup
 
 # Configure library params.
 NAME = "ssrgan"
-DESCRIPTION = "Research on the technology of digital pathological image super-resolution."
+DESCRIPTION = "Research on the technology of GAN."
 URL = "https://github.com/Lornatang/SSRGAN"
 EMAIL = "liu_changyu@dakewe.com"
 AUTHOR = "Liu Goodfellow"
 REQUIRES_PYTHON = ">=3.8.0"
-VERSION = "0.1.4"
+VERSION = "0.2.0"
 
 # Libraries that must be installed.
 REQUIRED = [

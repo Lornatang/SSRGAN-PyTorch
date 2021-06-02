@@ -62,7 +62,7 @@ def save_images(raw_filename, image_list) -> None:
 
 if __name__ == "__main__":
     logger.info("ScriptEngine:")
-    logger.info("\tAPI version .......... 0.1.4")
-    logger.info("\tBuild ................ 2021.05.26\n")
+    logger.info("\tAPI version .......... 0.2.0")
+    logger.info("\tBuild ................ 2021.06.02\n")
 
     main()

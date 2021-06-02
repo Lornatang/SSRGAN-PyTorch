@@ -17,7 +17,6 @@ import torch.utils.data
 from tqdm import tqdm
 
 from .image_quality_assessment import GMSD
-from .image_quality_assessment import LPIPS
 from .image_quality_assessment import SSIM
 
 __all__ = [
@@ -61,8 +60,6 @@ def test(dataloader: torch.utils.data.DataLoader, model: nn.Module, gpu: int) ->
     mse_loss = nn.MSELoss().cuda(gpu).eval()
     # Reference sources from https://hub.fastgit.org/dingkeyan93/IQA-optimization/blob/master/IQA_pytorch/SSIM.py
     ssim_loss = SSIM().cuda(gpu).eval()
-    # Reference sources from https://github.com/richzhang/PerceptualSimilarity
-    lpips_loss = LPIPS(gpu).cuda(gpu).eval()
     # Reference sources from http://www4.comp.polyu.edu.hk/~cslzhang/IQA/GMSD/GMSD.htm
     gmsd_loss = GMSD().cuda(gpu).eval()
 
@@ -72,7 +69,6 @@ def test(dataloader: torch.utils.data.DataLoader, model: nn.Module, gpu: int) ->
     progress_bar = tqdm(enumerate(dataloader), total=len(dataloader))
     total_psnr_value = 0.
     total_ssim_value = 0.
-    total_lpips_value = 0.
     total_gmsd_value = 0.
     total = len(dataloader)
 
@@ -94,16 +90,11 @@ def test(dataloader: torch.utils.data.DataLoader, model: nn.Module, gpu: int) ->
             total_psnr_value += 10 * torch.log10(1. / mse_loss(sr, hr))
             # The SSIM of the generated fake high-resolution image and real high-resolution image is calculated.
             total_ssim_value += ssim_loss(sr, hr)
-            # The LPIPS of the generated fake high-resolution image and real high-resolution image is calculated.
-            total_lpips_value += lpips_loss(sr, hr)
             # The GMSD of the generated fake high-resolution image and real high-resolution image is calculated.
             total_gmsd_value += gmsd_loss(sr, hr)
 
             progress_bar.set_description(f"PSNR: {total_psnr_value / (i + 1):.2f} "
                                          f"SSIM: {total_ssim_value / (i + 1):.4f} "
-                                         f"LPIPS: {total_lpips_value / (i + 1):.4f} "
                                          f"GMSD: {total_gmsd_value / (i + 1):.4f}")
 
-    out = total_psnr_value / total, total_ssim_value / total, total_lpips_value / total, total_gmsd_value / total
-
-    return out
+    return total_psnr_value / total, total_ssim_value / total, total_gmsd_value / total

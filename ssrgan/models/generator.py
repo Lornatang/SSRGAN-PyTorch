@@ -43,16 +43,13 @@ class DepthWise(nn.Module):
             nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0),
             Mish()
         )
-
         # Depthwise.
         self.depthwise = nn.Sequential(
             nn.Conv2d(channels, channels, kernel_size=3, stride=1, padding=1, groups=channels),
             Mish()
         )
-
         # Squeeze Excitation.
         self.squeeze_excitation = SqueezeExcitation(channels=channels, squeeze_factor=4)
-
         # Project.
         self.pointwise_linear = nn.Conv2d(channels, channels, kernel_size=1, stride=1, padding=0)
 
@@ -95,7 +92,6 @@ class InceptionX(nn.Module):
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3)
         )
-
         self.branch2 = nn.Sequential(
             nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
             Mish(),
@@ -103,7 +99,6 @@ class InceptionX(nn.Module):
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3)
         )
-
         self.branch3 = nn.Sequential(
             nn.Conv2d(channels, branch_features, kernel_size=1, stride=1, padding=0),
             Mish(),
@@ -111,7 +106,6 @@ class InceptionX(nn.Module):
             Mish(),
             nn.Conv2d(branch_features, branch_features, kernel_size=3, stride=1, padding=3, dilation=3)
         )
-
         self.branch4 = nn.Sequential(
             nn.Conv2d(channels, branch_features // 2, kernel_size=1, stride=1, padding=0),
             Mish(),
@@ -164,7 +158,6 @@ class Symmetric(nn.Module):
             SqueezeExcitation(channels=channels // 2, squeeze_factor=4),
             nn.Conv2d(channels // 2, channels // 2, kernel_size=3, stride=1, padding=1)
         )
-
         # Up sampling layer.
         self.up_sampling_layer = nn.Sequential(
             nn.Conv2d(channels // 2, channels * 2, kernel_size=3, stride=1, padding=1),
@@ -303,9 +296,11 @@ def _gan(arch: str, pretrained: bool, progress: bool) -> Generator:
         Generator model.
     """
     model = Generator()
+
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch], progress=progress, map_location=torch.device("cpu"))
         model.load_state_dict(state_dict)
+
     return model
 
 

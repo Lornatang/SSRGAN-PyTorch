@@ -102,16 +102,16 @@ def main(args) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image-size", type=int, default=54, metavar="N",
+    parser.add_argument("--image-size", default=54, type=int,
                         help="Image size of low-resolution. (Default: 54)")
-    parser.add_argument("--batch-size", default=128, type=int, metavar="N",
+    parser.add_argument("--batch-size", default=128, type=int,
                         help="In order to ensure the fairness test, many experiments are carried out. (Default: 128)")
-    parser.add_argument("--gpu", default=None, type=int, metavar="N",
+    parser.add_argument("--gpu", default=None, type=int,
                         help="GPU id to use.")
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
-    logger.info("\tAPI version .......... 0.1.4")
-    logger.info("\tBuild ................ 2021.05.26\n")
+    logger.info("\tAPI version .......... 0.2.0")
+    logger.info("\tBuild ................ 2021.06.02\n")
 
     main(args)

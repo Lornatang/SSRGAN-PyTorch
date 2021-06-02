@@ -38,11 +38,21 @@ logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.INFO)
 
 
 def main(args):
-    # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
-    random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    if args.seed is not None:
+        # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        logger.warning("You have chosen to seed training. "
+                       "This will turn on the CUDNN deterministic setting, "
+                       "which can slow down your training considerably! "
+                       "You may see unexpected behavior when restarting "
+                       "from checkpoints.")
+        # for the current configuration, so as to optimize the operation efficiency.
+        cudnn.benchmark = True
+        # Ensure that every time the same input returns the same result.
+        cudnn.deterministic = True
 
-    # Build a super-resolution model, if model_ If path is defined, the specified model weight will be loaded.
+    # Build a super-resolution model, if model path is defined, the specified model weight will be loaded.
     model = configure(args)
     # Switch model to eval mode.
     model.eval()
@@ -50,14 +60,6 @@ def main(args):
     # If the GPU is available, load the model into the GPU memory. This speed.
     if not torch.cuda.is_available():
         logger.warning("Using CPU, this will be slow.")
-    if args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
-        model = model.cuda(args.gpu)
-        # Setting this flag allows the built-in auto tuner of cudnn to automatically find the most efficient algorithm suitable
-        # for the current configuration, so as to optimize the operation efficiency.
-        cudnn.benchmark = True
-        # Ensure that every time the same input returns the same result.
-        cudnn.deterministic = True
 
     # Get video filename.
     filename = os.path.basename(args.lr)
@@ -132,21 +134,20 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
-                        choices=model_names,
+    parser.add_argument("--arch", default="pmigan", type=str, choices=model_names,
                         help="Model architecture: " +
                              " | ".join(model_names) +
                              ". (Default: `pmigan`)")
     parser.add_argument("--file", type=str, required=True,
                         help="Test low resolution video name.")
-    parser.add_argument("--upscale-factor", type=int, default=4, choices=[4],
+    parser.add_argument("--upscale-factor", default=4, type=int, choices=[4],
                         help="Low to high resolution scaling factor. Optional: [4]. (Default: 4)")
-    parser.add_argument("--model-path", default="", type=str, metavar="PATH",
-                        help="Path to latest checkpoint for model. (Default: ``)")
+    parser.add_argument("--model-path", default="", type=str,
+                        help="Path to latest checkpoint for model.")
     parser.add_argument("--pretrained", dest="pretrained", action="store_true",
                         help="Use pre-trained model.")
-    parser.add_argument("--seed", default=666, type=int,
-                        help="Seed for initializing training. (Default: 666)")
+    parser.add_argument("--seed", default=None, type=int,
+                        help="Seed for initializing training.")
     parser.add_argument("--gpu", default=None, type=int,
                         help="GPU id to use.")
     parser.add_argument("--view", dest="view", action="store_true",
@@ -159,9 +160,10 @@ if __name__ == "__main__":
     create_folder("videos")
 
     logger.info("SREngine:")
-    print("\tAPI version .......... 0.1.4")
-    print("\tBuild ................ 2021.05.26")
+    print("\tAPI version .......... 0.2.0")
+    print("\tBuild ................ 2021.06.20")
     print("##################################################\n")
+
     main(args)
 
     logger.info("Super-resolution video completed successfully.\n")

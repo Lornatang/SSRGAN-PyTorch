@@ -18,6 +18,7 @@ import torch.nn as nn
 class DiscriminatorForVGG(nn.Module):
     def __init__(self, image_size: int = 216) -> None:
         super(DiscriminatorForVGG, self).__init__()
+        feature_size = image_size // 30
 
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),  # input is (3) x 216 x 216
@@ -61,7 +62,7 @@ class DiscriminatorForVGG(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, image_size),
+            nn.Linear(512 * feature_size * feature_size, image_size),
             nn.LeakyReLU(negative_slope=0.2, inplace=True),
             nn.Linear(image_size, 1)
         )
@@ -98,5 +99,4 @@ class DiscriminatorForVGG(nn.Module):
 def discriminator_for_vgg(image_size: int = 216) -> DiscriminatorForVGG:
     r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2100.00000>` paper.
     """
-    model = DiscriminatorForVGG(image_size)
-    return model
+    return DiscriminatorForVGG(image_size)

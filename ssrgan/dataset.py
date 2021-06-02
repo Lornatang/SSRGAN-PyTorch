@@ -51,7 +51,7 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
             transforms.RandomRotation(degrees=90),
             transforms.ToTensor()
         ])
-        self.normalize = transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -100,7 +100,7 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
             transforms.RandomCrop((image_size, image_size)),
             transforms.ToTensor()
         ])
-        self.normalize = transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -142,7 +142,7 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
         self.hr_filenames = [os.path.join(hr_dir, x) for x in self.sampler_filenames if check_image_file(x)]
 
         self.transforms = transforms.ToTensor()
-        self.normalize = transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -192,7 +192,7 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
             transforms.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
-        self.normalize = transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
 
     def __getitem__(self, index):
         r""" Get image source file.

@@ -75,69 +75,78 @@ $ bash download_dataset.sh
 #### Test benchmark
 
 ```text
-usage: Research on the technology of digital pathological image super-resolution. [-h] [-a ARCH] [-j N] [-b N] [--sampler-frequency N] [--image-size IMAGE_SIZE] [--upscale-factor {4}] [--model-path PATH] [--pretrained] [--seed SEED] [--gpu GPU]
-                                                                                  DIR
+usage: test_benchmark.py [-h] [-a {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}] [-j WORKERS] [-b BATCH_SIZE] [--sampler-frequency SAMPLER_FREQUENCY] [--image-size IMAGE_SIZE] [--upscale-factor {4}] [--model-path MODEL_PATH] [--pretrained]
+                         [--seed SEED] [--gpu GPU]
+                         DIR
 
 positional arguments:
   DIR                   Path to dataset.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: `pmigan`)
-  -j N, --workers N     Number of data loading workers. (Default: 8)
-  -b N, --batch-size N  mini-batch size (default: 32), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel
-  --sampler-frequency N
-                        If there are many datasets, this method can be used to increase the number of epochs. (Default:1)
+  -a {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}, --arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}
+                        Model architecture: esrgan16 | esrgan23 | pmigan | rfb | rfb_4x4 | srgan. (Default: `pmigan`)
+  -j WORKERS, --workers WORKERS
+                        Number of data loading workers. (Default: 4)
+  -b BATCH_SIZE, --batch-size BATCH_SIZE
+                        The batch size of the dataset. (Default: 64)
+  --sampler-frequency SAMPLER_FREQUENCY
+                        If there are many datasets, this method can be used to increase the number of epochs. (Default: 1)
   --image-size IMAGE_SIZE
                         Image size of high resolution image. (Default: 216)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
-  --model-path PATH     Path to latest checkpoint for model. (Default: ``)
+  --model-path MODEL_PATH
+                        Path to latest checkpoint for model.
   --pretrained          Use pre-trained model.
-  --seed SEED           Seed for initializing training. (Default: 666)
+  --seed SEED           Seed for initializing training.
   --gpu GPU             GPU id to use.
   
 # Example
-$ python3 test_benchmark.py -a pmigan --pretrained --gpu 0 [image-folder with train and val folders]
+$ python3 test_benchmark.py --arch pmigan --pretrained --gpu 0 [image-folder with train and val folders]
 ```
 
 #### Test image
 
 ```text
-usage: Research on the technology of digital pathological image super-resolution. [-h] [-a ARCH] --lr LR [--hr HR] [--upscale-factor {4}] [--model-path PATH] [--pretrained] [--seed SEED] [--gpu GPU]
+usage: test_image.py [-h] [--arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}] --lr LR [--hr HR] [--upscale-factor {4}] [--model-path MODEL_PATH] [--pretrained] [--seed SEED] [--gpu GPU]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: `pmigan`)
+  --arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}
+                        Model architecture: esrgan16 | esrgan23 | pmigan | rfb | rfb_4x4 | srgan. (Default: `pmigan`)
   --lr LR               Test low resolution image name.
   --hr HR               Raw high resolution image name.
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
-  --model-path PATH     Path to latest checkpoint for model. (Default: ``)
+  --model-path MODEL_PATH
+                        Path to latest checkpoint for model.
   --pretrained          Use pre-trained model.
-  --seed SEED           Seed for initializing training. (Default: 666)
+  --seed SEED           Seed for initializing training.
   --gpu GPU             GPU id to use.
 
 # Example
-$ python3 test_image.py -a esrgan16 --lr [path-to-lr-image] --hr [Optional, path-to-hr-image] --pretrained --gpu 0
+$ python3 test_image.py --arch pmigan --lr [path-to-lr-image] --hr [Optional, path-to-hr-image] --pretrained --gpu 0
 ```
 
 #### Test video
 
 ```text
-usage: Research on the technology of digital pathological image super-resolution. [-h] --file FILE [-a ARCH] [--upscale-factor {4}] [--model-path PATH] [--pretrained] [--seed SEED] [--gpu GPU] [--view]
+usage: test_video.py [-h] [--arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}] --file FILE [--upscale-factor {4}] [--model-path MODEL_PATH] [--pretrained] [--seed SEED] [--gpu GPU] [--view]
 
 optional arguments:
   -h, --help            show this help message and exit
+  --arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}
+                        Model architecture: esrgan16 | esrgan23 | pmigan | rfb | rfb_4x4 | srgan. (Default: `pmigan`)
   --file FILE           Test low resolution video name.
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: `pmigan`)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
-  --model-path PATH     Path to latest checkpoint for model. (Default: ``)
+  --model-path MODEL_PATH
+                        Path to latest checkpoint for model.
   --pretrained          Use pre-trained model.
-  --seed SEED           Seed for initializing training. (Default: 666)
+  --seed SEED           Seed for initializing training.
   --gpu GPU             GPU id to use.
   --view                Do you want to show SR video synchronously.
-                     
+ 
 # Example
-$ python3 test_video.py -a esrgan16 --file [path-to-video] --pretrained --gpu 0 --view 
+$ python3 test_video.py --arch pmigan --file [path-to-video] --pretrained --gpu 0 --view 
 ```
 
 #### Test model performance
@@ -152,34 +161,39 @@ Low resolution / Recovered High Resolution / Ground Truth
 ### Train (e.g DIV2K)
 
 ```text
-usage: Research on the technology of digital pathological image super-resolution. [-h] [-a ARCH] [-j N] [--psnr-epochs N] [--start-psnr-epoch N] [--gan-epochs N] [--start-gan-epoch N] [-b N] [--sampler-frequency N] [--psnr-lr PSNR_LR]
-                                                                                  [--gan-lr GAN_LR] [--image-size IMAGE_SIZE] [--upscale-factor {4}] [--model-path PATH] [--resume-psnr PATH] [--resume-d PATH] [--resume-g PATH] [--pretrained]
-                                                                                  [--world-size WORLD_SIZE] [--rank RANK] [--dist-url DIST_URL] [--dist-backend DIST_BACKEND] [--seed SEED] [--gpu GPU] [--multiprocessing-distributed]
-                                                                                  DIR
+usage: train.py [-h] [--arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}] [-j WORKERS] [--psnr-epochs PSNR_EPOCHS] [--start-psnr-epoch START_PSNR_EPOCH] [--gan-epochs GAN_EPOCHS] [--start-gan-epoch START_GAN_EPOCH] [-b BATCH_SIZE]
+                [--sampler-frequency SAMPLER_FREQUENCY] [--psnr-lr PSNR_LR] [--gan-lr GAN_LR] [--image-size IMAGE_SIZE] [--upscale-factor {4}] [--netD NETD] [--netG NETG] [--pretrained] [--world-size WORLD_SIZE] [--rank RANK]
+                [--dist-url DIST_URL] [--dist-backend DIST_BACKEND] [--seed SEED] [--gpu GPU] [--multiprocessing-distributed]
+                DIR
 
 positional arguments:
   DIR                   Path to dataset.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -a ARCH, --arch ARCH  Model architecture: esrgan16 | esrgan23 | load_state_dict_from_url | pmigan | rfb | rfb_4x4 | srgan | srgan_2x2 | srgan_8x8. (Default: pmigan)
-  -j N, --workers N     Number of data loading workers. (Default: 4)
-  --psnr-epochs N       Number of total psnr epochs to run. (Default: 64)
-  --start-psnr-epoch N  Manual psnr epoch number (useful on restarts). (Default: 0)
-  --gan-epochs N        Number of total gan epochs to run. (Default: 32)
-  --start-gan-epoch N   Manual gan epoch number (useful on restarts). (Default: 0)
-  -b N, --batch-size N  Mini-batch size (default: 4), this is the total batch size of all GPUs on the current node when using Data Parallel or Distributed Data Parallel.
-  --sampler-frequency N
+  --arch {esrgan16,esrgan23,pmigan,rfb,rfb_4x4,srgan}
+                        Model architecture: esrgan16 | esrgan23 | pmigan | rfb | rfb_4x4 | srgan. (Default: pmigan)
+  -j WORKERS, --workers WORKERS
+                        Number of data loading workers. (Default: 4)
+  --psnr-epochs PSNR_EPOCHS
+                        Number of total psnr epochs to run. (Default: 64)
+  --start-psnr-epoch START_PSNR_EPOCH
+                        Manual psnr epoch number (useful on restarts). (Default: 0)
+  --gan-epochs GAN_EPOCHS
+                        Number of total gan epochs to run. (Default: 32)
+  --start-gan-epoch START_GAN_EPOCH
+                        Manual gan epoch number (useful on restarts). (Default: 0)
+  -b BATCH_SIZE, --batch-size BATCH_SIZE
+                        The batch size of the dataset. (Default: 4)
+  --sampler-frequency SAMPLER_FREQUENCY
                         If there are many datasets, this method can be used to increase the number of epochs. (Default:1)
   --psnr-lr PSNR_LR     Learning rate for psnr-oral. (Default: 0.0004)
   --gan-lr GAN_LR       Learning rate for gan-oral. (Default: 0.0002)
   --image-size IMAGE_SIZE
                         Image size of high resolution image. (Default: 216)
   --upscale-factor {4}  Low to high resolution scaling factor. Optional: [4]. (Default: 4)
-  --model-path PATH     Path to latest checkpoint for model.
-  --resume-psnr PATH    Path to latest psnr-oral checkpoint.
-  --resume-d PATH       Path to latest -oral checkpoint.
-  --resume-g PATH       Path to latest psnr-oral checkpoint.
+  --netD NETD           Path to Discriminator checkpoint.
+  --netG NETG           Path to Generator checkpoint.
   --pretrained          Use pre-trained model.
   --world-size WORLD_SIZE
                         Number of nodes for distributed training.
@@ -193,15 +207,15 @@ optional arguments:
                         Use multi-processing distributed training to launch N processes per node, which has N GPUs. This is the fastest way to use PyTorch for either single node or multi node data parallel training.
 
 # Example (e.g DIV2K)
-$ python3 train.py -a pmigan --gpu 0 [image-folder with train and val folders]
+$ python3 train.py --arch pmigan --gpu 0 [image-folder with train and val folders]
 # Multi-processing Distributed Data Parallel Training
-$ python3 train.py -a pmigan --dist-url 'tcp://127.0.0.1:12345' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 [image-folder with train and val folders]
+$ python3 train.py --arch pmigan --dist-url 'tcp://127.0.0.1:12345' --dist-backend 'nccl' --multiprocessing-distributed --world-size 1 --rank 0 [image-folder with train and val folders]
 ```
 
 If you want to load weights that you've trained before, run the following command.
 
 ```bash
-$ python3 train.py -a esrgan16 --start-psnr-epoch 10 --resume-psnr weights/PSNR_epoch10.pth --gpu 0 [image-folder with train and val folders] 
+$ python3 train.py --arch pmigan --start-psnr-epoch 10 --netG weights/PSNR_epoch10.pth --gpu 0 [image-folder with train and val folders] 
 ```
 
 ### Contributing

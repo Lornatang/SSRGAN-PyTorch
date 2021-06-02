@@ -20,6 +20,7 @@ import torch
 import torch.backends.cudnn as cudnn
 
 import ssrgan.models as models
+from ssrgan.utils.common import configure
 
 # Find all available models.
 model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
@@ -30,26 +31,24 @@ logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
 
 def main(args) -> None:
-    # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
-    random.seed(args.seed)
-    torch.manual_seed(args.seed)
-
-    # Build a super-resolution model, if model_ If path is defined, the specified model weight will be loaded.
-    model = models.__dict__[args.arch]()
-    # Switch model to eval mode.
-    model.eval()
-
-    # If the GPU is available, load the model into the GPU memory. This speed.
-    if not torch.cuda.is_available():
-        logger.warning("Using CPU, this will be slow.")
-    if args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
-        model = model.cuda(args.gpu)
-        # Setting this flag allows the built-in auto tuner of cudnn to automatically find the most efficient algorithm suitable
+    if args.seed is not None:
+        # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
+        logger.warning("You have chosen to seed training. "
+                       "This will turn on the CUDNN deterministic setting, "
+                       "which can slow down your training considerably! "
+                       "You may see unexpected behavior when restarting "
+                       "from checkpoints.")
         # for the current configuration, so as to optimize the operation efficiency.
         cudnn.benchmark = True
         # Ensure that every time the same input returns the same result.
         cudnn.deterministic = True
+
+    # Build a super-resolution model, if model path is defined, the specified model weight will be loaded.
+    model = configure(args)
+    # Switch model to eval mode.
+    model.eval()
 
     # Create an image that conforms to the normal distribution.
     data = torch.randn([1, 3, args.image_size, args.image_size], requires_grad=False)
@@ -76,21 +75,20 @@ def main(args) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--arch", metavar="ARCH", default="pmigan",
-                        choices=model_names,
+    parser.add_argument("--arch", default="pmigan", type=str, choices=model_names,
                         help="Model architecture: " +
                              " | ".join(model_names) +
                              ". (Default: `pmigan`)")
-    parser.add_argument("-i", "--image-size", type=int, default=54,
+    parser.add_argument("-i", "--image-size", default=54, type=int,
                         help="Image size of low-resolution. (Default: 54)")
-    parser.add_argument("--seed", default=666, type=int,
-                        help="Seed for initializing training. (Default: 666)")
+    parser.add_argument("--seed", default=None, type=int,
+                        help="Seed for initializing training.")
     parser.add_argument("--gpu", default=None, type=int,
                         help="GPU id to use.")
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
-    logger.info("\tAPI version .......... 0.1.4")
-    logger.info("\tBuild ................ 2021.05.26\n")
+    print("\tAPI version .......... 0.2.0")
+    print("\tBuild ................ 2021.06.20")
 
     main(args)

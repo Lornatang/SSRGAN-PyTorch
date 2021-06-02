@@ -77,7 +77,7 @@ class ContentLoss(torch.nn.Module):
 
     Examples:
         >>> # Loading pre training vgg19 model weight based on Imagenet dataset as content loss.
-        >>> content_loss = ContentLoss(use_pretrained=True)
+        >>> content_loss = ContentLoss()
         >>> # According to the input size of VGG19 model, an image with a resolution of 224*224 is randomly constructed
         >>> inputs = torch.randn(1, 3, 224, 224)
         >>> target = torch.randn(1, 3, 224, 224)
@@ -133,7 +133,6 @@ class ContentLoss(torch.nn.Module):
 
         # If the weight of pre training model is used, the normalized value on Imagenet will be loaded,
         # otherwise, the normalized value on custom data set will be loaded.
-        # Note: the normalized values of each data set are different! The input tensor is in the range of [0, 1].
         if use_pretrained:
             # Normalized values for ImageNet datasets.
             self.mean = torch.Tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
@@ -146,10 +145,10 @@ class ContentLoss(torch.nn.Module):
             self.std = torch.Tensor([0.089, 0.104, 0.049]).view(1, 3, 1, 1)
 
         # Extract the 35th layer of vgg19 model feature extraction layer.
-        self.model = torch.nn.Sequential(*list(model.features.children())[:35]).eval()
+        self.feature_extraction = torch.nn.Sequential(*list(model.features.children())[:35]).eval()
 
         # Freeze model all parameters. Don't train.
-        for name, parameters in self.model.named_parameters():
+        for name, parameters in self.feature_extract.named_parameters():
             parameters.requires_grad = False
 
     def forward(self, source: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
@@ -158,15 +157,15 @@ class ContentLoss(torch.nn.Module):
         target = (target + 1) / 2
 
         # Keep all parameters in same device.
-        self.mean = self.mean.cuda(source.device)
-        self.std = self.std.cuda(source.device)
+        self.mean = self.mean.cuda(source.device, non_blocking=True)
+        self.std = self.std.cuda(source.device, non_blocking=True)
 
         # Normalize the all input image.
         source = (source - self.mean) / self.std
         target = (target - self.mean) / self.std
 
         # Use VGG19_35th loss as the euclidean distance between the feature representations of a reconstructed image and the reference image.
-        loss = torch.nn.functional.l1_loss(self.model(source), self.model(target))
+        loss = torch.nn.functional.l1_loss(self.feature_extraction(source), self.feature_extraction(target))
 
         return loss
 
@@ -185,7 +184,7 @@ class LPIPSLoss(torch.nn.Module):
 
     Examples:
         >>> # Loading pre training vgg19 model weight based on Imagenet dataset as content loss.
-        >>> lpips_loss = LPIPSLoss(use_pretrained=True)
+        >>> lpips_loss = LPIPSLoss()
         >>> # According to the input size of VGG19 model, an image with a resolution of 224*224 is randomly constructed
         >>> inputs = torch.randn(1, 3, 224, 224)
         >>> target = torch.randn(1, 3, 224, 224)
@@ -209,8 +208,8 @@ class LPIPSLoss(torch.nn.Module):
         target = (target + 1) / 2
 
         # Keep all parameters in same device.
-        self.mean = self.mean.cuda(source.device)
-        self.std = self.std.cuda(source.device)
+        self.mean = self.mean.cuda(source.device, non_blocking=True)
+        self.std = self.std.cuda(source.device, non_blocking=True)
 
         # Normalize the input image. Default: `ImageNet` dataset.
         source = (source - self.mean) / self.std
