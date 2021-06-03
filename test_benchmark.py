@@ -117,7 +117,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("data", metavar="DIR",
                         help="Path to dataset.")
-    parser.add_argument("-a", "--arch", default="pmigan", type=str, choices=model_names,
+    parser.add_argument("--arch", default="pmigan", type=str, choices=model_names,
                         help="Model architecture: " +
                              " | ".join(model_names) +
                              ". (Default: `pmigan`)")

@@ -164,9 +164,10 @@ def main_worker(ngpus_per_node, args):
     generator_scheduler = torch.optim.lr_scheduler.ExponentialLR(generator_optimizer, gamma=0.95)
 
     # Selection of appropriate treatment equipment.
-    train_dataset = CustomTrainDataset(os.path.join(args.data, "train"), args.sampler_frequency)
-    test_dataset = CustomTestDataset(os.path.join(args.data, "test"), args.image_size, args.sampler_frequency)
+    train_dataset = CustomTrainDataset(os.path.join(args.data, "train"), args.image_size, args.upscale_factor)
+    test_dataset = CustomTestDataset(os.path.join(args.data, "test"), args.image_size, args.upscale_factor)
 
+    # Sampler that restricts data loading to a subset of the dataset.
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     else:
@@ -208,10 +209,9 @@ def main_worker(ngpus_per_node, args):
         psnr_scheduler.step()
 
         # Evaluate on test dataset.
-        psnr, ssim, lpips, gmsd = test(test_dataloader, generator, args.gpu)
+        psnr, ssim, gmsd = test(test_dataloader, generator, args.gpu)
         psnr_writer.add_scalar("PSNR_Test/PSNR", psnr, epoch)
         psnr_writer.add_scalar("PSNR_Test/SSIM", ssim, epoch)
-        psnr_writer.add_scalar("PSNR_Test/LPIPS", lpips, epoch)
         psnr_writer.add_scalar("PSNR_Test/GMSD", gmsd, epoch)
 
         # Check whether the evaluation index of the current model is the highest.
@@ -238,10 +238,9 @@ def main_worker(ngpus_per_node, args):
         generator_scheduler.step()
 
         # Evaluate on test dataset.
-        psnr, ssim, lpips, gmsd = test(test_dataloader, generator, args.gpu)
+        psnr, ssim, gmsd = test(test_dataloader, generator, args.gpu)
         gan_writer.add_scalar("GAN_Test/PSNR", psnr, epoch)
         gan_writer.add_scalar("GAN_Test/SSIM", ssim, epoch)
-        gan_writer.add_scalar("GAN_Test/LPIPS", lpips, epoch)
         gan_writer.add_scalar("GAN_Test/GMSD", gmsd, epoch)
 
         # Check whether the evaluation index of the current model is the highest.
@@ -277,7 +276,6 @@ def train_psnr(dataloader, model, criterion, optimizer, epoch, scaler, writer, a
         optimizer.zero_grad()
 
         with amp.autocast():
-            # Generating fake high resolution images from real low resolution images.
             sr = model(lr)
             loss = criterion(sr, hr)
 
@@ -292,7 +290,7 @@ def train_psnr(dataloader, model, criterion, optimizer, epoch, scaler, writer, a
         losses.update(loss.item(), lr.size(0))
 
         # Add scalar data to summary.
-        writer.add_scalar("PSNR_Train/L1_Loss", loss.item(), i + epoch * len(dataloader) + 1)
+        writer.add_scalar("PSNR_Train/Loss", loss.item(), i + epoch * len(dataloader) + 1)
 
         # Output results every 100 batches.
         if i % 100 == 0:
@@ -417,19 +415,16 @@ if __name__ == "__main__":
                              ". (Default: pmigan)")
     parser.add_argument("-j", "--workers", default=4, type=int,
                         help="Number of data loading workers. (Default: 4)")
-    parser.add_argument("--psnr-epochs", default=64, type=int,
-                        help="Number of total psnr epochs to run. (Default: 64)")
+    parser.add_argument("--psnr-epochs", default=128, type=int,
+                        help="Number of total psnr epochs to run. (Default: 128)")
     parser.add_argument("--start-psnr-epoch", default=0, type=int,
                         help="Manual psnr epoch number (useful on restarts). (Default: 0)")
-    parser.add_argument("--gan-epochs", default=32, type=int,
-                        help="Number of total gan epochs to run. (Default: 32)")
+    parser.add_argument("--gan-epochs", default=64, type=int,
+                        help="Number of total gan epochs to run. (Default: 64)")
     parser.add_argument("--start-gan-epoch", default=0, type=int,
                         help="Manual gan epoch number (useful on restarts). (Default: 0)")
     parser.add_argument("-b", "--batch-size", default=4, type=int,
                         help="The batch size of the dataset. (Default: 4)")
-    parser.add_argument("--sampler-frequency", default=1, type=int,
-                        help="If there are many datasets, this method can be used "
-                             "to increase the number of epochs. (Default:1)")
     parser.add_argument("--psnr-lr", default=0.0004, type=float,
                         help="Learning rate for psnr-oral. (Default: 0.0004)")
     parser.add_argument("--gan-lr", default=0.0002, type=float,
