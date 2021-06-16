@@ -54,7 +54,7 @@ def main(args) -> None:
             # Calculate the number of pictures in the dataset.
             num_images += 1
 
-    # What we get is the mean and variance of BGR format, which needs to be converted to the mean and variance of RGB format.
+    # What get the mean and variance of BGR format, which needs to be converted to the mean and variance of RGB format.
     mean.reverse()
     std.reverse()
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
-    logger.info("\tAPI version .......... 0.2.0")
-    logger.info("\tBuild ................ 2021.06.02\n")
+    logger.info("\tAPI version .......... 0.3.0")
+    logger.info("\tBuild ................ 2021.06.13")
 
     main(args)

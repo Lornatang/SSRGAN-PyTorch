@@ -13,6 +13,7 @@
 # ==============================================================================
 """Mainly apply the data augment operation on `Torchvision` and `PIL` to the super-resolution field"""
 import random
+from typing import Any
 
 import PIL.BmpImagePlugin
 import torchvision.transforms.functional_pil as F
@@ -21,7 +22,7 @@ __all__ = ["adjust_brightness", "adjust_contrast", "adjust_saturation",
            "random_horizontally_flip", "random_vertically_flip", "random_rotate"]
 
 
-def adjust_brightness(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.BmpImageFile:
+def adjust_brightness(lr: None, hr: None, p: float = 0.5) -> [Any, Any]:
     r"""Adjust brightness of an image.
 
     Args:
@@ -40,7 +41,7 @@ def adjust_brightness(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.
     return lr, hr
 
 
-def adjust_contrast(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.BmpImageFile:
+def adjust_contrast(lr: None, hr: None, p: float = 0.5) -> [Any, Any]:
     r"""Adjust contrast of an image.
 
     Args:
@@ -58,7 +59,7 @@ def adjust_contrast(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.Bm
     return lr, hr
 
 
-def adjust_saturation(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.BmpImageFile:
+def adjust_saturation(lr: None, hr: None, p: float = 0.5) -> [Any, Any]:
     r"""Adjust saturation of an image.
 
     Args:
@@ -76,7 +77,7 @@ def adjust_saturation(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.
     return lr, hr
 
 
-def random_horizontally_flip(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.BmpImageFile:
+def random_horizontally_flip(lr: None, hr: None, p: float = 0.5) -> [Any, Any]:
     r"""Flip horizontally randomly.
 
     Args:
@@ -94,7 +95,7 @@ def random_horizontally_flip(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImage
     return lr, hr
 
 
-def random_vertically_flip(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.BmpImageFile:
+def random_vertically_flip(lr: None, hr: None, p: float = 0.5) -> [Any, Any]:
     r"""Flip horizontally randomly.
 
     Args:
@@ -112,7 +113,7 @@ def random_vertically_flip(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePl
     return lr, hr
 
 
-def random_rotate(lr: None, hr: None, p: float = 0.5) -> PIL.BmpImagePlugin.BmpImageFile:
+def random_rotate(lr: None, hr: None, p: float = 0.5) -> [Any, Any]:
     r"""Randomly select the rotation angle.
 
     Args:

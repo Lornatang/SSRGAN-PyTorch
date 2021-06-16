@@ -13,6 +13,7 @@
 # ==============================================================================
 import argparse
 import logging
+import random
 import time
 
 import prettytable
@@ -23,7 +24,9 @@ from thop import profile
 import ssrgan.models as models
 
 # Find all available models.
-model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
+model_names = sorted(name for name in models.__dict__ if
+                     name.islower() and not name.startswith("__")
+                     and callable(models.__dict__[name]))
 
 # It is a convenient method for simple scripts to configure the log package at one time.
 logger = logging.getLogger(__name__)
@@ -37,12 +40,11 @@ def inference(arch, cpu_data, cuda_data, args) -> [float, float, float, float]:
     # Switch model to eval mode.
     cpu_model.eval()
 
-    # If the GPU is available, load the model into the GPU memory. This speed.
-    if not torch.cuda.is_available():
-        logger.warning("Using CPU, this will be slow.")
-    if args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
-        # Setting this flag allows the built-in auto tuner of cudnn to automatically find the most efficient algorithm suitable
+    if args.seed is not None:
+        # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set
+        # convolution algorithm.
+        random.seed(args.seed)
+        torch.manual_seed(args.seed)
         # for the current configuration, so as to optimize the operation efficiency.
         cudnn.benchmark = True
         # Ensure that every time the same input returns the same result.
@@ -111,7 +113,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
-    logger.info("\tAPI version .......... 0.2.0")
-    logger.info("\tBuild ................ 2021.06.02\n")
+    logger.info("\tAPI version .......... 0.3.0")
+    logger.info("\tBuild ................ 2021.06.13")
 
     main(args)

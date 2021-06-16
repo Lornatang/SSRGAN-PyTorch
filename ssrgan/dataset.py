@@ -12,7 +12,6 @@
 # limitations under the License.
 # ==============================================================================
 import os
-import random
 
 import torch.utils.data
 import torchvision.transforms as transforms
@@ -21,8 +20,8 @@ from torchvision.transforms import InterpolationMode
 
 from .utils.common import check_image_file
 from .utils.data_augmentation import random_horizontally_flip
-from .utils.data_augmentation import random_vertically_flip
 from .utils.data_augmentation import random_rotate
+from .utils.data_augmentation import random_vertically_flip
 
 __all__ = [
     "BaseTrainDataset", "BaseTestDataset",
@@ -31,28 +30,34 @@ __all__ = [
 
 
 class BaseTrainDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, image_size: int = 216, upscale_factor: int = 4):
-        r"""
-        Args:
-            root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
-            upscale_factor (optional, int): Image magnification. (Default: 4)
-        """
+    r""" Training dataset loader constructed using bicubic down-sampling method.
+
+    Args:
+        root (str): The directory address where the data image is stored.
+        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 128)
+        upscale_factor (optional, int): Image magnification. (Default: 4)
+    """
+
+    def __init__(self, root: str, image_size: int = 128, upscale_factor: int = 4):
         super(BaseTrainDataset, self).__init__()
+        lr_image_size = int(image_size / upscale_factor)
+        # Get the index of all images in the directory that meet the suffix format conditions.
         self.filenames = [os.path.join(root, x) for x in os.listdir(root) if check_image_file(x)]
 
         self.lr_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size // upscale_factor, image_size // upscale_factor), interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize((lr_image_size, lr_image_size), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
         self.hr_transforms = transforms.Compose([
             transforms.RandomCrop((image_size, image_size)),
             transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
             transforms.RandomRotation(degrees=90),
             transforms.ToTensor()
         ])
-        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+
+        self.normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -63,9 +68,9 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
         Returns:
             Low resolution image, high resolution image.
         """
-        image = Image.open(self.filenames[index]).convert("RGB")
+        hr = Image.open(self.filenames[index]).convert("RGB")
 
-        hr = self.hr_transforms(image)
+        hr = self.hr_transforms(hr)
         lr = self.lr_transforms(hr)
 
         hr = self.normalize(hr)
@@ -77,19 +82,23 @@ class BaseTrainDataset(torch.utils.data.dataset.Dataset):
 
 
 class BaseTestDataset(torch.utils.data.dataset.Dataset):
-    def __init__(self, root: str, image_size: int = 216, upscale_factor: int = 4):
-        r"""
-        Args:
-            root (str): The directory address where the data image is stored.
-            image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
-            upscale_factor (optional, int): Image magnification. (Default: 4)
-        """
+    r""" Testing dataset loader constructed using bicubic down-sampling method.
+
+    Args:
+        root (str): The directory address where the data image is stored.
+        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 128)
+        upscale_factor (optional, int): Image magnification. (Default: 4)
+    """
+
+    def __init__(self, root: str, image_size: int = 128, upscale_factor: int = 4):
         super(BaseTestDataset, self).__init__()
+        lr_image_size = int(image_size / upscale_factor)
+        # Get the index of all images in the directory that meet the suffix format conditions.
         self.filenames = [os.path.join(root, x) for x in os.listdir(root) if check_image_file(x)]
 
         self.lr_transforms = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((image_size // upscale_factor, image_size // upscale_factor), interpolation=InterpolationMode.BICUBIC),
+            transforms.Resize((lr_image_size, lr_image_size), interpolation=InterpolationMode.BICUBIC),
             transforms.ToTensor()
         ])
         self.bicubic_transforms = transforms.Compose([
@@ -101,7 +110,8 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
             transforms.RandomCrop((image_size, image_size)),
             transforms.ToTensor()
         ])
-        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+
+        self.normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -128,26 +138,27 @@ class BaseTestDataset(torch.utils.data.dataset.Dataset):
 
 
 class CustomTrainDataset(torch.utils.data.dataset.Dataset):
-    r"""
+    r""" Load through the pre-dataset.
 
     Args:
         root (str): The directory address where the data image is stored.
-        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
+        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 128)
         upscale_factor (optional, int): Image magnification. (Default: 4)
         use_da (optional, bool): Do you want to use data enhancement for training dataset. (Default: `True`)
     """
 
-    def __init__(self, root: str, image_size: int = 216, upscale_factor: int = 4, use_da: bool = False) -> None:
+    def __init__(self, root: str, image_size: int = 128, upscale_factor: int = 4, use_da: bool = True) -> None:
         super(CustomTrainDataset, self).__init__()
+        lr_image_size = int(image_size / upscale_factor)
         self.use_da = use_da
-        lr_dir = os.path.join(root, "input")
-        hr_dir = os.path.join(root, "target")
-        self.filenames = os.listdir(lr_dir)
-        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.filenames if check_image_file(x)]
-        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.filenames if check_image_file(x)]
+
+        # Get the index of all images in the directory that meet the suffix format conditions.
+        self.filenames = os.path.join(root, "input")
+        self.lr_filenames = [os.path.join(root, "input", x) for x in self.filenames if check_image_file(x)]
+        self.hr_filenames = [os.path.join(root, "target", x) for x in self.filenames if check_image_file(x)]
 
         self.lr_transforms = transforms.Compose([
-            transforms.CenterCrop((image_size // upscale_factor, image_size // upscale_factor)),
+            transforms.CenterCrop((lr_image_size, lr_image_size)),
             transforms.ToTensor()
         ])
         self.hr_transforms = transforms.Compose([
@@ -155,7 +166,7 @@ class CustomTrainDataset(torch.utils.data.dataset.Dataset):
             transforms.ToTensor()
         ])
 
-        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        self.normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
 
     def __getitem__(self, index):
         r""" Get image source file.
@@ -190,20 +201,21 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
 
     Args:
         root (str): The directory address where the data image is stored.
-        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 216)
+        image_size (optional, int): The size of image block is randomly cut out from the original image. (Default: 128)
         upscale_factor (optional, int): Image magnification. (Default: 4)
     """
 
-    def __init__(self, root: str, image_size: int = 216, upscale_factor: int = 4) -> None:
+    def __init__(self, root: str, image_size: int = 128, upscale_factor: int = 4) -> None:
         super(CustomTestDataset, self).__init__()
-        lr_dir = os.path.join(root, "input")
-        hr_dir = os.path.join(root, "target")
-        self.filenames = os.listdir(lr_dir)
-        self.lr_filenames = [os.path.join(lr_dir, x) for x in self.filenames if check_image_file(x)]
-        self.hr_filenames = [os.path.join(hr_dir, x) for x in self.filenames if check_image_file(x)]
+        lr_image_size = int(image_size / upscale_factor)
+
+        # Get the index of all images in the directory that meet the suffix format conditions.
+        self.filenames = os.path.join(root, "input")
+        self.lr_filenames = [os.path.join(root, "input", x) for x in self.filenames if check_image_file(x)]
+        self.hr_filenames = [os.path.join(root, "target", x) for x in self.filenames if check_image_file(x)]
 
         self.lr_transforms = transforms.Compose([
-            transforms.CenterCrop((image_size // upscale_factor, image_size // upscale_factor)),
+            transforms.CenterCrop((lr_image_size, lr_image_size)),
             transforms.ToTensor()
         ])
         self.bicubic_transforms = transforms.Compose([
@@ -215,7 +227,8 @@ class CustomTestDataset(torch.utils.data.dataset.Dataset):
             transforms.CenterCrop((image_size, image_size)),
             transforms.ToTensor()
         ])
-        self.normalize = transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+
+        self.normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
 
     def __getitem__(self, index):
         r""" Get image source file.

@@ -11,7 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import PIL.BmpImagePlugin
+from typing import Any
+
 import cv2
 import numpy as np
 import torch
@@ -23,7 +24,7 @@ __all__ = [
 ]
 
 
-def opencv2pil(image: np.ndarray) -> PIL.BmpImagePlugin.BmpImageFile:
+def opencv2pil(image) -> Any:
     """ OpenCV Convert to PIL.Image format.
 
     Returns:
@@ -35,7 +36,7 @@ def opencv2pil(image: np.ndarray) -> PIL.BmpImagePlugin.BmpImageFile:
     return image
 
 
-def opencv2tensor(image: np.ndarray, gpu: int) -> torch.Tensor:
+def opencv2tensor(image, gpu: int) -> torch.Tensor:
     """ OpenCV Convert to torch.Tensor format.
 
     Returns:
@@ -50,7 +51,7 @@ def opencv2tensor(image: np.ndarray, gpu: int) -> torch.Tensor:
     return tensor
 
 
-def pil2opencv(image: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
+def pil2opencv(image) -> np.ndarray:
     """ PIL.Image Convert to OpenCV format.
 
     Returns:
@@ -62,7 +63,7 @@ def pil2opencv(image: PIL.BmpImagePlugin.BmpImageFile) -> np.ndarray:
     return image
 
 
-def process_image(image: PIL, norm: bool = False, gpu: int = None) -> torch.Tensor:
+def process_image(image, norm: bool = False, gpu: int = None) -> torch.Tensor:
     """ RGB data convert to tensor data(PyTorch format).
 
     Args:
@@ -80,7 +81,7 @@ def process_image(image: PIL, norm: bool = False, gpu: int = None) -> torch.Tens
     if norm:
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
         ])
     else:
         transform = transforms.ToTensor()

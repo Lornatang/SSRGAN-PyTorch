@@ -21,8 +21,7 @@ from .generator import pmigan
 # from .mobilenetv2 import *
 # from .mobilenetv3 import *
 # from .rcan import *
-from .rfb_esrgan import rfb
-from .rfb_esrgan import rfb_4x4
+from .rfb_esrgan import rfb_esrgan
 # from .shufflenetv1 import *
 # from .shufflenetv2 import *
 # from .squeezenet import *

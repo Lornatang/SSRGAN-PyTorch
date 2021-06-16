@@ -11,25 +11,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-import math
-
 import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
 
 model_urls = {
-    "rfb_4x4": None,
-    "rfb": None
+    "rfb_esrgan": None
 }
 
 
 class ResidualDenseBlock(nn.Module):
-    def __init__(self, channels: int = 64, growth_channels: int = 32):
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
-        """
+    r"""
+
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+        growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+    """
+
+    def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2):
         super(ResidualDenseBlock, self).__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(channels + 0 * growth_channels, growth_channels, kernel_size=3, stride=1, padding=1),
@@ -53,6 +53,8 @@ class ResidualDenseBlock(nn.Module):
 
         self.conv5 = nn.Conv2d(channels + 4 * growth_channels, channels, kernel_size=3, stride=1, padding=1)
 
+        self.scale_ratio = scale_ratio
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
@@ -67,40 +69,48 @@ class ResidualDenseBlock(nn.Module):
         conv4 = self.conv4(torch.cat((x, conv1, conv2, conv3), dim=1))
         conv5 = self.conv5(torch.cat((x, conv1, conv2, conv3, conv4), dim=1))
 
-        out = torch.add(conv5 * 0.2, x)
+        out = torch.add(conv5 * self.scale_ratio, x)
 
         return out
 
 
 class ResidualInResidualDenseBlock(nn.Module):
-    def __init__(self, channels: int = 64, growth_channels: int = 32):
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
-        """
+    r"""
+
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+        growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+    """
+
+    def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2):
         super(ResidualInResidualDenseBlock, self).__init__()
         self.RDB1 = ResidualDenseBlock(channels, growth_channels)
         self.RDB2 = ResidualDenseBlock(channels, growth_channels)
         self.RDB3 = ResidualDenseBlock(channels, growth_channels)
+
+        self.scale_ratio = scale_ratio
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.RDB1(x)
         out = self.RDB2(out)
         out = self.RDB3(out)
 
-        out = torch.add(out * 0.2, x)
+        out = torch.add(out * self.scale_ratio, x)
 
         return out
 
 
 class ReceptiveFieldBlock(nn.Module):
-    def __init__(self, in_channels: int = 64, out_channels: int = 64):
-        r""" Modules introduced in RFBNet paper.
-        Args:
-            in_channels (int): Number of channels in the input image. (Default: 64)
-            out_channels (int): Number of channels produced by the convolution. (Default: 64)
-        """
+    r"""
+
+    Args:
+        in_channels (int): Number of channels in the input image. (Default: 64)
+        out_channels (int): Number of channels produced by the convolution. (Default: 64)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.1)
+    """
+
+    def __init__(self, in_channels: int = 64, out_channels: int = 64, scale_ratio: float = 0.1):
         super(ReceptiveFieldBlock, self).__init__()
         branch_channels = in_channels // 4
 
@@ -142,6 +152,8 @@ class ReceptiveFieldBlock(nn.Module):
         self.conv_linear = nn.Conv2d(4 * branch_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.leaky_relu = nn.LeakyReLU(negative_slope=0.2, inplace=False)
 
+        self.scale_ratio = scale_ratio
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
@@ -160,7 +172,7 @@ class ReceptiveFieldBlock(nn.Module):
         out = torch.cat((branch1, branch2, branch3, branch4), dim=1)
         out = self.conv_linear(out)
 
-        out = self.leaky_relu(torch.add(out * 0.1, shortcut))
+        out = self.leaky_relu(torch.add(out * self.scale_ratio, shortcut))
 
         return out
 
@@ -169,14 +181,14 @@ class ReceptiveFieldBlock(nn.Module):
 class ReceptiveFieldDenseBlock(nn.Module):
     r""" Inspired by the multi-scale kernels and the structure of Receptive Fields (RFs) in human visual systems,
         RFB-SSD proposed Receptive Fields Block (RFB) for object detection
+
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+        growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.1)
     """
 
-    def __init__(self, channels: int = 64, growth_channels: int = 32):
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
-        """
+    def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.1):
         super(ReceptiveFieldDenseBlock, self).__init__()
         self.rfb1 = nn.Sequential(
             ReceptiveFieldBlock(channels + 0 * growth_channels, growth_channels),
@@ -200,6 +212,8 @@ class ReceptiveFieldDenseBlock(nn.Module):
 
         self.rfb5 = ReceptiveFieldBlock(channels + 4 * growth_channels, channels)
 
+        self.scale_ratio = scale_ratio
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight)
@@ -214,42 +228,47 @@ class ReceptiveFieldDenseBlock(nn.Module):
         rfb4 = self.rfb4(torch.cat((x, rfb1, rfb2, rfb3), dim=1))
         rfb5 = self.rfb5(torch.cat((x, rfb1, rfb2, rfb3, rfb4), dim=1))
 
-        out = torch.add(rfb5 * 0.1, x)
+        out = torch.add(rfb5 * self.scale_ratio, x)
 
         return out
 
 
 # Source code reference from `https://arxiv.org/pdf/2005.12597.pdf`.
 class ResidualOfReceptiveFieldDenseBlock(nn.Module):
-    r"""The residual block structure of traditional RFB-ESRGAN is defined"""
+    r"""The residual block structure of traditional RFB-ESRGAN is defined
 
-    def __init__(self, channels: int = 64, growth_channels: int = 32):
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
-        """
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+        growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.1)
+    """
+
+    def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.1):
         super(ResidualOfReceptiveFieldDenseBlock, self).__init__()
         self.RFDB1 = ReceptiveFieldDenseBlock(channels, growth_channels)
         self.RFDB2 = ReceptiveFieldDenseBlock(channels, growth_channels)
         self.RFDB3 = ReceptiveFieldDenseBlock(channels, growth_channels)
+
+        self.scale_ratio = scale_ratio
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.RFDB1(x)
         out = self.RFDB1(out)
         out = self.RFDB1(out)
 
-        out = torch.add(out * 0.1, x)
+        out = torch.add(out * self.scale_ratio, x)
 
         return out
 
 
 class SubpixelConvolutionLayer(nn.Module):
+    r"""
+
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+    """
+
     def __init__(self, channels: int = 64) -> None:
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-        """
         super(SubpixelConvolutionLayer, self).__init__()
         self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
         self.rfb1 = ReceptiveFieldBlock(channels, channels)
@@ -272,38 +291,32 @@ class SubpixelConvolutionLayer(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, upscale_factor: int = 16) -> None:
-        r"""
-        Args:
-            upscale_factor (int): How many times to upscale the picture. (Default: 16)
-        """
+    def __init__(self) -> None:
         super(Generator, self).__init__()
-        # Calculating the number of subpixel convolution layers.
-        num_subpixel_convolution_layers = int(math.log(upscale_factor, 4))
-
         # First layer
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1)
 
         # 16 ResidualInResidualDenseBlock layer.
         residual_residual_dense_blocks = []
         for _ in range(16):
-            residual_residual_dense_blocks += [ResidualInResidualDenseBlock(channels=64, growth_channels=32)]
+            residual_residual_dense_blocks += [ResidualInResidualDenseBlock(64, 32, 0.2)]
         self.Trunk_a = nn.Sequential(*residual_residual_dense_blocks)
 
         # 8 ResidualOfReceptiveFieldDenseBlock layer.
         residual_residual_fields_dense_blocks = []
         for _ in range(8):
-            residual_residual_fields_dense_blocks += [ResidualOfReceptiveFieldDenseBlock(channels=64, growth_channels=32)]
+            residual_residual_fields_dense_blocks += [
+                ResidualOfReceptiveFieldDenseBlock(64, 32, 0.1)]
         self.Trunk_RFB = nn.Sequential(*residual_residual_fields_dense_blocks)
 
         # Second conv layer post residual field blocks
-        self.RFB = ReceptiveFieldBlock(64, 64)
+        self.RFB = ReceptiveFieldBlock(64, 64, 0.1)
 
         # Sub-pixel convolution layers.
-        subpixel_conv_layers = []
-        for _ in range(num_subpixel_convolution_layers):
-            subpixel_conv_layers.append(SubpixelConvolutionLayer(channels=64))
-        self.subpixel_conv = nn.Sequential(*subpixel_conv_layers)
+        self.subpixel_conv = nn.Sequential(
+            SubpixelConvolutionLayer(64),
+            SubpixelConvolutionLayer(64)
+        )
 
         # Next conv layer
         self.conv2 = nn.Sequential(
@@ -337,29 +350,19 @@ class Generator(nn.Module):
         return out
 
 
-def _gan(arch: str, upscale_factor: int, pretrained: bool, progress: bool) -> Generator:
-    model = Generator(upscale_factor)
+def _gan(arch: str, pretrained: bool, progress: bool) -> Generator:
+    model = Generator()
     if pretrained:
         state_dict = load_state_dict_from_url(model_urls[arch], progress=progress, map_location=torch.device("cpu"))
         model.load_state_dict(state_dict)
     return model
 
 
-def rfb_4x4(pretrained: bool = False, progress: bool = True) -> Generator:
-    r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2005.12597>` paper.
+def rfb_esrgan(pretrained: bool = False, progress: bool = True) -> Generator:
+    r"""GAN model architecture from `<https://arxiv.org/pdf/2005.12597.pdf>` paper.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
         progress (bool): If True, displays a progress bar of the download to stderr
     """
-    return _gan("rfb_4x4", 4, pretrained, progress)
-
-
-def rfb(pretrained: bool = False, progress: bool = True) -> Generator:
-    r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/2005.12597>` paper.
-
-    Args:
-        pretrained (bool): If True, returns a model pre-trained on ImageNet
-        progress (bool): If True, displays a progress bar of the download to stderr
-    """
-    return _gan("rfb", 16, pretrained, progress)
+    return _gan("rfb_esrgan", pretrained, progress)

@@ -23,14 +23,17 @@ model_urls = {
 
 
 class ResidualDenseBlock(nn.Module):
-    r"""The residual block structure of traditional SRGAN and Dense model is defined"""
+    r"""
+
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+        growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+    """
 
     def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2):
         r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
-            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+
         """
         super(ResidualDenseBlock, self).__init__()
         self.conv1 = nn.Sequential(
@@ -71,46 +74,53 @@ class ResidualDenseBlock(nn.Module):
         conv4 = self.conv4(torch.cat((x, conv1, conv2, conv3), dim=1))
         conv5 = self.conv5(torch.cat((x, conv1, conv2, conv3, conv4), dim=1))
 
-        return conv5 * self.scale_ratio + x
+        out = torch.add(conv5 * self.scale_ratio, x)
+
+        return out
 
 
 class ResidualInResidualDenseBlock(nn.Module):
-    r"""The residual block structure of traditional ESRGAN and Dense model is defined"""
+    r"""The residual block structure of traditional ESRGAN and Dense model is defined
+
+    Args:
+        channels (int): Number of channels in the input image. (Default: 64)
+        growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
+        scale_ratio (float): Residual channel scaling column. (Default: 0.2)
+    """
 
     def __init__(self, channels: int = 64, growth_channels: int = 32, scale_ratio: float = 0.2):
-        r"""
-        Args:
-            channels (int): Number of channels in the input image. (Default: 64)
-            growth_channels (int): how many filters to add each layer (`k` in paper). (Default: 32)
-            scale_ratio (float): Residual channel scaling column. (Default: 0.2)
-        """
         super(ResidualInResidualDenseBlock, self).__init__()
         self.RDB1 = ResidualDenseBlock(channels, growth_channels, scale_ratio)
         self.RDB2 = ResidualDenseBlock(channels, growth_channels, scale_ratio)
         self.RDB3 = ResidualDenseBlock(channels, growth_channels, scale_ratio)
+
+        self.scale_ratio = scale_ratio
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.RDB1(x)
         out = self.RDB2(out)
         out = self.RDB3(out)
 
-        return out * 0.2 + x
+        out = torch.add(out * self.scale_ratio, x)
+
+        return out
 
 
 class Generator(nn.Module):
+    r""" This is an esrgan model defined by the author himself.
+
+    We use two settings for our generator – one of them contains 8 residual blocks, with a capacity similar
+    to that of SRGAN and the other is a deeper model with 16/23 RRDB blocks.
+
+    Args:
+        num_rrdb_blocks (int): How many residual in residual blocks are combined. (Default: 16).
+
+    Notes:
+        Use `num_rrdb_blocks` is 16 for TITAN 2080Ti.
+        Use `num_rrdb_blocks` is 23 for Tesla A100.
+    """
+
     def __init__(self, num_rrdb_blocks: int = 16):
-        r""" This is an esrgan model defined by the author himself.
-
-        We use two settings for our generator – one of them contains 8 residual blocks, with a capacity similar
-        to that of SRGAN and the other is a deeper model with 16/23 RRDB blocks.
-
-        Args:
-            num_rrdb_blocks (int): How many residual in residual blocks are combined. (Default: 16).
-
-        Notes:
-            Use `num_rrdb_blocks` is 16 for TITAN 2080Ti.
-            Use `num_rrdb_blocks` is 23 for Tesla A100.
-        """
         super(Generator, self).__init__()
 
         # First layer
@@ -143,8 +153,8 @@ class Generator(nn.Module):
         trunk = self.trunk(out1)
         out2 = self.conv2(trunk)
         out = torch.add(out1, out2)
-        out = F.leaky_relu(self.up1(F.interpolate(out, scale_factor=2, mode="nearest")), negative_slope=0.2, inplace=True)
-        out = F.leaky_relu(self.up2(F.interpolate(out, scale_factor=2, mode="nearest")), negative_slope=0.2, inplace=True)
+        out = F.leaky_relu(self.up1(F.interpolate(out, scale_factor=2, mode="nearest")), 0.2, True)
+        out = F.leaky_relu(self.up2(F.interpolate(out, scale_factor=2, mode="nearest")), 0.2, True)
         out = self.conv3(out)
         out = self.conv4(out)
 
@@ -160,7 +170,7 @@ def _gan(arch, num_residual_block, pretrained, progress) -> Generator:
 
 
 def esrgan16(pretrained: bool = False, progress: bool = True) -> Generator:
-    r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/1809.00219>` paper.
+    r"""GAN model architecture from `<https://arxiv.org/pdf/1809.00219.pdf>` paper.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
@@ -170,7 +180,7 @@ def esrgan16(pretrained: bool = False, progress: bool = True) -> Generator:
 
 
 def esrgan23(pretrained: bool = False, progress: bool = True) -> Generator:
-    r"""GAN model architecture from the `"One weird trick..." <https://arxiv.org/abs/1809.00219>` paper.
+    r"""GAN model architecture from `<https://arxiv.org/pdf/1809.00219.pdf>` paper.
 
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet

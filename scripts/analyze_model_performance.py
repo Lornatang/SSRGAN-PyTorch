@@ -23,7 +23,9 @@ import ssrgan.models as models
 from ssrgan.utils.common import configure
 
 # Find all available models.
-model_names = sorted(name for name in models.__dict__ if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
+model_names = sorted(name for name in models.__dict__ if
+                     name.islower() and not name.startswith("__")
+                     and callable(models.__dict__[name]))
 
 # It is a convenient method for simple scripts to configure the log package at one time.
 logger = logging.getLogger(__name__)
@@ -32,14 +34,10 @@ logging.basicConfig(format="[ %(levelname)s ] %(message)s", level=logging.DEBUG)
 
 def main(args) -> None:
     if args.seed is not None:
-        # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set convolution algorithm.
+        # In order to make the model repeatable, the first step is to set random seeds, and the second step is to set
+        # convolution algorithm.
         random.seed(args.seed)
         torch.manual_seed(args.seed)
-        logger.warning("You have chosen to seed training. "
-                       "This will turn on the CUDNN deterministic setting, "
-                       "which can slow down your training considerably! "
-                       "You may see unexpected behavior when restarting "
-                       "from checkpoints.")
         # for the current configuration, so as to optimize the operation efficiency.
         cudnn.benchmark = True
         # Ensure that every time the same input returns the same result.
@@ -57,7 +55,7 @@ def main(args) -> None:
     if args.gpu is not None:
         data = data.cuda(args.gpu, non_blocking=True)
 
-    # It only needs to reconstruct the low resolution image without the gradient information of the reconstructed image.
+    # Needs to reconstruct the low resolution image without the gradient information of the reconstructed image.
     with torch.no_grad():
         start = time.time()
         _ = model(data)
@@ -66,7 +64,7 @@ def main(args) -> None:
         print(f"Time:{(time.time() - start) * 1000:.2f}ms.")
 
     # Context manager that manages autograd profiler state and holds a summary of results.
-    with torch.autograd.profiler.profile(enabled=True, use_cuda=args.gpu, record_shapes=False, profile_memory=False) as profile:
+    with torch.autograd.profiler.profile(enabled=True, use_cuda=args.gpu) as profile:
         _ = model(data)
     print(profile.table())
     # Open Chrome browser and enter in the address bar `chrome://tracing`
@@ -88,7 +86,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     logger.info("ScriptEngine:")
-    print("\tAPI version .......... 0.2.0")
-    print("\tBuild ................ 2021.06.20")
+    logger.info("\tAPI version .......... 0.3.0")
+    logger.info("\tBuild ................ 2021.06.13")
 
     main(args)
